@@ -1010,6 +1010,8 @@ static void state_fog_vertexpart(struct wined3d_context *context, const struct w
 
 void state_fogstartend(struct wined3d_context *context, const struct wined3d_state *state, DWORD state_id)
 {
+    TRACE("state_fogstartend DISABLED by sam@nipl.net\n");
+    return;
     const struct wined3d_gl_info *gl_info = context->gl_info;
     float fogstart, fogend;
     union {
