@@ -736,6 +736,7 @@ typedef struct _MEMORY_BASIC_INFORMATION
 
 #define WRITE_WATCH_FLAG_RESET  0x00000001
 
+#define AT_ROUND_TO_PAGE        0x40000000
 
 #define MINCHAR       0x80
 #define MAXCHAR       0x7f
@@ -1754,6 +1755,7 @@ PRUNTIME_FUNCTION WINAPI RtlLookupFunctionEntry(ULONG_PTR,DWORD*,UNWIND_HISTORY_
 
 typedef struct _CONTEXT {
     ULONG ContextFlags;
+    ULONG Cpsr;
 
     /* This section is specified/returned if the ContextFlags word contains
        the flag CONTEXT_INTEGER. */
@@ -1792,7 +1794,6 @@ typedef struct _CONTEXT {
     ULONGLONG Lr;
     ULONGLONG Sp;
     ULONGLONG Pc;
-    ULONGLONG PState;
 
     /* These are selected by CONTEXT_FLOATING_POINT */
     /* FIXME */
@@ -2333,6 +2334,12 @@ static FORCEINLINE struct _TEB * WINAPI NtCurrentTeb(void)
     struct _TEB *teb;
     __asm__(".byte 0x65\n\tmovq (0x30),%0" : "=r" (teb));
     return teb;
+}
+#elif defined(__x86_64__) && defined(_MSC_VER)
+#pragma intrinsic(__readgsqword)
+static FORCEINLINE struct _TEB * WINAPI NtCurrentTeb(void)
+{
+    return (struct _TEB *)__readgsqword(FIELD_OFFSET(NT_TIB, Self));
 }
 #else
 extern struct _TEB * WINAPI NtCurrentTeb(void);
@@ -3619,7 +3626,30 @@ typedef struct _FPO_DATA {
   WORD  cbFrame  : 2;
 } FPO_DATA, *PFPO_DATA;
 
-typedef struct _IMAGE_LOAD_CONFIG_DIRECTORY {
+typedef struct _IMAGE_LOAD_CONFIG_DIRECTORY64 {
+  DWORD     Size;
+  DWORD     TimeDateStamp;
+  WORD      MajorVersion;
+  WORD      MinorVersion;
+  DWORD     GlobalFlagsClear;
+  DWORD     GlobalFlagsSet;
+  DWORD     CriticalSectionDefaultTimeout;
+  ULONGLONG DeCommitFreeBlockThreshold;
+  ULONGLONG DeCommitTotalFreeThreshold;
+  ULONGLONG LockPrefixTable;
+  ULONGLONG MaximumAllocationSize;
+  ULONGLONG VirtualMemoryThreshold;
+  ULONGLONG ProcessAffinityMask;
+  DWORD     ProcessHeapFlags;
+  WORD      CSDVersion;
+  WORD      Reserved1;
+  ULONGLONG EditList;
+  ULONGLONG SecurityCookie;
+  ULONGLONG SEHandlerTable;
+  ULONGLONG SEHandlerCount;
+} IMAGE_LOAD_CONFIG_DIRECTORY64, *PIMAGE_LOAD_CONFIG_DIRECTORY64;
+
+typedef struct _IMAGE_LOAD_CONFIG_DIRECTORY32 {
   DWORD Size;
   DWORD TimeDateStamp;
   WORD  MajorVersion;
@@ -3640,7 +3670,15 @@ typedef struct _IMAGE_LOAD_CONFIG_DIRECTORY {
   DWORD SecurityCookie;
   DWORD SEHandlerTable;
   DWORD SEHandlerCount;
-} IMAGE_LOAD_CONFIG_DIRECTORY, *PIMAGE_LOAD_CONFIG_DIRECTORY;
+} IMAGE_LOAD_CONFIG_DIRECTORY32, *PIMAGE_LOAD_CONFIG_DIRECTORY32;
+
+#ifdef _WIN64
+typedef IMAGE_LOAD_CONFIG_DIRECTORY64   IMAGE_LOAD_CONFIG_DIRECTORY;
+typedef PIMAGE_LOAD_CONFIG_DIRECTORY64  PIMAGE_LOAD_CONFIG_DIRECTORY;
+#else
+typedef IMAGE_LOAD_CONFIG_DIRECTORY32   IMAGE_LOAD_CONFIG_DIRECTORY;
+typedef PIMAGE_LOAD_CONFIG_DIRECTORY32  PIMAGE_LOAD_CONFIG_DIRECTORY;
+#endif
 
 typedef struct _IMAGE_FUNCTION_ENTRY {
   DWORD StartingAddress;
@@ -4143,6 +4181,18 @@ typedef struct _SID_AND_ATTRIBUTES {
 #define DOMAIN_GROUP_RID_ENTERPRISE_ADMINS      __MSABI_LONG(0x00000207)
 #define DOMAIN_GROUP_RID_POLICY_ADMINS          __MSABI_LONG(0x00000208)
 
+#define SECURITY_APP_PACKAGE_AUTHORITY {0,0,0,0,0,15}
+#define SECURITY_APP_PACKAGE_BASE_RID           __MSABI_LONG(0x000000002)
+#define SECURITY_BUILTIN_APP_PACKAGE_RID_COUNT  __MSABI_LONG(0x000000002)
+#define SECURITY_APP_PACKAGE_RID_COUNT          __MSABI_LONG(0x000000008)
+#define SECURITY_CAPABILITY_BASE_RID            __MSABI_LONG(0x000000003)
+#define SECURITY_CAPABILITY_APP_RID             __MSABI_LONG(0x000000400)
+#define SECURITY_BUILTIN_CAPABILITY_RID_COUNT   __MSABI_LONG(0x000000002)
+#define SECURITY_CAPABILITY_RID_COUNT           __MSABI_LONG(0x000000005)
+#define SECURITY_PARENT_PACKAGE_RID_COUNT       SECURITY_APP_PACKAGE_RID_COUNT
+#define SECURITY_CHILD_PACKAGE_RID_COUNT        __MSABI_LONG(0x00000000c)
+#define SECURITY_BUILTIN_PACKAGE_ANY_PACKAGE    __MSABI_LONG(0x000000001)
+
 #define SECURITY_MANDATORY_LABEL_AUTHORITY {0,0,0,0,0,16}
 #define SECURITY_MANDATORY_UNTRUSTED_RID        __MSABI_LONG(0x00000000)
 #define SECURITY_MANDATORY_LOW_RID              __MSABI_LONG(0x00001000)
@@ -4263,6 +4313,31 @@ typedef enum {
     WinLocalLogonSid                            = 80,
     WinConsoleLogonSid                          = 81,
     WinThisOrganizationCertificateSid           = 82,
+    WinApplicationPackageAuthoritySid           = 83,
+    WinBuiltinAnyPackageSid                     = 84,
+    WinCapabilityInternetClientSid              = 85,
+    WinCapabilityInternetClientServerSid        = 86,
+    WinCapabilityPrivateNetworkClientServerSid  = 87,
+    WinCapabilityPicturesLibrarySid             = 88,
+    WinCapabilityVideosLibrarySid               = 89,
+    WinCapabilityMusicLibrarySid                = 90,
+    WinCapabilityDocumentsLibrarySid            = 91,
+    WinCapabilitySharedUserCertificatesSid      = 92,
+    WinCapabilityEnterpriseAuthenticationSid    = 93,
+    WinCapabilityRemovableStorageSid            = 94,
+    WinBuiltinRDSRemoteAccessServersSid         = 95,
+    WinBuiltinRDSEndpointServersSid             = 96,
+    WinBuiltinRDSManagementServersSid           = 97,
+    WinUserModeDriversSid                       = 98,
+    WinBuiltinHyperVAdminsSid                   = 99,
+    WinAccountCloneableControllersSid           = 100,
+    WinBuiltinAccessControlAssistanceOperatorsSid = 101,
+    WinBuiltinRemoteManagementUsersSid          = 102,
+    WinAuthenticationAuthorityAssertedSid       = 103,
+    WinAuthenticationServiceAssertedSid         = 104,
+    WinLocalAccountSid                          = 105,
+    WinLocalAccountAndAdministratorSid          = 106,
+    WinAccountProtectedUsersSid                 = 107,
 } WELL_KNOWN_SID_TYPE;
 
 /*
@@ -4796,6 +4871,12 @@ typedef struct _QUOTA_LIMITS_EX {
 #define	FILE_128_BYTE_ALIGNMENT		0x0000007f
 #define	FILE_256_BYTE_ALIGNMENT		0x000000ff
 #define	FILE_512_BYTE_ALIGNMENT		0x000001ff
+
+#define COMPRESSION_FORMAT_NONE         0
+#define COMPRESSION_FORMAT_DEFAULT      1
+#define COMPRESSION_FORMAT_LZNT1        2
+#define COMPRESSION_ENGINE_STANDARD     0
+#define COMPRESSION_ENGINE_MAXIMUM      256
 
 #define MAILSLOT_NO_MESSAGE             ((DWORD)-1)
 #define MAILSLOT_WAIT_FOREVER           ((DWORD)-1)

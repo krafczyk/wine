@@ -22,7 +22,9 @@
 @ stdcall CoFreeLibrary(long)
 @ stdcall CoFreeUnusedLibraries()
 @ stdcall CoFreeUnusedLibrariesEx(long long)
+@ stdcall CoGetActivationState(int128 long ptr)
 @ stdcall CoGetCallContext(ptr ptr)
+@ stdcall CoGetCallState(long ptr)
 @ stdcall CoGetCallerTID(ptr)
 @ stdcall CoGetClassObject(ptr long ptr ptr ptr)
 @ stdcall CoGetContextToken(ptr)
@@ -124,10 +126,10 @@
 @ stdcall HBITMAP_UserMarshal(ptr ptr ptr)
 @ stdcall HBITMAP_UserSize(ptr long ptr)
 @ stdcall HBITMAP_UserUnmarshal(ptr ptr ptr)
-@ stub HBRUSH_UserFree
-@ stub HBRUSH_UserMarshal
-@ stub HBRUSH_UserSize
-@ stub HBRUSH_UserUnmarshal
+@ stdcall HBRUSH_UserFree(ptr ptr)
+@ stdcall HBRUSH_UserMarshal(ptr ptr ptr)
+@ stdcall HBRUSH_UserSize(ptr long ptr)
+@ stdcall HBRUSH_UserUnmarshal(ptr ptr ptr)
 @ stdcall HDC_UserFree(ptr ptr)
 @ stdcall HDC_UserMarshal(ptr ptr ptr)
 @ stdcall HDC_UserSize(ptr long ptr)

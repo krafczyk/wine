@@ -48,7 +48,22 @@
 #include <sys/attr.h>
 #endif
 #ifdef HAVE_SYS_VNODE_H
+/* Work around a conflict with Solaris' system list defined in sys/list.h. */
+#define list SYSLIST
+#define list_next SYSLIST_NEXT
+#define list_prev SYSLIST_PREV
+#define list_head SYSLIST_HEAD
+#define list_tail SYSLIST_TAIL
+#define list_move_tail SYSLIST_MOVE_TAIL
+#define list_remove SYSLIST_REMOVE
 #include <sys/vnode.h>
+#undef list
+#undef list_next
+#undef list_prev
+#undef list_head
+#undef list_tail
+#undef list_move_tail
+#undef list_remove
 #endif
 #ifdef HAVE_SYS_IOCTL_H
 #include <sys/ioctl.h>
@@ -983,35 +998,43 @@ static void add_fs_cache( dev_t dev, fsid_t fsid, BOOLEAN case_sensitive )
 }
 
 /***********************************************************************
- *           get_dir_case_sensitivity_attr_by_id
+ *           get_dir_case_sensitivity_attr
  *
- * Checks if the volume with the specified device and file system IDs
- * is case sensitive or not. Uses getattrlist(2).
+ * Checks if the volume containing the specified directory is case
+ * sensitive or not. Uses getattrlist(2).
  */
-static int get_dir_case_sensitivity_attr_by_id( dev_t dev, fsid_t fsid )
+static int get_dir_case_sensitivity_attr( const char *dir )
 {
     char *mntpoint = NULL;
     struct attrlist attr;
     struct vol_caps caps;
+    struct get_fsid get_fsid;
     struct fs_cache *entry;
 
+    /* First get the FS ID of the volume */
+    attr.bitmapcount = ATTR_BIT_MAP_COUNT;
+    attr.reserved = 0;
+    attr.commonattr = ATTR_CMN_DEVID|ATTR_CMN_FSID;
+    attr.volattr = attr.dirattr = attr.fileattr = attr.forkattr = 0;
+    get_fsid.size = 0;
+    if (getattrlist( dir, &attr, &get_fsid, sizeof(get_fsid), 0 ) != 0 ||
+        get_fsid.size != sizeof(get_fsid))
+        return -1;
     /* Try to look it up in the cache */
-    entry = look_up_fs_cache( dev );
-    if (entry && !memcmp( &entry->fsid, &fsid, sizeof(fsid_t) ))
+    entry = look_up_fs_cache( get_fsid.dev );
+    if (entry && !memcmp( &entry->fsid, &get_fsid.fsid, sizeof(fsid_t) ))
         /* Cache lookup succeeded */
         return entry->case_sensitive;
     /* Cache is stale at this point, we have to update it */
 
-    mntpoint = get_device_mount_point( dev );
+    mntpoint = get_device_mount_point( get_fsid.dev );
     /* Now look up the case-sensitivity */
-    attr.bitmapcount = ATTR_BIT_MAP_COUNT;
-    attr.reserved = attr.commonattr = 0;
+    attr.commonattr = 0;
     attr.volattr = ATTR_VOL_INFO|ATTR_VOL_CAPABILITIES;
-    attr.dirattr = attr.fileattr = attr.forkattr = 0;
     if (getattrlist( mntpoint, &attr, &caps, sizeof(caps), 0 ) < 0)
     {
         RtlFreeHeap( GetProcessHeap(), 0, mntpoint );
-        add_fs_cache( dev, fsid, TRUE );
+        add_fs_cache( get_fsid.dev, get_fsid.fsid, TRUE );
         return TRUE;
     }
     RtlFreeHeap( GetProcessHeap(), 0, mntpoint );
@@ -1028,33 +1051,10 @@ static int get_dir_case_sensitivity_attr_by_id( dev_t dev, fsid_t fsid )
         else
             ret = TRUE;
         /* Update the cache */
-        add_fs_cache( dev, fsid, ret );
+        add_fs_cache( get_fsid.dev, get_fsid.fsid, ret );
         return ret;
     }
     return FALSE;
-}
-
-/***********************************************************************
- *           get_dir_case_sensitivity_attr
- *
- * Checks if the volume containing the specified directory is case
- * sensitive or not. Uses getattrlist(2).
- */
-static int get_dir_case_sensitivity_attr( const char *dir )
-{
-    struct attrlist attr;
-    struct get_fsid get_fsid;
-
-    /* First get the FS ID of the volume */
-    attr.bitmapcount = ATTR_BIT_MAP_COUNT;
-    attr.reserved = 0;
-    attr.commonattr = ATTR_CMN_DEVID|ATTR_CMN_FSID;
-    attr.volattr = attr.dirattr = attr.fileattr = attr.forkattr = 0;
-    get_fsid.size = 0;
-    if (getattrlist( dir, &attr, &get_fsid, sizeof(get_fsid), 0 ) != 0 ||
-        get_fsid.size != sizeof(get_fsid))
-        return -1;
-    return get_dir_case_sensitivity_attr_by_id( get_fsid.dev, get_fsid.fsid );
 }
 #endif
 
@@ -2118,7 +2118,7 @@ static int read_directory_stat( int fd, IO_STATUS_BLOCK *io, void *buffer, ULONG
                 info->next = 0;
                 if (io->u.Status != STATUS_BUFFER_OVERFLOW) lseek( fd, 1, SEEK_CUR );
             }
-            else io->u.Status = STATUS_NO_MORE_FILES;
+            else io->u.Status = restart_scan ? STATUS_NO_SUCH_FILE : STATUS_NO_MORE_FILES;
         }
         else if (!case_sensitive && ret && (errno == ENOENT || errno == ENOTDIR))
         {
@@ -2127,7 +2127,7 @@ static int read_directory_stat( int fd, IO_STATUS_BLOCK *io, void *buffer, ULONG
              * read_directory_* function (we need to return the case-preserved
              * filename stored on the filesystem). */
             ret = 0;
-            io->u.Status = STATUS_NO_MORE_FILES;
+            io->u.Status = restart_scan ? STATUS_NO_SUCH_FILE : STATUS_NO_MORE_FILES;
         }
         else
         {
@@ -2163,8 +2163,6 @@ static int read_directory_getattrlist( int fd, IO_STATUS_BLOCK *io, void *buffer
     {
         u_int32_t length;
         struct attrreference name_reference;
-        dev_t devid;
-        fsid_t fsid;
         fsobj_type_t type;
         char name[NAME_MAX * 3 + 1];
     } attrlist_buffer;
@@ -2196,7 +2194,7 @@ static int read_directory_getattrlist( int fd, IO_STATUS_BLOCK *io, void *buffer
 
         memset( &attrlist, 0, sizeof(attrlist) );
         attrlist.bitmapcount = ATTR_BIT_MAP_COUNT;
-        attrlist.commonattr = ATTR_CMN_NAME | ATTR_CMN_DEVID | ATTR_CMN_FSID | ATTR_CMN_OBJTYPE;
+        attrlist.commonattr = ATTR_CMN_NAME | ATTR_CMN_OBJTYPE;
         ret = getattrlist( unix_name, &attrlist, &attrlist_buffer, sizeof(attrlist_buffer), FSOPT_NOFOLLOW );
         /* If unix_name named a symlink, the above may have succeeded even if the symlink is broken.
            Check that with another call without FSOPT_NOFOLLOW.  We don't ask for any attributes. */
@@ -2214,12 +2212,11 @@ static int read_directory_getattrlist( int fd, IO_STATUS_BLOCK *io, void *buffer
                 info->next = 0;
                 if (io->u.Status != STATUS_BUFFER_OVERFLOW) lseek( fd, 1, SEEK_CUR );
             }
-            else io->u.Status = STATUS_NO_MORE_FILES;
+            else io->u.Status = restart_scan ? STATUS_NO_SUCH_FILE : STATUS_NO_MORE_FILES;
         }
-        else if ((errno == ENOENT || errno == ENOTDIR) &&
-                 !get_dir_case_sensitivity_attr_by_id( attrlist_buffer.devid, attrlist_buffer.fsid ))
+        else if ((errno == ENOENT || errno == ENOTDIR) && !get_dir_case_sensitivity("."))
         {
-            io->u.Status = STATUS_NO_MORE_FILES;
+            io->u.Status = restart_scan ? STATUS_NO_SUCH_FILE : STATUS_NO_MORE_FILES;
             ret = 0;
         }
     }
@@ -2780,11 +2777,11 @@ static inline int get_dos_prefix_len( const UNICODE_STRING *name )
     static const WCHAR nt_prefixW[] = {'\\','?','?','\\'};
     static const WCHAR dosdev_prefixW[] = {'\\','D','o','s','D','e','v','i','c','e','s','\\'};
 
-    if (name->Length > sizeof(nt_prefixW) &&
+    if (name->Length >= sizeof(nt_prefixW) &&
         !memcmp( name->Buffer, nt_prefixW, sizeof(nt_prefixW) ))
         return sizeof(nt_prefixW) / sizeof(WCHAR);
 
-    if (name->Length > sizeof(dosdev_prefixW) &&
+    if (name->Length >= sizeof(dosdev_prefixW) &&
         !memicmpW( name->Buffer, dosdev_prefixW, sizeof(dosdev_prefixW)/sizeof(WCHAR) ))
         return sizeof(dosdev_prefixW) / sizeof(WCHAR);
 
@@ -3149,6 +3146,8 @@ NTSTATUS CDECL wine_nt_to_unix_file_name( const UNICODE_STRING *nameW, ANSI_STRI
 
     name += pos;
     name_len -= pos;
+
+    if (!name_len) return STATUS_OBJECT_NAME_INVALID;
 
     /* check for sub-directory */
     for (pos = 0; pos < name_len; pos++)

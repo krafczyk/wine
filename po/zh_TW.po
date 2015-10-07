@@ -55,20 +55,19 @@ msgid "Support Information"
 msgstr "技術支援資訊"
 
 #: appwiz.rc:78 avifil32.rc:54 comctl32.rc:55 comdlg32.rc:231 comdlg32.rc:261
-#: comdlg32.rc:304 comdlg32.rc:358 comdlg32.rc:397 comdlg32.rc:451
-#: credui.rc:52 cryptui.rc:263 cryptui.rc:275 cryptui.rc:365 dinput.rc:46
-#: ieframe.rc:96 localui.rc:44 localui.rc:57 mpr.rc:49 msacm32.rc:53
-#: mshtml.rc:47 mshtml.rc:57 msvfw32.rc:36 oledlg.rc:60 oledlg.rc:92
-#: serialui.rc:41 setupapi.rc:59 shell32.rc:276 shell32.rc:300 shell32.rc:322
-#: shell32.rc:340 shlwapi.rc:44 user32.rc:80 user32.rc:98 wininet.rc:51
-#: wininet.rc:71 winspool.rc:42 net.rc:47 notepad.rc:117 oleview.rc:162
-#: oleview.rc:175 progman.rc:106 progman.rc:124 progman.rc:142 progman.rc:158
-#: progman.rc:180 progman.rc:199 progman.rc:216 regedit.rc:247 regedit.rc:258
-#: regedit.rc:271 regedit.rc:287 regedit.rc:300 regedit.rc:313 taskmgr.rc:442
-#: taskmgr.rc:517 winecfg.rc:214 winecfg.rc:224 wineconsole.rc:134
-#: winefile.rc:131 winefile.rc:154 winefile.rc:184 winemine.rc:71
-#: winemine.rc:81 winemine.rc:95 wordpad.rc:207 wordpad.rc:218 wordpad.rc:236
-#: wordpad.rc:249
+#: comdlg32.rc:304 comdlg32.rc:358 comdlg32.rc:397 comdlg32.rc:451 credui.rc:52
+#: cryptui.rc:263 cryptui.rc:275 cryptui.rc:365 dinput.rc:46 ieframe.rc:96
+#: localui.rc:44 localui.rc:57 mpr.rc:49 msacm32.rc:53 mshtml.rc:47
+#: mshtml.rc:57 msvfw32.rc:36 oledlg.rc:62 oledlg.rc:94 serialui.rc:41
+#: setupapi.rc:59 shell32.rc:276 shell32.rc:300 shell32.rc:322 shell32.rc:340
+#: shlwapi.rc:44 user32.rc:80 user32.rc:98 wininet.rc:51 wininet.rc:71
+#: winspool.rc:42 net.rc:47 notepad.rc:117 oleview.rc:162 oleview.rc:175
+#: progman.rc:106 progman.rc:124 progman.rc:142 progman.rc:158 progman.rc:180
+#: progman.rc:199 progman.rc:216 regedit.rc:247 regedit.rc:258 regedit.rc:271
+#: regedit.rc:287 regedit.rc:300 regedit.rc:313 taskmgr.rc:442 taskmgr.rc:517
+#: winecfg.rc:214 winecfg.rc:224 wineconsole.rc:135 winefile.rc:131
+#: winefile.rc:154 winefile.rc:184 winemine.rc:71 winemine.rc:81 winemine.rc:95
+#: wordpad.rc:207 wordpad.rc:218 wordpad.rc:236 wordpad.rc:249
 msgid "OK"
 msgstr "確定"
 
@@ -136,19 +135,19 @@ msgstr "安裝(&I)"
 #: comctl32.rc:71 comdlg32.rc:170 comdlg32.rc:192 comdlg32.rc:210
 #: comdlg32.rc:232 comdlg32.rc:262 comdlg32.rc:305 comdlg32.rc:327
 #: comdlg32.rc:347 comdlg32.rc:359 comdlg32.rc:398 comdlg32.rc:452
-#: comdlg32.rc:477 comdlg32.rc:495 credui.rc:53 cryptui.rc:264 cryptui.rc:276
+#: comdlg32.rc:477 comdlg32.rc:500 credui.rc:53 cryptui.rc:264 cryptui.rc:276
 #: cryptui.rc:366 dinput.rc:47 ieframe.rc:97 inetcpl.rc:81 localui.rc:45
 #: localui.rc:58 mpr.rc:50 msacm32.rc:54 mshtml.rc:48 mshtml.rc:58
-#: msvfw32.rc:37 oledlg.rc:61 oledlg.rc:93 serialui.rc:42 setupapi.rc:42
+#: msvfw32.rc:37 oledlg.rc:63 oledlg.rc:95 serialui.rc:42 setupapi.rc:42
 #: setupapi.rc:60 shell32.rc:277 shell32.rc:301 shell32.rc:312 shell32.rc:341
 #: shlwapi.rc:45 user32.rc:81 user32.rc:99 wininet.rc:52 wininet.rc:72
 #: winspool.rc:43 notepad.rc:118 oleview.rc:163 oleview.rc:176 progman.rc:107
 #: progman.rc:125 progman.rc:143 progman.rc:159 progman.rc:181 progman.rc:200
 #: progman.rc:217 regedit.rc:248 regedit.rc:259 regedit.rc:272 regedit.rc:288
 #: regedit.rc:301 regedit.rc:314 taskmgr.rc:443 taskmgr.rc:518 wineboot.rc:34
-#: winecfg.rc:215 winecfg.rc:225 wineconsole.rc:135 winefile.rc:132
-#: winefile.rc:155 winefile.rc:185 winemine.rc:96 wordpad.rc:208
-#: wordpad.rc:219 wordpad.rc:237 wordpad.rc:250
+#: winecfg.rc:215 winecfg.rc:225 wineconsole.rc:136 winefile.rc:132
+#: winefile.rc:155 winefile.rc:185 winemine.rc:96 wordpad.rc:208 wordpad.rc:219
+#: wordpad.rc:237 wordpad.rc:250
 msgid "Cancel"
 msgstr "取消"
 
@@ -337,11 +336,11 @@ msgstr "重置(&e)"
 
 #: comctl32.rc:86 comdlg32.rc:171 comdlg32.rc:193 comdlg32.rc:264
 #: comdlg32.rc:328 comdlg32.rc:348 comdlg32.rc:360 comdlg32.rc:478
-#: comdlg32.rc:496 ieframe.rc:58 msacm32.rc:52 oledlg.rc:94 shell32.rc:128
+#: comdlg32.rc:501 ieframe.rc:58 msacm32.rc:52 oledlg.rc:96 shell32.rc:128
 #: clock.rc:44 notepad.rc:60 notepad.rc:119 oleview.rc:72 progman.rc:55
 #: progman.rc:108 progman.rc:126 progman.rc:144 progman.rc:160 progman.rc:184
 #: progman.rc:202 progman.rc:219 regedit.rc:79 taskmgr.rc:87 winefile.rc:82
-#: winemine.rc:51 winhlp32.rc:56 wordpad.rc:94
+#: winemine.rc:51 winhlp32.rc:57 wordpad.rc:94
 msgid "&Help"
 msgstr "求助(&H)"
 
@@ -517,7 +516,7 @@ msgstr "大小(&Z)"
 msgid "&Source"
 msgstr "來源(&S)"
 
-#: comdlg32.rc:249 wineconsole.rc:84
+#: comdlg32.rc:249 wineconsole.rc:85
 msgid "Font"
 msgstr "字型"
 
@@ -7364,72 +7363,72 @@ msgstr "開"
 msgid "Off"
 msgstr "關"
 
-#: oledlg.rc:53
+#: oledlg.rc:55
 msgid "Insert Object"
 msgstr "插入物件"
 
-#: oledlg.rc:59
+#: oledlg.rc:61
 msgid "Object Type:"
 msgstr "物件類型："
 
-#: oledlg.rc:62 oledlg.rc:100
+#: oledlg.rc:64 oledlg.rc:102
 msgid "Result"
 msgstr "結果"
 
-#: oledlg.rc:63
+#: oledlg.rc:65
 msgid "Create New"
 msgstr "新增"
 
-#: oledlg.rc:65
+#: oledlg.rc:67
 msgid "Create Control"
 msgstr "建立控制項"
 
-#: oledlg.rc:67
+#: oledlg.rc:69
 msgid "Create From File"
 msgstr "建立於檔案"
 
-#: oledlg.rc:70
+#: oledlg.rc:72
 msgid "&Add Control..."
 msgstr "新增控制項(&A)..."
 
-#: oledlg.rc:71
+#: oledlg.rc:73
 msgid "Display As Icon"
 msgstr "顯示為圖示"
 
-#: oledlg.rc:73 setupapi.rc:61
+#: oledlg.rc:75 setupapi.rc:61
 msgid "Browse..."
 msgstr "瀏覽..."
 
-#: oledlg.rc:74
+#: oledlg.rc:76
 msgid "File:"
 msgstr "檔案："
 
-#: oledlg.rc:80
+#: oledlg.rc:82
 msgid "Paste Special"
 msgstr "特殊貼上"
 
-#: oledlg.rc:83 setupapi.rc:43
+#: oledlg.rc:85 setupapi.rc:43
 msgid "Source:"
 msgstr "原始檔案："
 
-#: oledlg.rc:84 shdoclc.rc:50 shdoclc.rc:82 shdoclc.rc:95 shdoclc.rc:135
+#: oledlg.rc:86 shdoclc.rc:50 shdoclc.rc:82 shdoclc.rc:95 shdoclc.rc:135
 #: shdoclc.rc:162 shdoclc.rc:186 user32.rc:62 wineconsole.rc:33 wordpad.rc:106
 msgid "&Paste"
 msgstr "貼上(&P)"
 
-#: oledlg.rc:86
+#: oledlg.rc:88
 msgid "Paste &Link"
 msgstr "貼上連結(&L)"
 
-#: oledlg.rc:88
+#: oledlg.rc:90
 msgid "&As:"
 msgstr "為(&A)："
 
-#: oledlg.rc:95
+#: oledlg.rc:97
 msgid "&Display As Icon"
 msgstr "顯示為圖示(&D)"
 
-#: oledlg.rc:97
+#: oledlg.rc:99
 msgid "Change &Icon..."
 msgstr "變更圖示(&I)..."
 
@@ -7457,33 +7456,45 @@ msgstr "該檔案不像是一個有效的 OLE 模組。 無法註冊 OLE 元件�
 msgid "Add Control"
 msgstr "加入控制項"
 
-#: oledlg.rc:34
+#: oledlg.rc:35
 #, fuzzy
 #| msgid "&Font..."
 msgid "&Convert..."
 msgstr "字型(&F)..."
 
+#: oledlg.rc:36
+#, fuzzy
+#| msgid "&Object"
+msgid "%1 %2 &Object"
+msgstr "物件(&O)"
+
+#: oledlg.rc:34
+#, fuzzy
+#| msgid "&Object"
+msgid "%1 &Object"
+msgstr "物件(&O)"
+
 #: oledlg.rc:33 oleview.rc:40
 msgid "&Object"
 msgstr "物件(&O)"
 
-#: oledlg.rc:39
+#: oledlg.rc:41
 msgid "Inserts the contents of the clipboard into your document as %s."
 msgstr "將剪貼簿的內容以 %s 插入至您的檔案。"
 
-#: oledlg.rc:40
+#: oledlg.rc:42
 msgid ""
 "Inserts the contents of the clipboard into your document so that you can "
 "activate it using %s."
 msgstr "將剪貼簿的內容插入到您的檔案以便您可以使用 %s。"
 
-#: oledlg.rc:41
+#: oledlg.rc:43
 msgid ""
 "Inserts the contents of the clipboard into your document so that you can "
 "activate it using %s. It will be displayed as an icon."
 msgstr "將剪貼簿的內容插入到您的文件以便您可以用 %s 啟動它, 一般顯示為圖示。"
 
-#: oledlg.rc:42
+#: oledlg.rc:44
 msgid ""
 "Inserts the contents of the clipboard into your document as %s. The data is "
 "linked to the source file so that changes to the file will be reflected in "
@@ -7492,7 +7503,7 @@ msgstr ""
 "將剪貼簿的內容以 %s 插入到您的文件。 資料是連結到來源檔案的, 對來源檔案的任何"
 "變更都會影響到您的文件。"
 
-#: oledlg.rc:43
+#: oledlg.rc:45
 msgid ""
 "Inserts a picture of the clipboard contents into your document. The picture "
 "is linked to the source file so that changes to the file will be reflected "
@@ -7501,7 +7512,7 @@ msgstr ""
 "將剪貼簿的圖片插入到您的文件。 圖片是連結到來源檔案的, 對來源檔案的任何變更都"
 "會影響到您的文件。"
 
-#: oledlg.rc:44
+#: oledlg.rc:46
 msgid ""
 "Inserts a shortcut which points to the location of the clipboard contents. "
 "The shortcut is linked to the source file so that changes to the file will "
@@ -7510,19 +7521,19 @@ msgstr ""
 "將剪貼簿的捷徑插入到您的檔案。 捷徑是連結到來源檔案的, 對來源檔案的任何變更都"
 "會影響到您的檔案。"
 
-#: oledlg.rc:45
+#: oledlg.rc:47
 msgid "Inserts the contents of the clipboard into your document."
 msgstr "將剪貼簿的內容插入到您的文件。"
 
-#: oledlg.rc:46
+#: oledlg.rc:48
 msgid "Unknown Type"
 msgstr "不明類型"
 
-#: oledlg.rc:47
+#: oledlg.rc:49
 msgid "Unknown Source"
 msgstr "不明來源"
 
-#: oledlg.rc:48
+#: oledlg.rc:50
 msgid "the program which created it"
 msgstr "不明應用程式"
 
@@ -8165,7 +8176,7 @@ msgstr "樣板"
 msgid "PrintHood"
 msgstr "印表套頁"
 
-#: shell32.rc:214 winhlp32.rc:48
+#: shell32.rc:214 winhlp32.rc:49
 msgid "History"
 msgstr "歷程"
 
@@ -8505,7 +8516,7 @@ msgstr "回復(&R)"
 msgid "&Move"
 msgstr "移動(&M)"
 
-#: user32.rc:32 user32.rc:45 wineconsole.rc:92
+#: user32.rc:32 user32.rc:45 wineconsole.rc:93
 msgid "&Size"
 msgstr "大小(&S)"
 
@@ -9407,7 +9418,7 @@ msgstr "處理參照時產生迴圈"
 msgid "Referral hop limit exceeded"
 msgstr "超出了參照躍點限制"
 
-#: attrib.rc:30 cmd.rc:327
+#: attrib.rc:30 cmd.rc:361
 msgid ""
 "Not Yet Implemented\n"
 "\n"
@@ -9415,7 +9426,7 @@ msgstr ""
 "尚未實作\n"
 "\n"
 
-#: attrib.rc:31 cmd.rc:330
+#: attrib.rc:31 cmd.rc:364
 msgid "%1: File Not Found\n"
 msgstr "%1: 找不到檔案\n"
 
@@ -9496,11 +9507,20 @@ msgid "Clock"
 msgstr "時鐘"
 
 #: cmd.rc:40
+#, fuzzy
+#| msgid ""
+#| "CALL <batchfilename> is used within a batch file to execute commands\n"
+#| "from another batch file. When the batch file exits, control returns to\n"
+#| "the file which called it. The CALL command may supply parameters to the\n"
+#| "called procedure.\n"
+#| "\n"
+#| "Changes to default directory, environment variables etc made within a\n"
+#| "called procedure are inherited by the caller.\n"
 msgid ""
-"CALL <batchfilename> is used within a batch file to execute commands\n"
-"from another batch file. When the batch file exits, control returns to\n"
-"the file which called it. The CALL command may supply parameters to the\n"
-"called procedure.\n"
+"CALL <batchfilename> is used within a batch file to execute commands from\n"
+"another batch file. When the batch file exits, control returns to the file\n"
+"which called it. The CALL command may supply parameters to the called\n"
+"procedure.\n"
 "\n"
 "Changes to default directory, environment variables etc made within a\n"
 "called procedure are inherited by the caller.\n"
@@ -9513,7 +9533,7 @@ msgstr ""
 "在被呼叫的程序中變更預設目錄、環境變數等動作，\n"
 "將會由呼叫者所繼承。\n"
 
-#: cmd.rc:43
+#: cmd.rc:44
 #, fuzzy
 #| msgid ""
 #| "CD <dir> is the short version of CHDIR. It changes the current\n"
@@ -9525,42 +9545,52 @@ msgstr ""
 "CD <目錄> 是 CHDIR 的簡短版本。它會變更目前的\n"
 "預設目錄。\n"
 
-#: cmd.rc:44
+#: cmd.rc:47
 #, fuzzy
 #| msgid "CHDIR <dir> changes the current default directory.\n"
 msgid "CHDIR <directory> changes the current default directory.\n"
 msgstr "CHDIR <目錄> 變更目前的預設目錄。\n"
 
-#: cmd.rc:46
+#: cmd.rc:50
 msgid "CLS clears the console screen.\n"
 msgstr "CLS 清空主控臺螢幕。\n"
 
-#: cmd.rc:48
+#: cmd.rc:53
 msgid "COPY <filename> copies a file.\n"
 msgstr "COPY <檔名> 複製檔案。\n"
 
-#: cmd.rc:49
+#: cmd.rc:56
 msgid "CTTY changes the input/output device.\n"
 msgstr "CTTY 變更輸入/輸出裝置。\n"
 
-#: cmd.rc:50
+#: cmd.rc:59
 msgid "DATE shows or changes the system date.\n"
 msgstr "DATE 顯示或變更系統日期。\n"
 
-#: cmd.rc:51
+#: cmd.rc:62
 msgid "DEL <filename> deletes a file or set of files.\n"
 msgstr "DEL <檔名> 刪除檔案或一組檔案。\n"
 
-#: cmd.rc:52
+#: cmd.rc:65
 msgid "DIR lists the contents of a directory.\n"
 msgstr "DIR 列出目錄的內容。\n"
 
-#: cmd.rc:62
+#: cmd.rc:75
+#, fuzzy
+#| msgid ""
+#| "ECHO <string> displays <string> on the current terminal device.\n"
+#| "\n"
+#| "ECHO ON causes all subsequent commands in a batch file to be displayed\n"
+#| "on the terminal device before they are executed.\n"
+#| "\n"
+#| "ECHO OFF reverses the effect of a previous ECHO ON (ECHO is OFF by\n"
+#| "default). The ECHO OFF command can be prevented from displaying by\n"
+#| "preceding it with an @ sign.\n"
 msgid ""
 "ECHO <string> displays <string> on the current terminal device.\n"
 "\n"
-"ECHO ON causes all subsequent commands in a batch file to be displayed\n"
-"on the terminal device before they are executed.\n"
+"ECHO ON causes all subsequent commands in a batch file to be displayed on\n"
+"the terminal device before they are executed.\n"
 "\n"
 "ECHO OFF reverses the effect of a previous ECHO ON (ECHO is OFF by\n"
 "default). The ECHO OFF command can be prevented from displaying by\n"
@@ -9575,11 +9605,11 @@ msgstr ""
 "OFF)。ECHO OFF 命令本身可以藉由前置 @ 符號\n"
 "來防止它被顯示。\n"
 
-#: cmd.rc:64
+#: cmd.rc:78
 msgid "ERASE <filename> deletes a file or set of files.\n"
 msgstr "ERASE <檔名> 刪除一個檔案或一組檔案。\n"
 
-#: cmd.rc:71
+#: cmd.rc:85
 #, fuzzy
 #| msgid ""
 #| "The FOR command is used to execute a command for each of a set of files.\n"
@@ -9596,16 +9626,28 @@ msgstr ""
 "\n"
 "語法：FOR %變數 IN (集合) DO 命令\n"
 
-#: cmd.rc:83
+#: cmd.rc:97
+#, fuzzy
+#| msgid ""
+#| "The GOTO command transfers execution to another statement within a\n"
+#| "batch file.\n"
+#| "\n"
+#| "The label which is the target of a GOTO may be up to 255 characters\n"
+#| "long but may not include spaces (this is different from other operating\n"
+#| "systems). If two or more identical labels exist in a batch file the\n"
+#| "first one will always be executed. Attempting to GOTO a nonexistent\n"
+#| "label terminates the batch file execution.\n"
+#| "\n"
+#| "GOTO has no effect when used interactively.\n"
 msgid ""
-"The GOTO command transfers execution to another statement within a\n"
-"batch file.\n"
+"The GOTO command transfers execution to another statement within a batch\n"
+"file.\n"
 "\n"
-"The label which is the target of a GOTO may be up to 255 characters\n"
-"long but may not include spaces (this is different from other operating\n"
-"systems). If two or more identical labels exist in a batch file the\n"
-"first one will always be executed. Attempting to GOTO a nonexistent\n"
-"label terminates the batch file execution.\n"
+"The label which is the target of a GOTO may be up to 255 characters long\n"
+"but may not include spaces (this is different from other operating\n"
+"systems). If two or more identical labels exist in a batch file the first\n"
+"one will always be executed. Attempting to GOTO a nonexistent label\n"
+"terminates the batch file execution.\n"
 "\n"
 "GOTO has no effect when used interactively.\n"
 msgstr ""
@@ -9620,7 +9662,7 @@ msgstr ""
 "\n"
 "GOTO 用於互動模式中將沒有任何效果。\n"
 
-#: cmd.rc:86
+#: cmd.rc:101
 msgid ""
 "HELP <command> shows brief help details on a topic.\n"
 "HELP without an argument shows all CMD built-in commands.\n"
@@ -9628,7 +9670,7 @@ msgstr ""
 "HELP <命令> 顯示關於某一主題的簡明細節。\n"
 "HELP 不加引數時將顯示 CMD 所有的內建命令。\n"
 
-#: cmd.rc:96
+#: cmd.rc:111
 msgid ""
 "IF is used to conditionally execute a command.\n"
 "\n"
@@ -9648,7 +9690,7 @@ msgstr ""
 "在命令的第二種形式中，字串一和字串二必須位於雙引號之中。\n"
 "比較的動作是不分大小寫的。\n"
 
-#: cmd.rc:102
+#: cmd.rc:118
 msgid ""
 "LABEL is used to set a disk volume label.\n"
 "\n"
@@ -9662,21 +9704,31 @@ msgstr ""
 "命令將向您提示詢問新的卷冊標貼用於給定的儲存裝置。\n"
 "您可以利用 VOL 命令來顯示磁碟卷冊標貼。\n"
 
-#: cmd.rc:105
+#: cmd.rc:121
 msgid "MD <name> is the short version of MKDIR. It creates a subdirectory.\n"
 msgstr "MD <名稱> 是 MKDIR 的縮寫版本。它會建立子目錄。\n"
 
-#: cmd.rc:106
+#: cmd.rc:123
 msgid "MKDIR <name> creates a subdirectory.\n"
 msgstr "MKDIR <名稱> 建立子目錄。\n"
 
-#: cmd.rc:113
+#: cmd.rc:131
+#, fuzzy
+#| msgid ""
+#| "MOVE relocates a file or directory to a new point within the file "
+#| "system.\n"
+#| "\n"
+#| "If the item being moved is a directory then all the files and "
+#| "subdirectories\n"
+#| "below the item are moved as well.\n"
+#| "\n"
+#| "MOVE fails if the old and new locations are on different DOS drive "
+#| "letters.\n"
 msgid ""
 "MOVE relocates a file or directory to a new point within the file system.\n"
 "\n"
-"If the item being moved is a directory then all the files and "
-"subdirectories\n"
-"below the item are moved as well.\n"
+"If the item being moved is a directory then all the files and\n"
+"subdirectories below the item are moved as well.\n"
 "\n"
 "MOVE fails if the old and new locations are on different DOS drive letters.\n"
 msgstr ""
@@ -9687,13 +9739,24 @@ msgstr ""
 "\n"
 "如果舊的和新的位置在不同的 DOS 儲存裝置代號之上，MOVE 將會失敗。\n"
 
-#: cmd.rc:124
+#: cmd.rc:142
+#, fuzzy
+#| msgid ""
+#| "PATH displays or changes the cmd search path.\n"
+#| "\n"
+#| "Entering PATH will display the current PATH setting (initially taken\n"
+#| "from the registry). To change the setting follow the\n"
+#| "PATH command with the new value.\n"
+#| "\n"
+#| "It is also possible to modify the PATH by using the PATH environment\n"
+#| "variable, for example:\n"
+#| "PATH %PATH%;c:\\temp\n"
 msgid ""
 "PATH displays or changes the cmd search path.\n"
 "\n"
-"Entering PATH will display the current PATH setting (initially taken\n"
-"from the registry). To change the setting follow the\n"
-"PATH command with the new value.\n"
+"Entering PATH will display the current PATH setting (initially taken from\n"
+"the registry). To change the setting follow the PATH command with the new\n"
+"value.\n"
 "\n"
 "It is also possible to modify the PATH by using the PATH environment\n"
 "variable, for example:\n"
@@ -9709,19 +9772,49 @@ msgstr ""
 "舉例來說：\n"
 "PATH %PATH%;c:\\temp\n"
 
-#: cmd.rc:130
+#: cmd.rc:148
+#, fuzzy
+#| msgid ""
+#| "PAUSE displays a message on the screen asking the user to press a key.\n"
+#| "\n"
+#| "It is mainly useful in batch files to allow the user to read the output\n"
+#| "of a previous command before it scrolls off the screen.\n"
 msgid ""
 "PAUSE displays a message on the screen asking the user to press a key.\n"
 "\n"
-"It is mainly useful in batch files to allow the user to read the output\n"
-"of a previous command before it scrolls off the screen.\n"
+"It is mainly useful in batch files to allow the user to read the output of\n"
+"a previous command before it scrolls off the screen.\n"
 msgstr ""
 "PAUSE 在螢幕上顯示訊息以要求使用者按下一個鍵。\n"
 "\n"
 "主要用於批次檔中，以允許使用者在前一個命令的\n"
 "輸出捲動離開螢幕之前能夠去讀取它。\n"
 
-#: cmd.rc:151
+#: cmd.rc:169
+#, fuzzy
+#| msgid ""
+#| "PROMPT sets the command-line prompt.\n"
+#| "\n"
+#| "The string following the PROMPT command (and the space immediately "
+#| "after)\n"
+#| "appears at the beginning of the line when cmd is waiting for input.\n"
+#| "\n"
+#| "The following character strings have the special meaning shown:\n"
+#| "\n"
+#| "$$    Dollar sign         $_    Linefeed            $b    Pipe sign (|)\n"
+#| "$d    Current date        $e    Escape              $g    > sign\n"
+#| "$l    < sign              $n    Current drive       $p    Current path\n"
+#| "$q    Equal sign          $t    Current time        $v    cmd version\n"
+#| "\n"
+#| "Note that entering the PROMPT command without a prompt-string resets the\n"
+#| "prompt to the default, which is the current directory (which includes "
+#| "the\n"
+#| "current drive letter) followed by a greater-than (>) sign.\n"
+#| "(like a command PROMPT $p$g).\n"
+#| "\n"
+#| "The prompt can also be changed by altering the PROMPT environment "
+#| "variable,\n"
+#| "so the command 'SET PROMPT=text' has the same effect as 'PROMPT text'.\n"
 msgid ""
 "PROMPT sets the command-line prompt.\n"
 "\n"
@@ -9762,35 +9855,57 @@ msgstr ""
 "提示字串也可以經由改變 PROMPT 環境變數而變更，\n"
 "因此命令 SET PROMPT=text 與 PROMPT text 具有相同的效果。\n"
 
-#: cmd.rc:155
+#: cmd.rc:173
+#, fuzzy
+#| msgid ""
+#| "A command line beginning with REM (followed by a space) performs no\n"
+#| "action, and can therefore be used as a comment in a batch file.\n"
 msgid ""
-"A command line beginning with REM (followed by a space) performs no\n"
-"action, and can therefore be used as a comment in a batch file.\n"
+"A command line beginning with REM (followed by a space) performs no action,\n"
+"and can therefore be used as a comment in a batch file.\n"
 msgstr ""
 "以 REM 起始的命令列 (之後緊接空格) 不會進行任何\n"
 "動作，因而可以做為批次檔中的註釋。\n"
 
-#: cmd.rc:158
+#: cmd.rc:176
 msgid "REN <filename> is the short version of RENAME. It renames a file.\n"
 msgstr "REN <檔名> 是 RENAME 的簡短版本。它會重新命名檔案。\n"
 
-#: cmd.rc:159
+#: cmd.rc:178
 msgid "RENAME <filename> renames a file.\n"
 msgstr "RENAME <檔名> 重新命名檔案。\n"
 
-#: cmd.rc:161
+#: cmd.rc:181
 #, fuzzy
 #| msgid "RD <dir> is the short version of RMDIR. It deletes a subdirectory.\n"
 msgid "RD <directory> is the short version of RMDIR. It deletes a directory.\n"
 msgstr "RD <目錄> 是 RMDIR 的簡短版本。它會刪除子目錄。\n"
 
-#: cmd.rc:162
+#: cmd.rc:183
 #, fuzzy
 #| msgid "RMDIR <dir> deletes a subdirectory.\n"
 msgid "RMDIR <directory> deletes a directory.\n"
 msgstr "RMDIR <目錄> 刪除子目錄。\n"
 
-#: cmd.rc:206
+#: cmd.rc:229
+#, fuzzy
+#| msgid ""
+#| "SET displays or changes the cmd environment variables.\n"
+#| "\n"
+#| "SET without parameters shows all of the current environment.\n"
+#| "\n"
+#| "To create or modify an environment variable the syntax is:\n"
+#| "\n"
+#| "SET <variable>=<value>\n"
+#| "\n"
+#| "where <variable> and <value> are character strings. There must be no\n"
+#| "space before the equals sign, nor can the variable name\n"
+#| "have embedded spaces.\n"
+#| "\n"
+#| "Under Wine, the environment of the underlying operating system is\n"
+#| "included into the Win32 environment, there will generally therefore be\n"
+#| "many more values than in a native Win32 implementation. Note that it is\n"
+#| "not possible to affect the operating system environment from within cmd.\n"
 msgid ""
 "SET displays or changes the cmd environment variables.\n"
 "\n"
@@ -9800,14 +9915,13 @@ msgid ""
 "\n"
 "SET <variable>=<value>\n"
 "\n"
-"where <variable> and <value> are character strings. There must be no\n"
-"space before the equals sign, nor can the variable name\n"
-"have embedded spaces.\n"
+"where <variable> and <value> are character strings. There must be no space\n"
+"before the equals sign, nor can the variable name have embedded spaces.\n"
 "\n"
-"Under Wine, the environment of the underlying operating system is\n"
-"included into the Win32 environment, there will generally therefore be\n"
-"many more values than in a native Win32 implementation. Note that it is\n"
-"not possible to affect the operating system environment from within cmd.\n"
+"Under Wine, the environment of the underlying operating system is included\n"
+"into the Win32 environment, there will generally therefore be many more\n"
+"values than in a native Win32 implementation. Note that it is not possible\n"
+"to affect the operating system environment from within cmd.\n"
 msgstr ""
 "SET 顯示或變更 cmd 的環境變數。\n"
 "\n"
@@ -9825,44 +9939,79 @@ msgstr ""
 "還要多出更多變數值。要注意的是，從 cmd 之中是不可能\n"
 "去影響作業系統的環境。\n"
 
-#: cmd.rc:211
+#: cmd.rc:234
+#, fuzzy
+#| msgid ""
+#| "SHIFT is used in a batch file to remove one parameter from the head of\n"
+#| "the list, so parameter 2 becomes parameter 1 and so on. It has no effect\n"
+#| "if called from the command line.\n"
 msgid ""
-"SHIFT is used in a batch file to remove one parameter from the head of\n"
-"the list, so parameter 2 becomes parameter 1 and so on. It has no effect\n"
-"if called from the command line.\n"
+"SHIFT is used in a batch file to remove one parameter from the head of the\n"
+"list, so parameter 2 becomes parameter 1 and so on. It has no effect if\n"
+"called from the command line.\n"
 msgstr ""
 "SHIFT 在批次檔中用來從參數列表的前端移除一個\n"
 "參數，因此參數 2 會成為參數 1... 等等。如果從命令列呼叫它，\n"
 "將不會有任何效果。\n"
 
-#: cmd.rc:188 start.rc:53
+#: cmd.rc:212 start.rc:56
+#, fuzzy
+#| msgid ""
+#| "Start a program, or open a document in the program normally used for "
+#| "files with that suffix.\n"
+#| "Usage:\n"
+#| "start [options] program_filename [...]\n"
+#| "start [options] document_filename\n"
+#| "\n"
+#| "Options:\n"
+#| "\"title\"      Specifies the title of the child windows.\n"
+#| "/d directory Start the program in the specified directory.\n"
+#| "/b           Don't create a new console for the program.\n"
+#| "/i           Start the program with fresh environment variables.\n"
+#| "/min         Start the program minimized.\n"
+#| "/max         Start the program maximized.\n"
+#| "/low         Start the program in the idle priority class.\n"
+#| "/normal      Start the program in the normal priority class.\n"
+#| "/high        Start the program in the high priority class.\n"
+#| "/realtime    Start the program in the realtime priority class.\n"
+#| "/abovenormal Start the program in the abovenormal priority class.\n"
+#| "/belownormal Start the program in the belownormal priority class.\n"
+#| "/node n      Start the program on the specified NUMA node.\n"
+#| "/affinity mask Start the program with the specified affinity mask.\n"
+#| "/wait        Wait for the started program to finish, then exit with its "
+#| "exit code.\n"
+#| "/unix        Use a Unix filename and start the file like windows "
+#| "explorer.\n"
+#| "/ProgIDOpen  Open a document using the specified progID.\n"
+#| "/?           Display this help and exit.\n"
 msgid ""
-"Start a program, or open a document in the program normally used for files "
+"Start a program, or open a document in the program normally used for files\n"
 "with that suffix.\n"
 "Usage:\n"
 "start [options] program_filename [...]\n"
 "start [options] document_filename\n"
 "\n"
 "Options:\n"
-"\"title\"      Specifies the title of the child windows.\n"
-"/d directory Start the program in the specified directory.\n"
-"/b           Don't create a new console for the program.\n"
-"/i           Start the program with fresh environment variables.\n"
-"/min         Start the program minimized.\n"
-"/max         Start the program maximized.\n"
-"/low         Start the program in the idle priority class.\n"
-"/normal      Start the program in the normal priority class.\n"
-"/high        Start the program in the high priority class.\n"
-"/realtime    Start the program in the realtime priority class.\n"
-"/abovenormal Start the program in the abovenormal priority class.\n"
-"/belownormal Start the program in the belownormal priority class.\n"
-"/node n      Start the program on the specified NUMA node.\n"
+"\"title\"        Specifies the title of the child windows.\n"
+"/d directory   Start the program in the specified directory.\n"
+"/b             Don't create a new console for the program.\n"
+"/i             Start the program with fresh environment variables.\n"
+"/min           Start the program minimized.\n"
+"/max           Start the program maximized.\n"
+"/low           Start the program in the idle priority class.\n"
+"/normal        Start the program in the normal priority class.\n"
+"/high          Start the program in the high priority class.\n"
+"/realtime      Start the program in the realtime priority class.\n"
+"/abovenormal   Start the program in the abovenormal priority class.\n"
+"/belownormal   Start the program in the belownormal priority class.\n"
+"/node n        Start the program on the specified NUMA node.\n"
 "/affinity mask Start the program with the specified affinity mask.\n"
-"/wait        Wait for the started program to finish, then exit with its exit "
-"code.\n"
-"/unix        Use a Unix filename and start the file like windows explorer.\n"
-"/ProgIDOpen  Open a document using the specified progID.\n"
-"/?           Display this help and exit.\n"
+"/wait          Wait for the started program to finish, then exit with its\n"
+"exit code.\n"
+"/unix          Use a Unix filename and start the file like windows\n"
+"explorer.\n"
+"/ProgIDOpen    Open a document using the specified progID.\n"
+"/?             Display this help and exit.\n"
 msgstr ""
 "啟始一個程式，或是利用關聯該檔案字尾的程式來開啟文件。\n"
 "用法：\n"
@@ -9889,23 +10038,27 @@ msgstr ""
 "/ProgIDOpen  使用指定的 progID 開啟文件。\n"
 "/?           顯示這份說明然後離開。\n"
 
-#: cmd.rc:213
+#: cmd.rc:237
 msgid "TIME sets or shows the current system time.\n"
 msgstr "TIME 設定或顯示目前的系統時間。\n"
 
-#: cmd.rc:215
+#: cmd.rc:240
 msgid "TITLE <string> sets the window title for the cmd window.\n"
 msgstr "TITLE <字串> 設定 cmd 視窗的視窗標題。\n"
 
-#: cmd.rc:219
+#: cmd.rc:244
+#, fuzzy
+#| msgid ""
+#| "TYPE <filename> copies <filename> to the console device (or elsewhere\n"
+#| "if redirected). No check is made that the file is readable text.\n"
 msgid ""
-"TYPE <filename> copies <filename> to the console device (or elsewhere\n"
-"if redirected). No check is made that the file is readable text.\n"
+"TYPE <filename> copies <filename> to the console device (or elsewhere if\n"
+"redirected). No check is made that the file is readable text.\n"
 msgstr ""
 "TYPE <檔名> 將 <檔名> 的內容複製到主控臺裝置 (或是其他被\n"
 "重新導向的地方)。不會檢查該檔案是否為可讀的文字。\n"
 
-#: cmd.rc:228
+#: cmd.rc:253
 msgid ""
 "VERIFY is used to set, clear or test the verify flag. Valid forms are:\n"
 "\n"
@@ -9923,23 +10076,27 @@ msgstr ""
 "\n"
 "驗證旗標在 Wine 中沒有任何功能。\n"
 
-#: cmd.rc:231
+#: cmd.rc:256
 msgid "VER displays the version of cmd you are running.\n"
 msgstr "VER 顯示您正在執行的 cmd 版本。\n"
 
-#: cmd.rc:233
+#: cmd.rc:259
 msgid "VOL shows the volume label of a disk device.\n"
 msgstr "VOL 顯示磁碟裝置的卷冊標貼。\n"
 
-#: cmd.rc:237
+#: cmd.rc:263
+#, fuzzy
+#| msgid ""
+#| "ENDLOCAL ends localization of environment changes in a batch file\n"
+#| "which were introduced by a preceding SETLOCAL.\n"
 msgid ""
-"ENDLOCAL ends localization of environment changes in a batch file\n"
-"which were introduced by a preceding SETLOCAL.\n"
+"ENDLOCAL ends localization of environment changes in a batch file which\n"
+"were introduced by a preceding SETLOCAL.\n"
 msgstr ""
 "ENDLOCAL 在批次檔中結束本地的環境變更\n"
 "而這些是由之前的 SETLOCAL 所引入。\n"
 
-#: cmd.rc:245
+#: cmd.rc:271
 msgid ""
 "SETLOCAL starts localization of environment changes in a batch file.\n"
 "\n"
@@ -9955,23 +10112,33 @@ msgstr ""
 "的結束，取決於誰先出現)，前一個環境的設定值\n"
 "則於該點被儲存。\n"
 
-#: cmd.rc:248
+#: cmd.rc:275
 #, fuzzy
 #| msgid ""
 #| "PUSHD <directoryname> saves the current directory onto a\n"
 #| "stack, and then changes the current directory to the supplied one.\n"
 msgid ""
-"PUSHD <directory> saves the current directory onto a\n"
-"stack, and then changes the current directory to the supplied one.\n"
+"PUSHD <directory> saves the current directory onto a stack, and then\n"
+"changes the current directory to the supplied one.\n"
 msgstr ""
 "PUSHD <目錄名> 儲存目前的目錄到\n"
 "堆疊中，然後變更現行目錄到所給定的目錄。\n"
 
-#: cmd.rc:250
+#: cmd.rc:278
 msgid "POPD changes current directory to the last one saved with PUSHD.\n"
 msgstr "POPD 變更現行目錄到上一個利用 PUSHD 儲存的目錄。\n"
 
-#: cmd.rc:258
+#: cmd.rc:288
+#, fuzzy
+#| msgid ""
+#| "ASSOC shows or modifies file extension associations.\n"
+#| "\n"
+#| "Syntax: ASSOC [.ext[=[fileType]]]\n"
+#| "\n"
+#| "ASSOC without parameters displays current file associations.\n"
+#| "If used with only a file extension, displays the current association.\n"
+#| "Specifying no file type after the equal sign removes the current "
+#| "association, if any.\n"
 msgid ""
 "ASSOC shows or modifies file extension associations.\n"
 "\n"
@@ -9979,7 +10146,7 @@ msgid ""
 "\n"
 "ASSOC without parameters displays current file associations.\n"
 "If used with only a file extension, displays the current association.\n"
-"Specifying no file type after the equal sign removes the current "
+"Specifying no file type after the equal sign removes the current\n"
 "association, if any.\n"
 msgstr ""
 "ASSOC 顯示或修改副檔名的關聯。\n"
@@ -9990,17 +10157,29 @@ msgstr ""
 "如果只使用副檔名，則顯示它目前的關聯。\n"
 "在等號之號如果沒有指定檔案類型就移除目前的任何關聯。\n"
 
-#: cmd.rc:269
+#: cmd.rc:300
+#, fuzzy
+#| msgid ""
+#| "FTYPE shows or modifies open commands associated with file types.\n"
+#| "\n"
+#| "Syntax: FTYPE [fileType[=[openCommand]]]\n"
+#| "\n"
+#| "Without parameters, shows the file types for which open command strings "
+#| "are currently defined.\n"
+#| "If used with only a file type, displays the associated open command "
+#| "string, if any.\n"
+#| "Specifying no open command after the equal sign removes the command "
+#| "string associated to the specified file type.\n"
 msgid ""
 "FTYPE shows or modifies open commands associated with file types.\n"
 "\n"
 "Syntax: FTYPE [fileType[=[openCommand]]]\n"
 "\n"
-"Without parameters, shows the file types for which open command strings are "
+"Without parameters, shows the file types for which open command strings are\n"
 "currently defined.\n"
-"If used with only a file type, displays the associated open command string, "
+"If used with only a file type, displays the associated open command string,\n"
 "if any.\n"
-"Specifying no open command after the equal sign removes the command string "
+"Specifying no open command after the equal sign removes the command string\n"
 "associated to the specified file type.\n"
 msgstr ""
 "FTYPE 顯示或修改開啟命令所關聯的檔案類型。\n"
@@ -10011,29 +10190,38 @@ msgstr ""
 "如果只使用檔案類型，則顯示關聯的任何開啟命令字串。\n"
 "在等號之號如果沒有指定檔案類型就移除對於給定檔案型態的任何關聯命令字串。\n"
 
-#: cmd.rc:271
+#: cmd.rc:303
 msgid "MORE displays output of files or piped input in pages.\n"
 msgstr "MORE 以分頁的方式顯示檔案的輸出或管線的輸入。\n"
 
-#: cmd.rc:275
+#: cmd.rc:308
+#, fuzzy
+#| msgid ""
+#| "CHOICE displays a text and waits, until the User\n"
+#| "presses an allowed Key from a selectable list.\n"
+#| "CHOICE is mainly used to build a menu selection in a batch file.\n"
 msgid ""
-"CHOICE displays a text and waits, until the User\n"
-"presses an allowed Key from a selectable list.\n"
+"CHOICE displays a text and waits, until the User presses an allowed Key\n"
+"from a selectable list.\n"
 "CHOICE is mainly used to build a menu selection in a batch file.\n"
 msgstr ""
 "CHOICE 顯示文字並等待，直到使用者\n"
 "從可選取的清單中按下允許的鍵。\n"
 "CHOICE 主要用來在批次檔中建構選單選擇。\n"
 
-#: cmd.rc:279
+#: cmd.rc:312
+#, fuzzy
+#| msgid ""
+#| "EXIT terminates the current command session and returns\n"
+#| "to the operating system or shell from which you invoked cmd.\n"
 msgid ""
-"EXIT terminates the current command session and returns\n"
-"to the operating system or shell from which you invoked cmd.\n"
+"EXIT terminates the current command session and returns to the operating\n"
+"system or shell from which you invoked cmd.\n"
 msgstr ""
 "EXIT 終止目前的命令作業階段並回到\n"
 "您從其調用 cmd 的作業系統或命令殼。\n"
 
-#: cmd.rc:317
+#: cmd.rc:351
 msgid ""
 "CMD built-in commands are:\n"
 "ASSOC\t\tShow or modify file extension associations\n"
@@ -10113,110 +10301,110 @@ msgstr ""
 "\n"
 "輸入 HELP <命令> 以獲得關於以上任何命令的進一步資訊。\n"
 
-#: cmd.rc:319
+#: cmd.rc:353
 msgid "Are you sure?"
 msgstr "您確定嗎？"
 
-#: cmd.rc:320 xcopy.rc:43
+#: cmd.rc:354 xcopy.rc:43
 msgctxt "Yes key"
 msgid "Y"
 msgstr "Y"
 
-#: cmd.rc:321 xcopy.rc:44
+#: cmd.rc:355 xcopy.rc:44
 msgctxt "No key"
 msgid "N"
 msgstr "N"
 
-#: cmd.rc:322
+#: cmd.rc:356
 msgid "File association missing for extension %1\n"
 msgstr "缺少用於延伸檔名 %1 的檔案關聯\n"
 
-#: cmd.rc:323
+#: cmd.rc:357
 msgid "No open command associated with file type '%1'\n"
 msgstr "沒有與檔案類型 %1 相關聯的開啟命令\n"
 
-#: cmd.rc:324
+#: cmd.rc:358
 msgid "Overwrite %1?"
 msgstr "覆寫 %1？"
 
-#: cmd.rc:325
+#: cmd.rc:359
 msgid "More..."
 msgstr "更多..."
 
-#: cmd.rc:326
+#: cmd.rc:360
 msgid "Line in Batch processing possibly truncated. Using:\n"
 msgstr "命令列於批次處理時可能會被截斷。使用：\n"
 
-#: cmd.rc:328
+#: cmd.rc:362
 msgid "Argument missing\n"
 msgstr "缺少引數\n"
 
-#: cmd.rc:329
+#: cmd.rc:363
 msgid "Syntax error\n"
 msgstr "語法錯誤\n"
 
-#: cmd.rc:331
+#: cmd.rc:365
 msgid "No help available for %1\n"
 msgstr "沒有關於 %1 的說明\n"
 
-#: cmd.rc:332
+#: cmd.rc:366
 msgid "Target to GOTO not found\n"
 msgstr "找不到 GOTO 的目標\n"
 
-#: cmd.rc:333
+#: cmd.rc:367
 msgid "Current Date is %1\n"
 msgstr "今天是 %1\n"
 
-#: cmd.rc:334
+#: cmd.rc:368
 msgid "Current Time is %1\n"
 msgstr "現在時間是 %1\n"
 
-#: cmd.rc:335
+#: cmd.rc:369
 msgid "Enter new date: "
 msgstr "輸入新日期："
 
-#: cmd.rc:336
+#: cmd.rc:370
 msgid "Enter new time: "
 msgstr "輸入新時間："
 
-#: cmd.rc:337
+#: cmd.rc:371
 msgid "Environment variable %1 not defined\n"
 msgstr "環境變數 %1 未定義\n"
 
-#: cmd.rc:338 xcopy.rc:41
+#: cmd.rc:372 xcopy.rc:41
 msgid "Failed to open '%1'\n"
 msgstr "開啟 %1 失敗\n"
 
-#: cmd.rc:339
+#: cmd.rc:373
 msgid "Cannot call batch label outside of a batch script\n"
 msgstr "無法呼叫批次命令稿外部的批次標貼\n"
 
-#: cmd.rc:340 xcopy.rc:45
+#: cmd.rc:374 xcopy.rc:45
 msgctxt "All key"
 msgid "A"
 msgstr "A"
 
-#: cmd.rc:341
+#: cmd.rc:375
 msgid "Delete %1?"
 msgstr "刪除 %1？"
 
-#: cmd.rc:342
+#: cmd.rc:376
 msgid "Echo is %1\n"
 msgstr "回應為 %1\n"
 
-#: cmd.rc:343
+#: cmd.rc:377
 msgid "Verify is %1\n"
 msgstr "驗證為 %1\n"
 
-#: cmd.rc:344
+#: cmd.rc:378
 msgid "Verify must be ON or OFF\n"
 msgstr "驗證必須為 ON 或 OFF\n"
 
-#: cmd.rc:345
+#: cmd.rc:379
 msgid "Parameter error\n"
 msgstr "參數錯誤\n"
 
-#: cmd.rc:346
+#: cmd.rc:380
 msgid ""
 "Volume Serial Number is %1!04x!-%2!04x!\n"
 "\n"
@@ -10224,74 +10412,74 @@ msgstr ""
 "卷冊序號是 %1!04x!-%2!04x!\n"
 "\n"
 
-#: cmd.rc:347
+#: cmd.rc:381
 msgid "Volume label (11 characters, <Enter> for none)?"
 msgstr "卷冊標貼 (11 個字元，<Enter> 表示沒有)？"
 
-#: cmd.rc:348
+#: cmd.rc:382
 msgid "PATH not found\n"
 msgstr "找不到 PATH\n"
 
-#: cmd.rc:349
+#: cmd.rc:383
 msgid "Press any key to continue... "
 msgstr "按下任何鍵繼續... "
 
-#: cmd.rc:350
+#: cmd.rc:384
 msgid "Wine Command Prompt"
 msgstr "Wine 命令提示符號"
 
-#: cmd.rc:351
+#: cmd.rc:385
 msgid "Microsoft Windows %1!S!\n"
 msgstr ""
 
-#: cmd.rc:352
+#: cmd.rc:386
 msgid "More? "
 msgstr "更多？"
 
-#: cmd.rc:353
+#: cmd.rc:387
 msgid "The input line is too long.\n"
 msgstr "輸入列太長。\n"
 
-#: cmd.rc:354
+#: cmd.rc:388
 msgid "Volume in drive %1!c! is %2\n"
 msgstr "位於儲存裝置 %1!c! 的卷冊為 %2\n"
 
-#: cmd.rc:355
+#: cmd.rc:389
 msgid "Volume in drive %1!c! has no label.\n"
 msgstr "位於儲存裝置 %1!c! 的卷冊沒有任何標貼。\n"
 
-#: cmd.rc:356
+#: cmd.rc:390
 #, fuzzy
 msgid " (Yes|No)"
 msgstr " (是|否)"
 
-#: cmd.rc:357
+#: cmd.rc:391
 #, fuzzy
 msgid " (Yes|No|All)"
 msgstr " (是|否|全部)"
 
-#: cmd.rc:358
+#: cmd.rc:392
 msgid ""
 "Can't recognize '%1' as an internal or external command, or batch script.\n"
 msgstr "無法識別 %1 為內部、外部命令或是批次命令稿。\n"
 
-#: cmd.rc:359
+#: cmd.rc:393
 msgid "Division by zero error.\n"
 msgstr "被零除的錯誤。\n"
 
-#: cmd.rc:360
+#: cmd.rc:394
 msgid "Expected an operand.\n"
 msgstr "預期為一個運算元。\n"
 
-#: cmd.rc:361
+#: cmd.rc:395
 msgid "Expected an operator.\n"
 msgstr "預期為一個運算子。\n"
 
-#: cmd.rc:362
+#: cmd.rc:396
 msgid "Mismatch in parentheses.\n"
 msgstr "小括號不匹配。\n"
 
-#: cmd.rc:363
+#: cmd.rc:397
 msgid ""
 "Badly formed number - must be one of decimal (12),\n"
 " hexadecimal (0x34) or octal (056).\n"
@@ -11866,7 +12054,7 @@ msgid "regsvr32: Failed to load DLL '%1'\n"
 msgstr "開啟 %1 失敗\n"
 
 #: regsvr32.rc:43
-msgid "regsvr32: %1 not implemented in DLL '%2'\n"
+msgid "regsvr32: '%1!S!' not implemented in DLL '%2'\n"
 msgstr ""
 
 #: regsvr32.rc:44
@@ -11901,7 +12089,7 @@ msgstr ""
 msgid "regsvr32: Successfully uninstalled DLL '%1'\n"
 msgstr ""
 
-#: start.rc:55
+#: start.rc:58
 msgid ""
 "Application could not be started, or no application associated with the "
 "specified file.\n"
@@ -11910,7 +12098,7 @@ msgstr ""
 "無法啟始應用程式，或是沒有與指定檔案關聯的應用程式。\n"
 "ShellExecuteEx 失敗"
 
-#: start.rc:57
+#: start.rc:60
 msgid "Could not translate the specified Unix filename to a DOS filename."
 msgstr "無法翻譯指定的 Unix 檔名到 DOS 檔名。"
 
@@ -12774,6 +12962,43 @@ msgstr ""
 "移除指令執行 %s 失敗，可能是找不到可執行程式。\n"
 "您要將這項移除指令從註冊表中刪除嗎？"
 
+#: uninstaller.rc:31
+msgid "uninstaller: The application with GUID '%1' was not found\n"
+msgstr ""
+
+#: uninstaller.rc:32
+msgid ""
+"uninstaller: The option '--remove' must be followed by an application GUID\n"
+msgstr ""
+
+#: uninstaller.rc:33
+#, fuzzy
+#| msgid "Error: Invalid option '%c'.\n"
+msgid "uninstaller: Invalid option [%1]\n"
+msgstr "錯誤：無效的選項 %c。\n"
+
+#: uninstaller.rc:35
+msgid ""
+"Wine Application Uninstaller\n"
+"\n"
+"Uninstall applications from the current Wine prefix.\n"
+"\n"
+msgstr ""
+
+#: uninstaller.rc:43
+msgid ""
+"Usage:\n"
+"  uninstaller [options]\n"
+"\n"
+"Options:\n"
+"  --help\t    Display this information.\n"
+"  --list\t    List all applications installed in this Wine prefix.\n"
+"  --remove {GUID}   Uninstall the specified application.\n"
+"\t\t    Use '--list' to determine the application GUID.\n"
+"  [no option]       Launch the graphical version of this program.\n"
+"\n"
+msgstr ""
+
 #: view.rc:36
 msgid "&Pan"
 msgstr "平移(&P)"
@@ -13422,98 +13647,108 @@ msgid "&Large"
 msgstr "大(&L)"
 
 #: wineconsole.rc:68
-msgid "Control"
-msgstr "控制"
-
-#: wineconsole.rc:69
-msgid "Popup menu"
-msgstr "彈出功能表"
-
-#: wineconsole.rc:70
-msgid "&Control"
-msgstr "&Control"
-
-#: wineconsole.rc:71
-msgid "S&hift"
-msgstr "S&hift"
-
-#: wineconsole.rc:72
-msgid "Quick edit"
-msgstr "快速編輯"
-
-#: wineconsole.rc:73
-msgid "&enable"
-msgstr "啟用(&E)"
-
-#: wineconsole.rc:75
 msgid "Command history"
 msgstr "指令歷程"
 
-#: wineconsole.rc:76
-msgid "&Number of recalled commands:"
-msgstr "最大記錄指令數(&N)："
+#: wineconsole.rc:69
+#, fuzzy
+#| msgid "Buffer zone"
+msgid "&Buffer size:"
+msgstr "緩衝區域"
 
-#: wineconsole.rc:79
-msgid "&Remove doubles"
+#: wineconsole.rc:72
+#, fuzzy
+#| msgid "&Remove doubles"
+msgid "&Remove duplicates"
 msgstr "刪除連續相同的指令(&R)"
 
-#: wineconsole.rc:87
+#: wineconsole.rc:74
+msgid "Popup menu"
+msgstr "彈出功能表"
+
+#: wineconsole.rc:75
+msgid "&Control"
+msgstr "&Control"
+
+#: wineconsole.rc:76
+msgid "S&hift"
+msgstr "S&hift"
+
+#: wineconsole.rc:78
+#, fuzzy
+#| msgid "&Close console"
+msgid "Console"
+msgstr "關閉虛擬終端(&C)"
+
+#: wineconsole.rc:79
+#, fuzzy
+#| msgid "Quick edit"
+msgid "&Quick Edit mode"
+msgstr "快速編輯"
+
+#: wineconsole.rc:80
+#, fuzzy
+#| msgid "&Expert mode"
+msgid "&Insert mode"
+msgstr "專家模式(&E)"
+
+#: wineconsole.rc:88
 msgid "&Font"
 msgstr "字型(&F)"
 
-#: wineconsole.rc:89
+#: wineconsole.rc:90
 msgid "&Color"
 msgstr "顏色(&C)"
 
-#: wineconsole.rc:100
+#: wineconsole.rc:101
 msgid "Configuration"
 msgstr "組態"
 
-#: wineconsole.rc:103
+#: wineconsole.rc:104
 msgid "Buffer zone"
 msgstr "緩衝區域"
 
-#: wineconsole.rc:104
+#: wineconsole.rc:105
 msgid "&Width:"
 msgstr "寬度(&W)："
 
-#: wineconsole.rc:107
+#: wineconsole.rc:108
 msgid "&Height:"
 msgstr "高度(&H)："
 
-#: wineconsole.rc:111
+#: wineconsole.rc:112
 msgid "Window size"
 msgstr "視窗大小"
 
-#: wineconsole.rc:112
+#: wineconsole.rc:113
 msgid "W&idth:"
 msgstr "寬度(&I)："
 
-#: wineconsole.rc:115
+#: wineconsole.rc:116
 msgid "H&eight:"
 msgstr "高度(&E)："
 
-#: wineconsole.rc:119
+#: wineconsole.rc:120
 msgid "End of program"
 msgstr "當程式結束後"
 
-#: wineconsole.rc:120
+#: wineconsole.rc:121
 msgid "&Close console"
 msgstr "關閉虛擬終端(&C)"
 
-#: wineconsole.rc:122
+#: wineconsole.rc:123
 msgid "Edition"
 msgstr "Edition"
 
-#: wineconsole.rc:128
+#: wineconsole.rc:129
 msgid "Console parameters"
 msgstr "虛擬終端執行參數"
 
-#: wineconsole.rc:131
+#: wineconsole.rc:132
 msgid "Retain these settings for later sessions"
 msgstr "保留當前配置以便下次使用"
 
-#: wineconsole.rc:132
+#: wineconsole.rc:133
 msgid "Modify only current session"
 msgstr "僅修改目前的工作階段"
 
@@ -14013,29 +14248,29 @@ msgstr "書籤(&B)"
 msgid "&Define..."
 msgstr "定義(&D)..."
 
-#: winhlp32.rc:49 winhlp32.rc:70
+#: winhlp32.rc:48
+msgid "Always on &top"
+msgstr "總是在最上層(&T)"
+
+#: winhlp32.rc:50 winhlp32.rc:70
 msgid "Fonts"
 msgstr "字型"
 
-#: winhlp32.rc:51 winhlp32.rc:72
+#: winhlp32.rc:52 winhlp32.rc:72
 msgid "Small"
 msgstr "小"
 
-#: winhlp32.rc:52 winhlp32.rc:73
+#: winhlp32.rc:53 winhlp32.rc:73
 msgid "Normal"
 msgstr "中"
 
-#: winhlp32.rc:53 winhlp32.rc:74
+#: winhlp32.rc:54 winhlp32.rc:74
 msgid "Large"
 msgstr "大"
 
-#: winhlp32.rc:57
+#: winhlp32.rc:58
 msgid "&Help on help\tF1"
 msgstr "如何使用說明(&H)"
-
-#: winhlp32.rc:58
-msgid "Always on &top"
-msgstr "總是在最上層(&T)"
 
 #: winhlp32.rc:59
 msgid "&About Wine Help"

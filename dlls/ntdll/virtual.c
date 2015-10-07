@@ -1053,7 +1053,6 @@ static NTSTATUS stat_mapping_file( struct file_view *view, struct stat *st )
     return status;
 }
 
-
 /***********************************************************************
  *           map_image
  *
@@ -1074,7 +1073,6 @@ static NTSTATUS map_image( HANDLE hmapping, int fd, char *base, SIZE_T total_siz
     struct stat st;
     struct file_view *view = NULL;
     char *ptr, *header_end, *header_start;
-    INT_PTR delta = 0;
 
     /* zero-map the whole range */
 
@@ -1237,47 +1235,6 @@ static NTSTATUS map_image( HANDLE hmapping, int fd, char *base, SIZE_T total_siz
         }
     }
 
-
-    /* perform base relocation, if necessary */
-
-    if (ptr != base &&
-        ((nt->FileHeader.Characteristics & IMAGE_FILE_DLL) ||
-          !NtCurrentTeb()->Peb->ImageBaseAddress) )
-    {
-        IMAGE_BASE_RELOCATION *rel, *end;
-        const IMAGE_DATA_DIRECTORY *relocs;
-
-        if (nt->FileHeader.Characteristics & IMAGE_FILE_RELOCS_STRIPPED)
-        {
-            WARN_(module)( "Need to relocate module from %p to %p, but there are no relocation records\n",
-                           base, ptr );
-            status = STATUS_CONFLICTING_ADDRESSES;
-            goto error;
-        }
-
-        TRACE_(module)( "relocating from %p-%p to %p-%p\n",
-                        base, base + total_size, ptr, ptr + total_size );
-
-        relocs = &nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC];
-        rel = (IMAGE_BASE_RELOCATION *)(ptr + relocs->VirtualAddress);
-        end = (IMAGE_BASE_RELOCATION *)(ptr + relocs->VirtualAddress + relocs->Size);
-        delta = ptr - base;
-
-        while (rel < end - 1 && rel->SizeOfBlock)
-        {
-            if (rel->VirtualAddress >= total_size)
-            {
-                WARN_(module)( "invalid address %p in relocation %p\n", ptr + rel->VirtualAddress, rel );
-                status = STATUS_ACCESS_VIOLATION;
-                goto error;
-            }
-            rel = LdrProcessRelocationBlock( ptr + rel->VirtualAddress,
-                                             (rel->SizeOfBlock - sizeof(*rel)) / sizeof(USHORT),
-                                             (USHORT *)(rel + 1), delta );
-            if (!rel) goto error;
-        }
-    }
-
     /* set the image protections */
 
     VIRTUAL_SetProt( view, ptr, ROUND_SIZE( 0, header_size ), VPROT_COMMITTED | VPROT_READ );
@@ -1314,7 +1271,7 @@ static NTSTATUS map_image( HANDLE hmapping, int fd, char *base, SIZE_T total_siz
 
     *addr_ptr = ptr;
 #ifdef VALGRIND_LOAD_PDB_DEBUGINFO
-    VALGRIND_LOAD_PDB_DEBUGINFO(fd, ptr, total_size, delta);
+    VALGRIND_LOAD_PDB_DEBUGINFO(fd, ptr, total_size, ptr - base);
 #endif
     if (ptr != base) return STATUS_IMAGE_NOT_AT_BASE;
     return STATUS_SUCCESS;
@@ -1735,7 +1692,7 @@ SIZE_T virtual_uninterrupted_write_memory( void *addr, const void *buffer, SIZE_
                 BYTE *p = view->prot + (((const char *)page - (const char *)view->base) >> page_shift);
                 SIZE_T block_size;
 
-                /* If the page is not writeable then check for write watches
+                /* If the page is not writable then check for write watches
                  * before giving up. This can be done without raising a real
                  * exception. Similar to virtual_handle_fault. */
                 if (!(VIRTUAL_GetUnixProt( *p ) & PROT_WRITE))
@@ -2601,8 +2558,19 @@ NTSTATUS WINAPI NtMapViewOfSection( HANDLE handle, HANDLE process, PVOID *addr_p
 
     /* Check parameters */
 
+    if (*addr_ptr && zero_bits)
+        return STATUS_INVALID_PARAMETER_4;
+
+#ifndef _WIN64
+    if (!is_wow64 && (alloc_type & AT_ROUND_TO_PAGE))
+    {
+        *addr_ptr = ROUND_ADDR( *addr_ptr, page_mask );
+        mask = page_mask;
+    }
+#endif
+
     if ((offset.u.LowPart & mask) || (*addr_ptr && ((UINT_PTR)*addr_ptr & mask)))
-        return STATUS_INVALID_PARAMETER;
+        return STATUS_MAPPED_ALIGNMENT;
 
     switch(protect)
     {

@@ -275,7 +275,7 @@ static BOOL buffer_check_attribute(struct wined3d_buffer *This, const struct win
     /* Ignore attributes that do not have our vbo. After that check we can be sure that the attribute is
      * there, on nonexistent attribs the vbo is 0.
      */
-    if (!(si->use_map & (1 << attrib_idx))
+    if (!(si->use_map & (1u << attrib_idx))
             || state->streams[attrib->stream_idx].buffer != This)
         return FALSE;
 
@@ -432,9 +432,9 @@ static inline void fixup_d3dcolor(DWORD *dst_color)
      * 0x000000ff: Red mask
      */
     *dst_color = 0;
-    *dst_color |= (src_color & 0xff00ff00);         /* Alpha Green */
-    *dst_color |= (src_color & 0x00ff0000) >> 16;   /* Red */
-    *dst_color |= (src_color & 0x000000ff) << 16;   /* Blue */
+    *dst_color |= (src_color & 0xff00ff00u);         /* Alpha Green */
+    *dst_color |= (src_color & 0x00ff0000u) >> 16;   /* Red */
+    *dst_color |= (src_color & 0x000000ffu) << 16;   /* Blue */
 }
 
 static inline void fixup_transformed_pos(float *p)
@@ -1132,7 +1132,7 @@ static const struct wined3d_resource_ops buffer_resource_ops =
 
 static HRESULT buffer_init(struct wined3d_buffer *buffer, struct wined3d_device *device,
         UINT size, DWORD usage, enum wined3d_format_id format_id, enum wined3d_pool pool, GLenum bind_hint,
-        const char *data, void *parent, const struct wined3d_parent_ops *parent_ops)
+        const struct wined3d_sub_resource_data *data, void *parent, const struct wined3d_parent_ops *parent_ops)
 {
     const struct wined3d_gl_info *gl_info = &device->adapter->gl_info;
     const struct wined3d_format *format = wined3d_get_format(gl_info, format_id);
@@ -1145,7 +1145,13 @@ static HRESULT buffer_init(struct wined3d_buffer *buffer, struct wined3d_device 
         return WINED3DERR_INVALIDCALL;
     }
 
-    hr = resource_init(&buffer->resource, device, WINED3D_RTYPE_BUFFER, WINED3D_GL_RES_TYPE_BUFFER, format,
+    if (data && !data->data)
+    {
+        WARN("Invalid sub-resource data specified.\n");
+        return E_INVALIDARG;
+    }
+
+    hr = resource_init(&buffer->resource, device, WINED3D_RTYPE_BUFFER, format,
             WINED3D_MULTISAMPLE_NONE, 0, usage, pool, size, 1, 1, size, parent, parent_ops, &buffer_resource_ops);
     if (FAILED(hr))
     {
@@ -1205,7 +1211,7 @@ static HRESULT buffer_init(struct wined3d_buffer *buffer, struct wined3d_device 
             return hr;
         }
 
-        memcpy(ptr, data, size);
+        memcpy(ptr, data->data, size);
 
         wined3d_buffer_unmap(buffer);
     }
@@ -1224,12 +1230,14 @@ static HRESULT buffer_init(struct wined3d_buffer *buffer, struct wined3d_device 
 }
 
 HRESULT CDECL wined3d_buffer_create(struct wined3d_device *device, const struct wined3d_buffer_desc *desc,
-        const void *data, void *parent, const struct wined3d_parent_ops *parent_ops, struct wined3d_buffer **buffer)
+        const struct wined3d_sub_resource_data *data, void *parent, const struct wined3d_parent_ops *parent_ops,
+        struct wined3d_buffer **buffer)
 {
     struct wined3d_buffer *object;
     HRESULT hr;
 
-    TRACE("device %p, desc %p, data %p, parent %p, buffer %p\n", device, desc, data, parent, buffer);
+    TRACE("device %p, desc %p, data %p, parent %p, parent_ops %p, buffer %p\n",
+            device, desc, data, parent, parent_ops, buffer);
 
     object = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(*object));
     if (!object)

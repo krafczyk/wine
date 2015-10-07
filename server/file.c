@@ -64,9 +64,12 @@ struct file
 static unsigned int generic_file_map_access( unsigned int access );
 
 static void file_dump( struct object *obj, int verbose );
+static struct object_type *file_get_type( struct object *obj );
 static struct fd *file_get_fd( struct object *obj );
 static struct security_descriptor *file_get_sd( struct object *obj );
 static int file_set_sd( struct object *obj, const struct security_descriptor *sd, unsigned int set_info );
+static struct object *file_open_file( struct object *obj, unsigned int access,
+                                      unsigned int sharing, unsigned int options );
 static void file_destroy( struct object *obj );
 
 static int file_get_poll_events( struct fd *fd );
@@ -77,7 +80,7 @@ static const struct object_ops file_ops =
 {
     sizeof(struct file),          /* size */
     file_dump,                    /* dump */
-    no_get_type,                  /* get_type */
+    file_get_type,                /* get_type */
     add_queue,                    /* add_queue */
     remove_queue,                 /* remove_queue */
     default_fd_signaled,          /* signaled */
@@ -88,7 +91,7 @@ static const struct object_ops file_ops =
     file_get_sd,                  /* get_sd */
     file_set_sd,                  /* set_sd */
     no_lookup_name,               /* lookup_name */
-    no_open_file,                 /* open_file */
+    file_open_file,               /* open_file */
     fd_close_handle,              /* close_handle */
     file_destroy                  /* destroy */
 };
@@ -271,6 +274,13 @@ static void file_dump( struct object *obj, int verbose )
     struct file *file = (struct file *)obj;
     assert( obj->ops == &file_ops );
     fprintf( stderr, "File fd=%p\n", file->fd );
+}
+
+static struct object_type *file_get_type( struct object *obj )
+{
+    static const WCHAR name[] = {'F','i','l','e'};
+    static const struct unicode_str str = { name, sizeof(name) };
+    return get_object_type( &str );
 }
 
 static int file_get_poll_events( struct fd *fd )
@@ -595,6 +605,25 @@ static int file_set_sd( struct object *obj, const struct security_descriptor *sd
         }
     }
     return 1;
+}
+
+static struct object *file_open_file( struct object *obj, unsigned int access,
+                                      unsigned int sharing, unsigned int options )
+{
+    struct file *file = (struct file *)obj;
+    struct object *new_file = NULL;
+    char *unix_name;
+
+    assert( obj->ops == &file_ops );
+
+    if ((unix_name = dup_fd_name( file->fd, "" )))
+    {
+        new_file = create_file( NULL, unix_name, strlen(unix_name), access,
+                                sharing, FILE_OPEN, options, 0, NULL );
+        free( unix_name );
+    }
+    else set_error( STATUS_OBJECT_TYPE_MISMATCH );
+    return new_file;
 }
 
 static void file_destroy( struct object *obj )

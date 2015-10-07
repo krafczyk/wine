@@ -523,7 +523,7 @@
 @ stub KeDeregisterBugCheckReasonCallback
 @ stub KeDetachProcess
 @ stub KeDisconnectInterrupt
-@ stub KeEnterCriticalRegion
+@ stdcall KeEnterCriticalRegion()
 @ stub KeEnterKernelDebugger
 @ stub KeFindConfigurationEntry
 @ stub KeFindConfigurationNextEntry
@@ -563,7 +563,7 @@
 @ stub KeInsertQueueDpc
 @ stub KeIsAttachedProcess
 @ stub KeIsExecutingDpc
-@ stub KeLeaveCriticalRegion
+@ stdcall KeLeaveCriticalRegion()
 @ stub KeLoaderBlock
 @ stub KeNumberProcessors
 @ stub KeProfileInterrupt
@@ -977,7 +977,7 @@
 @ stub RtlCustomCPToUnicodeN
 @ stdcall RtlDecompressBuffer(long ptr long ptr long ptr) ntdll.RtlDecompressBuffer
 @ stub RtlDecompressChunks
-@ stub RtlDecompressFragment
+@ stdcall RtlDecompressFragment(long ptr long ptr long long ptr ptr) ntdll.RtlDecompressFragment
 @ stub RtlDelete
 @ stdcall RtlDeleteAce(ptr long) ntdll.RtlDeleteAce
 @ stdcall RtlDeleteAtomFromAtomTable(ptr long) ntdll.RtlDeleteAtomFromAtomTable

@@ -3992,6 +3992,8 @@ WINUSERAPI BOOL        WINAPI ShowScrollBar(HWND,INT,BOOL);
 WINUSERAPI BOOL        WINAPI ShowOwnedPopups(HWND,BOOL);
 WINUSERAPI BOOL        WINAPI ShowWindow(HWND,INT);
 WINUSERAPI BOOL        WINAPI ShowWindowAsync(HWND,INT);
+WINUSERAPI BOOL        WINAPI ShutdownBlockReasonCreate(HWND,LPCWSTR);
+WINUSERAPI BOOL        WINAPI ShutdownBlockReasonDestroy(HWND);
 WINUSERAPI BOOL        WINAPI SubtractRect(LPRECT,const RECT*,const RECT*);
 WINUSERAPI BOOL        WINAPI SwapMouseButton(BOOL);
 WINUSERAPI BOOL        WINAPI SwitchDesktop(HDESK);
@@ -4025,6 +4027,7 @@ WINUSERAPI BOOL        WINAPI UnregisterClassW(LPCWSTR,HINSTANCE);
 #define                       UnregisterClass WINELIB_NAME_AW(UnregisterClass)
 WINUSERAPI BOOL        WINAPI UnregisterDeviceNotification(HDEVNOTIFY);
 WINUSERAPI BOOL        WINAPI UnregisterHotKey(HWND,INT);
+WINUSERAPI BOOL        WINAPI UnregisterPowerSettingNotification(HPOWERNOTIFY);
 WINUSERAPI BOOL        WINAPI UpdateWindow(HWND);
 WINUSERAPI BOOL        WINAPI UserHandleGrantAccess(HANDLE,HANDLE,BOOL);
 WINUSERAPI UINT        WINAPI UserRealizePalette(HDC);

@@ -21,6 +21,7 @@
 #define COBJMACROS
 
 #include <stdarg.h>
+#include <math.h>
 
 #include "windef.h"
 #include "winbase.h"
@@ -72,7 +73,8 @@ enum layout_range_attr_kind {
     LAYOUT_RANGE_ATTR_PAIR_KERNING,
     LAYOUT_RANGE_ATTR_FONTCOLL,
     LAYOUT_RANGE_ATTR_LOCALE,
-    LAYOUT_RANGE_ATTR_FONTFAMILY
+    LAYOUT_RANGE_ATTR_FONTFAMILY,
+    LAYOUT_RANGE_ATTR_SPACING
 };
 
 struct layout_range_attr_value {
@@ -90,24 +92,52 @@ struct layout_range_attr_value {
         IDWriteFontCollection *collection;
         const WCHAR *locale;
         const WCHAR *fontfamily;
+        FLOAT spacing[3]; /* in arguments order - leading, trailing, advance */
     } u;
 };
 
-struct layout_range {
+enum layout_range_kind {
+    LAYOUT_RANGE_REGULAR,
+    LAYOUT_RANGE_STRIKETHROUGH,
+    LAYOUT_RANGE_EFFECT,
+    LAYOUT_RANGE_SPACING
+};
+
+struct layout_range_header {
     struct list entry;
+    enum layout_range_kind kind;
     DWRITE_TEXT_RANGE range;
+};
+
+struct layout_range {
+    struct layout_range_header h;
     DWRITE_FONT_WEIGHT weight;
     DWRITE_FONT_STYLE style;
     FLOAT fontsize;
     DWRITE_FONT_STRETCH stretch;
     IDWriteInlineObject *object;
-    IUnknown *effect;
     BOOL underline;
-    BOOL strikethrough;
     BOOL pair_kerning;
     IDWriteFontCollection *collection;
     WCHAR locale[LOCALE_NAME_MAX_LENGTH];
     WCHAR *fontfamily;
+};
+
+struct layout_range_bool {
+    struct layout_range_header h;
+    BOOL value;
+};
+
+struct layout_range_effect {
+    struct layout_range_header h;
+    IUnknown *effect;
+};
+
+struct layout_range_spacing {
+    struct layout_range_header h;
+    FLOAT leading;
+    FLOAT trailing;
+    FLOAT min_advance;
 };
 
 enum layout_run_kind {
@@ -128,6 +158,8 @@ struct regular_layout_run {
     UINT16 *clustermap;
     FLOAT  *advances;
     DWRITE_GLYPH_OFFSET *offsets;
+    /* this is actual glyph count after shaping, it's not necessary the same as reported to Draw() */
+    UINT32 glyphcount;
 };
 
 struct layout_run {
@@ -137,6 +169,8 @@ struct layout_run {
         struct inline_object_run object;
         struct regular_layout_run regular;
     } u;
+    FLOAT baseline;
+    FLOAT height;
 };
 
 struct layout_effective_run {
@@ -147,7 +181,29 @@ struct layout_effective_run {
     UINT32 glyphcount;      /* total glyph count in this run */
     FLOAT origin_x;         /* baseline X position */
     FLOAT origin_y;         /* baseline Y position */
+    FLOAT align_dx;         /* adjustment from text alignment */
+    FLOAT width;            /* run width */
     UINT16 *clustermap;     /* effective clustermap, allocated separately, is not reused from nominal map */
+    UINT32 line;
+};
+
+struct layout_effective_inline {
+    struct list entry;
+    IDWriteInlineObject *object;
+    IUnknown *effect;
+    FLOAT origin_x;
+    FLOAT origin_y;
+    FLOAT align_dx;
+    FLOAT width;
+    BOOL  is_sideways;
+    BOOL  is_rtl;
+    UINT32 line;
+};
+
+struct layout_strikethrough {
+    struct list entry;
+    const struct layout_effective_run *run;
+    DWRITE_STRIKETHROUGH s;
 };
 
 struct layout_cluster {
@@ -172,11 +228,15 @@ struct dwrite_textlayout {
     WCHAR *str;
     UINT32 len;
     struct dwrite_textformat_data format;
-    FLOAT  maxwidth;
-    FLOAT  maxheight;
+    struct list strike_ranges;
+    struct list effects;
+    struct list spacing;
     struct list ranges;
-    struct list eruns;
     struct list runs;
+    /* lists ready to use by Draw() */
+    struct list eruns;
+    struct list inlineobjects;
+    struct list strikethrough;
     USHORT recompute;
 
     DWRITE_LINE_BREAKPOINT *nominal_breakpoints;
@@ -188,13 +248,14 @@ struct dwrite_textlayout {
     FLOAT  minwidth;
 
     DWRITE_LINE_METRICS *lines;
-    UINT32 line_count;
     UINT32 line_alloc;
 
+    DWRITE_TEXT_METRICS1 metrics;
+
+    DWRITE_MEASURING_MODE measuringmode;
+
     /* gdi-compatible layout specifics */
-    BOOL   gdicompatible;
-    FLOAT  pixels_per_dip;
-    BOOL   use_gdi_natural;
+    FLOAT ppdip;
     DWRITE_MATRIX transform;
 };
 
@@ -207,6 +268,8 @@ struct dwrite_textformat {
 struct dwrite_trimmingsign {
     IDWriteInlineObject IDWriteInlineObject_iface;
     LONG ref;
+
+    IDWriteTextLayout *layout;
 };
 
 struct dwrite_typography {
@@ -216,6 +279,11 @@ struct dwrite_typography {
     DWRITE_FONT_FEATURE *features;
     UINT32 allocated;
     UINT32 count;
+};
+
+struct dwrite_vec {
+    FLOAT x;
+    FLOAT y;
 };
 
 static const IDWriteTextFormat1Vtbl dwritetextformatvtbl;
@@ -268,6 +336,51 @@ static inline const char *debugstr_run(const struct regular_layout_run *run)
 {
     return wine_dbg_sprintf("[%u,%u)", run->descr.textPosition, run->descr.textPosition +
         run->descr.stringLength);
+}
+
+static inline BOOL is_layout_gdi_compatible(struct dwrite_textlayout *layout)
+{
+    return layout->measuringmode != DWRITE_MEASURING_MODE_NATURAL;
+}
+
+static inline HRESULT format_set_textalignment(struct dwrite_textformat_data *format, DWRITE_TEXT_ALIGNMENT alignment,
+    BOOL *changed)
+{
+    if ((UINT32)alignment > DWRITE_TEXT_ALIGNMENT_JUSTIFIED)
+        return E_INVALIDARG;
+    if (changed) *changed = format->textalignment != alignment;
+    format->textalignment = alignment;
+    return S_OK;
+}
+
+static inline HRESULT format_set_paralignment(struct dwrite_textformat_data *format,
+    DWRITE_PARAGRAPH_ALIGNMENT alignment, BOOL *changed)
+{
+    if ((UINT32)alignment > DWRITE_PARAGRAPH_ALIGNMENT_CENTER)
+        return E_INVALIDARG;
+    if (changed) *changed = format->paralign != alignment;
+    format->paralign = alignment;
+    return S_OK;
+}
+
+static inline HRESULT format_set_readingdirection(struct dwrite_textformat_data *format,
+    DWRITE_READING_DIRECTION direction, BOOL *changed)
+{
+    if ((UINT32)direction > DWRITE_READING_DIRECTION_BOTTOM_TO_TOP)
+        return E_INVALIDARG;
+    if (changed) *changed = format->readingdir != direction;
+    format->readingdir = direction;
+    return S_OK;
+}
+
+static inline HRESULT format_set_wordwrapping(struct dwrite_textformat_data *format,
+    DWRITE_WORD_WRAPPING wrapping, BOOL *changed)
+{
+    if ((UINT32)wrapping > DWRITE_WORD_WRAPPING_CHARACTER)
+        return E_INVALIDARG;
+    if (changed) *changed = format->wrapping != wrapping;
+    format->wrapping = wrapping;
+    return S_OK;
 }
 
 static HRESULT get_fontfallback_from_format(const struct dwrite_textformat_data *format, IDWriteFontFallback **fallback)
@@ -324,11 +437,24 @@ static void free_layout_runs(struct dwrite_textlayout *layout)
 
 static void free_layout_eruns(struct dwrite_textlayout *layout)
 {
+    struct layout_effective_inline *in, *in2;
     struct layout_effective_run *cur, *cur2;
+    struct layout_strikethrough *s, *s2;
+
     LIST_FOR_EACH_ENTRY_SAFE(cur, cur2, &layout->eruns, struct layout_effective_run, entry) {
         list_remove(&cur->entry);
         heap_free(cur->clustermap);
         heap_free(cur);
+    }
+
+    LIST_FOR_EACH_ENTRY_SAFE(in, in2, &layout->inlineobjects, struct layout_effective_inline, entry) {
+        list_remove(&in->entry);
+        heap_free(in);
+    }
+
+    LIST_FOR_EACH_ENTRY_SAFE(s, s2, &layout->strikethrough, struct layout_strikethrough, entry) {
+        list_remove(&s->entry);
+        heap_free(s);
     }
 }
 
@@ -351,16 +477,26 @@ static inline DWRITE_BREAK_CONDITION override_break_condition(DWRITE_BREAK_CONDI
     return existingbreak;
 }
 
+/* This helper should be used to get effective range length, in other words it returns number of text
+   positions from range starting point to the end of the range, limited by layout text length */
+static inline UINT32 get_clipped_range_length(const struct dwrite_textlayout *layout, const struct layout_range *range)
+{
+    if (range->h.range.startPosition + range->h.range.length <= layout->len)
+        return range->h.range.length;
+    return layout->len - range->h.range.startPosition;
+}
+
 /* Actual breakpoint data gets updated with break condition required by inline object set for range 'cur'. */
 static HRESULT layout_update_breakpoints_range(struct dwrite_textlayout *layout, const struct layout_range *cur)
 {
     DWRITE_BREAK_CONDITION before, after;
+    UINT32 i, length;
     HRESULT hr;
-    UINT32 i;
 
+    /* ignore returned conditions if failed */
     hr = IDWriteInlineObject_GetBreakConditions(cur->object, &before, &after);
     if (FAILED(hr))
-        return hr;
+        after = before = DWRITE_BREAK_CONDITION_NEUTRAL;
 
     if (!layout->actual_breakpoints) {
         layout->actual_breakpoints = heap_alloc(sizeof(DWRITE_LINE_BREAKPOINT)*layout->len);
@@ -369,9 +505,10 @@ static HRESULT layout_update_breakpoints_range(struct dwrite_textlayout *layout,
         memcpy(layout->actual_breakpoints, layout->nominal_breakpoints, sizeof(DWRITE_LINE_BREAKPOINT)*layout->len);
     }
 
-    for (i = cur->range.startPosition; i < cur->range.length + cur->range.startPosition; i++) {
+    length = get_clipped_range_length(layout, cur);
+    for (i = cur->h.range.startPosition; i < length + cur->h.range.startPosition; i++) {
         /* for first codepoint check if there's anything before it and update accordingly */
-        if (i == cur->range.startPosition) {
+        if (i == cur->h.range.startPosition) {
             if (i > 0)
                 layout->actual_breakpoints[i].breakConditionBefore = layout->actual_breakpoints[i-1].breakConditionAfter =
                     override_break_condition(layout->actual_breakpoints[i-1].breakConditionAfter, before);
@@ -380,7 +517,7 @@ static HRESULT layout_update_breakpoints_range(struct dwrite_textlayout *layout,
             layout->actual_breakpoints[i].breakConditionAfter = DWRITE_BREAK_CONDITION_MAY_NOT_BREAK;
         }
         /* similar check for last codepoint */
-        else if (i == cur->range.startPosition + cur->range.length - 1) {
+        else if (i == cur->h.range.startPosition + length - 1) {
             if (i == layout->len - 1)
                 layout->actual_breakpoints[i].breakConditionAfter = after;
             else
@@ -411,19 +548,23 @@ static inline DWRITE_LINE_BREAKPOINT get_effective_breakpoint(const struct dwrit
 }
 
 static inline void init_cluster_metrics(const struct dwrite_textlayout *layout, const struct regular_layout_run *run,
-    UINT16 start_glyph, UINT16 stop_glyph, UINT32 stop_position, DWRITE_CLUSTER_METRICS *metrics)
+    UINT16 start_glyph, UINT16 stop_glyph, UINT32 stop_position, UINT16 length, DWRITE_CLUSTER_METRICS *metrics)
 {
     UINT8 breakcondition;
     UINT32 position;
     UINT16 j;
 
+    /* For clusters made of control chars we report zero glyphs, and we need zero cluster
+       width as well; advances are already computed at this point and are not necessary zero. */
     metrics->width = 0.0;
-    for (j = start_glyph; j < stop_glyph; j++)
-        metrics->width += run->run.glyphAdvances[j];
-    metrics->length = 0;
+    if (run->run.glyphCount) {
+        for (j = start_glyph; j < stop_glyph; j++)
+            metrics->width += run->run.glyphAdvances[j];
+    }
+    metrics->length = length;
 
     position = stop_position;
-    if (stop_glyph == run->run.glyphCount)
+    if (stop_glyph == run->glyphcount)
         breakcondition = get_effective_breakpoint(layout, stop_position).breakConditionAfter;
     else {
         breakcondition = get_effective_breakpoint(layout, stop_position).breakConditionBefore;
@@ -433,10 +574,10 @@ static inline void init_cluster_metrics(const struct dwrite_textlayout *layout, 
     metrics->canWrapLineAfter = breakcondition == DWRITE_BREAK_CONDITION_CAN_BREAK ||
                                 breakcondition == DWRITE_BREAK_CONDITION_MUST_BREAK;
     if (metrics->length == 1) {
-        WORD type;
+        WORD type = 0;
 
         GetStringTypeW(CT_CTYPE1, &layout->str[position], 1, &type);
-        metrics->isWhitespace = type == C1_SPACE;
+        metrics->isWhitespace = !!(type & C1_SPACE);
         metrics->isNewline = FALSE /* FIXME */;
         metrics->isSoftHyphen = layout->str[position] == 0x00ad /* Unicode Soft Hyphen */;
     }
@@ -468,8 +609,8 @@ static void layout_set_cluster_metrics(struct dwrite_textlayout *layout, const s
         BOOL end = i == run->descr.stringLength - 1;
 
         if (run->descr.clusterMap[start] != run->descr.clusterMap[i]) {
-            init_cluster_metrics(layout, run, run->descr.clusterMap[start], run->descr.clusterMap[i], i, metrics);
-            metrics->length = i - start;
+            init_cluster_metrics(layout, run, run->descr.clusterMap[start], run->descr.clusterMap[i], i,
+                i - start, metrics);
             c->position = start;
             c->run = r;
 
@@ -480,8 +621,8 @@ static void layout_set_cluster_metrics(struct dwrite_textlayout *layout, const s
         }
 
         if (end) {
-            init_cluster_metrics(layout, run, run->descr.clusterMap[start], run->run.glyphCount, i, metrics);
-            metrics->length = i - start + 1;
+            init_cluster_metrics(layout, run, run->descr.clusterMap[start], run->glyphcount, i,
+                i - start + 1, metrics);
             c->position = start;
             c->run = r;
 
@@ -489,6 +630,11 @@ static void layout_set_cluster_metrics(struct dwrite_textlayout *layout, const s
             return;
         }
     }
+}
+
+static inline FLOAT get_scaled_font_metric(UINT32 metric, FLOAT emSize, const DWRITE_FONT_METRICS *metrics)
+{
+    return (FLOAT)metric * emSize / (FLOAT)metrics->designUnitsPerEm;
 }
 
 static HRESULT layout_compute_runs(struct dwrite_textlayout *layout)
@@ -499,6 +645,7 @@ static HRESULT layout_compute_runs(struct dwrite_textlayout *layout)
     UINT32 cluster = 0;
     HRESULT hr;
 
+    free_layout_eruns(layout);
     free_layout_runs(layout);
 
     /* Cluster data arrays are allocated once, assuming one text position per cluster. */
@@ -517,7 +664,11 @@ static HRESULT layout_compute_runs(struct dwrite_textlayout *layout)
     if (FAILED(hr))
         return hr;
 
-    LIST_FOR_EACH_ENTRY(range, &layout->ranges, struct layout_range, entry) {
+    LIST_FOR_EACH_ENTRY(range, &layout->ranges, struct layout_range, h.entry) {
+        /* we don't care about ranges that don't contain any text */
+        if (range->h.range.startPosition >= layout->len)
+            break;
+
         /* inline objects override actual text in a range */
         if (range->object) {
             hr = layout_update_breakpoints_range(layout, range);
@@ -529,20 +680,20 @@ static HRESULT layout_compute_runs(struct dwrite_textlayout *layout)
                 return E_OUTOFMEMORY;
 
             r->u.object.object = range->object;
-            r->u.object.length = range->range.length;
+            r->u.object.length = get_clipped_range_length(layout, range);
             list_add_tail(&layout->runs, &r->entry);
             continue;
         }
 
         /* initial splitting by script */
         hr = IDWriteTextAnalyzer_AnalyzeScript(analyzer, &layout->IDWriteTextAnalysisSource_iface,
-            range->range.startPosition, range->range.length, &layout->IDWriteTextAnalysisSink_iface);
+            range->h.range.startPosition, get_clipped_range_length(layout, range), &layout->IDWriteTextAnalysisSink_iface);
         if (FAILED(hr))
             break;
 
         /* this splits it further */
         hr = IDWriteTextAnalyzer_AnalyzeBidi(analyzer, &layout->IDWriteTextAnalysisSource_iface,
-            range->range.startPosition, range->range.length, &layout->IDWriteTextAnalysisSink_iface);
+            range->h.range.startPosition, get_clipped_range_length(layout, range), &layout->IDWriteTextAnalysisSink_iface);
         if (FAILED(hr))
             break;
     }
@@ -552,6 +703,7 @@ static HRESULT layout_compute_runs(struct dwrite_textlayout *layout)
         DWRITE_SHAPING_GLYPH_PROPERTIES *glyph_props = NULL;
         DWRITE_SHAPING_TEXT_PROPERTIES *text_props = NULL;
         struct regular_layout_run *run = &r->u.regular;
+        DWRITE_FONT_METRICS fontmetrics = { 0 };
         IDWriteFontFamily *family;
         UINT32 index, max_count;
         IDWriteFont *font;
@@ -575,13 +727,15 @@ static HRESULT layout_compute_runs(struct dwrite_textlayout *layout)
             c->position = 0; /* there's always one cluster per inline object, so 0 is valid value */
             cluster++;
 
-            /* TODO: is it fatal if GetMetrics() fails? */
+            /* it's not fatal if GetMetrics() fails, all returned metrics are ignored */
             hr = IDWriteInlineObject_GetMetrics(r->u.object.object, &inlinemetrics);
             if (FAILED(hr)) {
-                FIXME("failed to get inline object metrics, 0x%08x\n", hr);
-                continue;
+                memset(&inlinemetrics, 0, sizeof(inlinemetrics));
+                hr = S_OK;
             }
             metrics->width = inlinemetrics.width;
+            r->baseline = inlinemetrics.baseline;
+            r->height = inlinemetrics.height;
 
             /* FIXME: use resolved breakpoints in this case too */
 
@@ -630,12 +784,12 @@ static HRESULT layout_compute_runs(struct dwrite_textlayout *layout)
             hr = IDWriteTextAnalyzer_GetGlyphs(analyzer, run->descr.string, run->descr.stringLength,
                 run->run.fontFace, run->run.isSideways, run->run.bidiLevel & 1, &run->sa, run->descr.localeName,
                 NULL /* FIXME */, NULL, NULL, 0, max_count, run->clustermap, text_props, run->glyphs, glyph_props,
-                &run->run.glyphCount);
+                &run->glyphcount);
             if (hr == E_NOT_SUFFICIENT_BUFFER) {
                 heap_free(run->glyphs);
                 heap_free(glyph_props);
 
-                max_count = run->run.glyphCount;
+                max_count = run->glyphcount;
 
                 run->glyphs = heap_alloc(max_count*sizeof(UINT16));
                 glyph_props = heap_alloc(max_count*sizeof(DWRITE_SHAPING_GLYPH_PROPERTIES));
@@ -658,21 +812,21 @@ static HRESULT layout_compute_runs(struct dwrite_textlayout *layout)
         run->run.glyphIndices = run->glyphs;
         run->descr.clusterMap = run->clustermap;
 
-        run->advances = heap_alloc(run->run.glyphCount*sizeof(FLOAT));
-        run->offsets = heap_alloc(run->run.glyphCount*sizeof(DWRITE_GLYPH_OFFSET));
+        run->advances = heap_alloc(run->glyphcount*sizeof(FLOAT));
+        run->offsets = heap_alloc(run->glyphcount*sizeof(DWRITE_GLYPH_OFFSET));
         if (!run->advances || !run->offsets)
             goto memerr;
 
         /* now set advances and offsets */
-        if (layout->gdicompatible)
+        if (is_layout_gdi_compatible(layout))
             hr = IDWriteTextAnalyzer_GetGdiCompatibleGlyphPlacements(analyzer, run->descr.string, run->descr.clusterMap,
-                text_props, run->descr.stringLength, run->run.glyphIndices, glyph_props, run->run.glyphCount,
-                run->run.fontFace, run->run.fontEmSize, layout->pixels_per_dip, &layout->transform, layout->use_gdi_natural,
-                run->run.isSideways, run->run.bidiLevel & 1, &run->sa, run->descr.localeName, NULL, NULL, 0,
-                run->advances, run->offsets);
+                text_props, run->descr.stringLength, run->run.glyphIndices, glyph_props, run->glyphcount,
+                run->run.fontFace, run->run.fontEmSize, layout->ppdip, &layout->transform,
+                layout->measuringmode == DWRITE_MEASURING_MODE_GDI_NATURAL, run->run.isSideways,
+                run->run.bidiLevel & 1, &run->sa, run->descr.localeName, NULL, NULL, 0, run->advances, run->offsets);
         else
             hr = IDWriteTextAnalyzer_GetGlyphPlacements(analyzer, run->descr.string, run->descr.clusterMap, text_props,
-                run->descr.stringLength, run->run.glyphIndices, glyph_props, run->run.glyphCount, run->run.fontFace,
+                run->descr.stringLength, run->run.glyphIndices, glyph_props, run->glyphcount, run->run.fontFace,
                 run->run.fontEmSize, run->run.isSideways, run->run.bidiLevel & 1, &run->sa, run->descr.localeName,
                 NULL, NULL, 0, run->advances, run->offsets);
 
@@ -683,6 +837,30 @@ static HRESULT layout_compute_runs(struct dwrite_textlayout *layout)
 
         run->run.glyphAdvances = run->advances;
         run->run.glyphOffsets = run->offsets;
+
+        /* Special treatment of control script, shaping code adds normal glyphs for it,
+           with non-zero advances, and layout code exposes those as zero width clusters,
+           so we have to do it manually. */
+        if (run->sa.script == Script_Common)
+            run->run.glyphCount = 0;
+        else
+            run->run.glyphCount = run->glyphcount;
+
+        /* baseline derived from font metrics */
+        if (is_layout_gdi_compatible(layout)) {
+            hr = IDWriteFontFace_GetGdiCompatibleMetrics(run->run.fontFace,
+                run->run.fontEmSize,
+                layout->ppdip,
+                &layout->transform,
+                &fontmetrics);
+            if (FAILED(hr))
+                WARN("failed to get compat metrics, 0x%08x\n", hr);
+        }
+        else
+            IDWriteFontFace_GetMetrics(run->run.fontFace, &fontmetrics);
+
+        r->baseline = get_scaled_font_metric(fontmetrics.ascent, run->run.fontEmSize, &fontmetrics);
+        r->height = get_scaled_font_metric(fontmetrics.ascent + fontmetrics.descent, run->run.fontEmSize, &fontmetrics);
 
         layout_set_cluster_metrics(layout, r, &cluster);
 
@@ -702,8 +880,11 @@ static HRESULT layout_compute_runs(struct dwrite_textlayout *layout)
         break;
     }
 
-    if (hr == S_OK)
+    if (hr == S_OK) {
         layout->cluster_count = cluster;
+        if (cluster)
+            layout->clustermetrics[cluster-1].canWrapLineAfter = TRUE;
+    }
 
     IDWriteTextAnalyzer_Release(analyzer);
     return hr;
@@ -756,15 +937,83 @@ static HRESULT layout_compute(struct dwrite_textlayout *layout)
     return hr;
 }
 
-static HRESULT layout_add_effective_run(struct dwrite_textlayout *layout, const struct layout_run *r, UINT32 start,
-    UINT32 length, FLOAT origin_x)
+static inline FLOAT get_cluster_range_width(struct dwrite_textlayout *layout, UINT32 start, UINT32 end)
 {
+    FLOAT width = 0.0;
+    for (; start < end; start++)
+        width += layout->clustermetrics[start].width;
+    return width;
+}
+
+static struct layout_range_header *get_layout_range_header_by_pos(struct list *ranges, UINT32 pos)
+{
+    struct layout_range_header *cur;
+
+    LIST_FOR_EACH_ENTRY(cur, ranges, struct layout_range_header, entry) {
+        DWRITE_TEXT_RANGE *r = &cur->range;
+        if (r->startPosition <= pos && pos < r->startPosition + r->length)
+            return cur;
+    }
+
+    return NULL;
+}
+
+static inline IUnknown *layout_get_effect_from_pos(struct dwrite_textlayout *layout, UINT32 pos)
+{
+    struct layout_range_header *h = get_layout_range_header_by_pos(&layout->effects, pos);
+    return ((struct layout_range_effect*)h)->effect;
+}
+
+static inline BOOL layout_is_erun_rtl(const struct layout_effective_run *erun)
+{
+    return erun->run->u.regular.run.bidiLevel & 1;
+}
+
+/* Effective run is built from consecutive clusters of a single nominal run, 'first_cluster' is 0 based cluster index,
+   'cluster_count' indicates how many clusters to add, including first one. */
+static HRESULT layout_add_effective_run(struct dwrite_textlayout *layout, const struct layout_run *r, UINT32 first_cluster,
+    UINT32 cluster_count, UINT32 line, FLOAT origin_x, BOOL strikethrough)
+{
+    BOOL is_rtl = layout->format.readingdir == DWRITE_READING_DIRECTION_RIGHT_TO_LEFT;
+    UINT32 i, start, length, last_cluster;
     struct layout_effective_run *run;
-    UINT32 i;
+
+    if (r->kind == LAYOUT_RUN_INLINE) {
+        struct layout_effective_inline *inlineobject;
+
+        inlineobject = heap_alloc(sizeof(*inlineobject));
+        if (!inlineobject)
+            return E_OUTOFMEMORY;
+
+        inlineobject->object = r->u.object.object;
+        inlineobject->width = get_cluster_range_width(layout, first_cluster, first_cluster + cluster_count);
+        inlineobject->origin_x = is_rtl ? origin_x - inlineobject->width : origin_x;
+        inlineobject->origin_y = 0.0; /* set after line is built */
+        inlineobject->align_dx = 0.0;
+
+        /* It's not clear how these two are set, possibly directionality
+           is derived from surrounding text (replaced text could have
+           different ranges which differ in reading direction). */
+        inlineobject->is_sideways = FALSE;
+        inlineobject->is_rtl = FALSE;
+        inlineobject->line = line;
+
+        /* effect assigned from start position and on is used for inline objects */
+        inlineobject->effect = layout_get_effect_from_pos(layout, layout->clusters[first_cluster].position);
+
+        list_add_tail(&layout->inlineobjects, &inlineobject->entry);
+        return S_OK;
+    }
 
     run = heap_alloc(sizeof(*run));
     if (!run)
         return E_OUTOFMEMORY;
+
+    /* No need to iterate for that, use simple fact that:
+       <last cluster position> = first cluster position> + <sum of cluster lengths not including last one> */
+    last_cluster = first_cluster + cluster_count - 1;
+    length = layout->clusters[last_cluster].position - layout->clusters[first_cluster].position +
+        layout->clustermetrics[last_cluster].length;
 
     run->clustermap = heap_alloc(sizeof(UINT16)*length);
     if (!run->clustermap) {
@@ -773,22 +1022,73 @@ static HRESULT layout_add_effective_run(struct dwrite_textlayout *layout, const 
     }
 
     run->run = r;
-    run->start = start;
+    run->start = start = layout->clusters[first_cluster].position;
     run->length = length;
-    run->origin_x = origin_x;
-    run->origin_y = 0.0; /* FIXME: set after line is built */
+    run->width = get_cluster_range_width(layout, first_cluster, first_cluster + cluster_count);
 
-    /* trim from the left */
-    run->glyphcount = r->u.regular.run.glyphCount - r->u.regular.clustermap[start];
-    /* trim from the right */
-    if (length < r->u.regular.descr.stringLength)
-        run->glyphcount -= r->u.regular.clustermap[start + length];
+    /* Check if run direction matches paragraph direction, if it doesn't adjust by
+       run width */
+    if (layout_is_erun_rtl(run) ^ is_rtl)
+        run->origin_x = is_rtl ? origin_x - run->width : origin_x + run->width;
+    else
+        run->origin_x = origin_x;
+
+    run->origin_y = 0.0; /* set after line is built */
+    run->align_dx = 0.0;
+    run->line = line;
+
+    if (r->u.regular.run.glyphCount) {
+        /* trim from the left */
+        run->glyphcount = r->u.regular.run.glyphCount - r->u.regular.clustermap[start];
+        /* trim from the right */
+        if (start + length < r->u.regular.descr.stringLength - 1)
+            run->glyphcount -= r->u.regular.run.glyphCount - r->u.regular.clustermap[start + length];
+    }
+    else
+        run->glyphcount = 0;
 
     /* cluster map needs to be shifted */
     for (i = 0; i < length; i++)
-        run->clustermap[i] = r->u.regular.clustermap[start] - start;
+        run->clustermap[i] = r->u.regular.clustermap[start + i] - r->u.regular.clustermap[start];
 
     list_add_tail(&layout->eruns, &run->entry);
+
+    /* Strikethrough style is guaranteed to be consistent within effective run,
+       it's width equals to run width, thikness and offset are derived from
+       font metrics, rest of the values are from layout or run itself */
+    if (strikethrough) {
+        DWRITE_FONT_METRICS metrics = { 0 };
+        struct layout_strikethrough *s;
+
+        s = heap_alloc(sizeof(*s));
+        if (!s)
+            return E_OUTOFMEMORY;
+
+        if (is_layout_gdi_compatible(layout)) {
+            HRESULT hr = IDWriteFontFace_GetGdiCompatibleMetrics(
+                r->u.regular.run.fontFace,
+                r->u.regular.run.fontEmSize,
+                layout->ppdip,
+                &layout->transform,
+                &metrics);
+            if (FAILED(hr))
+                WARN("failed to get font metrics, 0x%08x\n", hr);
+        }
+        else
+            IDWriteFontFace_GetMetrics(r->u.regular.run.fontFace, &metrics);
+
+        s->s.width = get_cluster_range_width(layout, first_cluster, first_cluster + cluster_count);
+        s->s.thickness = metrics.strikethroughThickness;
+        s->s.offset = metrics.strikethroughPosition;
+        s->s.readingDirection = layout->format.readingdir;
+        s->s.flowDirection = layout->format.flow;
+        s->s.localeName = r->u.regular.descr.localeName;
+        s->s.measuringMode = layout->measuringmode;
+        s->run = run;
+
+        list_add_tail(&layout->strikethrough, &s->entry);
+    }
+
     return S_OK;
 }
 
@@ -801,7 +1101,7 @@ static HRESULT layout_set_line_metrics(struct dwrite_textlayout *layout, DWRITE_
             return E_OUTOFMEMORY;
     }
 
-    if (layout->line_count == layout->line_alloc) {
+    if (layout->metrics.lineCount == layout->line_alloc) {
         DWRITE_LINE_METRICS *l = heap_realloc(layout->lines, layout->line_alloc*2*sizeof(*layout->lines));
         if (!l)
             return E_OUTOFMEMORY;
@@ -810,26 +1110,280 @@ static HRESULT layout_set_line_metrics(struct dwrite_textlayout *layout, DWRITE_
     }
 
     layout->lines[*line] = *metrics;
+    layout->metrics.lineCount += 1;
     *line += 1;
     return S_OK;
 }
 
-static inline FLOAT get_cluster_range_width(struct dwrite_textlayout *layout, UINT32 start, UINT32 end)
+static inline BOOL layout_get_strikethrough_from_pos(struct dwrite_textlayout *layout, UINT32 pos)
+{
+    struct layout_range_header *h = get_layout_range_header_by_pos(&layout->strike_ranges, pos);
+    return ((struct layout_range_bool*)h)->value;
+}
+
+static inline struct layout_effective_run *layout_get_next_erun(struct dwrite_textlayout *layout,
+    const struct layout_effective_run *cur)
+{
+    struct list *e;
+
+    if (!cur)
+        e = list_head(&layout->eruns);
+    else
+        e = list_next(&layout->eruns, &cur->entry);
+    if (!e)
+        return NULL;
+    return LIST_ENTRY(e, struct layout_effective_run, entry);
+}
+
+static inline struct layout_effective_inline *layout_get_next_inline_run(struct dwrite_textlayout *layout,
+    const struct layout_effective_inline *cur)
+{
+    struct list *e;
+
+    if (!cur)
+        e = list_head(&layout->inlineobjects);
+    else
+        e = list_next(&layout->inlineobjects, &cur->entry);
+    if (!e)
+        return NULL;
+    return LIST_ENTRY(e, struct layout_effective_inline, entry);
+}
+
+static FLOAT layout_get_line_width(struct dwrite_textlayout *layout,
+    struct layout_effective_run *erun, struct layout_effective_inline *inrun, UINT32 line)
 {
     FLOAT width = 0.0;
-    for (; start < end; start++)
-        width += layout->clustermetrics[start].width;
+
+    while (erun && erun->line == line) {
+        width += erun->width;
+        erun = layout_get_next_erun(layout, erun);
+        if (!erun)
+            break;
+    }
+
+    while (inrun && inrun->line == line) {
+        width += inrun->width;
+        inrun = layout_get_next_inline_run(layout, inrun);
+        if (!inrun)
+            break;
+    }
+
     return width;
+}
+
+static inline BOOL should_skip_transform(const DWRITE_MATRIX *m, FLOAT *det)
+{
+    *det = m->m11 * m->m22 - m->m12 * m->m21;
+    /* on certain conditions we can skip transform */
+    return (!memcmp(m, &identity, sizeof(*m)) || fabsf(*det) <= 1e-10f);
+}
+
+static inline void layout_apply_snapping(struct dwrite_vec *vec, BOOL skiptransform, FLOAT ppdip,
+    const DWRITE_MATRIX *m, FLOAT det)
+{
+    if (!skiptransform) {
+        FLOAT vec2[2];
+
+        /* apply transform */
+        vec->x *= ppdip;
+        vec->y *= ppdip;
+
+        vec2[0] = m->m11 * vec->x + m->m21 * vec->y + m->dx;
+        vec2[1] = m->m12 * vec->x + m->m22 * vec->y + m->dy;
+
+        /* snap */
+        vec2[0] = floorf(vec2[0] + 0.5f);
+        vec2[1] = floorf(vec2[1] + 0.5f);
+
+        /* apply inverted transform, we don't care about X component at this point */
+        vec->x = (m->m22 * vec2[0] - m->m21 * vec2[1] + m->m21 * m->dy - m->m22 * m->dx) / det;
+        vec->x /= ppdip;
+
+        vec->y = (-m->m12 * vec2[0] + m->m11 * vec2[1] - (m->m11 * m->dy - m->m12 * m->dx)) / det;
+        vec->y /= ppdip;
+    }
+    else {
+        vec->x = floorf(vec->x * ppdip + 0.5f) / ppdip;
+        vec->y = floorf(vec->y * ppdip + 0.5f) / ppdip;
+    }
+}
+
+static void layout_apply_leading_alignment(struct dwrite_textlayout *layout)
+{
+    BOOL is_rtl = layout->format.readingdir == DWRITE_READING_DIRECTION_RIGHT_TO_LEFT;
+    struct layout_effective_inline *inrun;
+    struct layout_effective_run *erun;
+
+    erun = layout_get_next_erun(layout, NULL);
+    inrun = layout_get_next_inline_run(layout, NULL);
+
+    while (erun) {
+        erun->align_dx = 0.0;
+        erun = layout_get_next_erun(layout, erun);
+    }
+
+    while (inrun) {
+        inrun->align_dx = 0.0;
+        inrun = layout_get_next_inline_run(layout, inrun);
+    }
+
+    layout->metrics.left = is_rtl ? layout->metrics.layoutWidth - layout->metrics.width : 0.0;
+}
+
+static void layout_apply_trailing_alignment(struct dwrite_textlayout *layout)
+{
+    BOOL is_rtl = layout->format.readingdir == DWRITE_READING_DIRECTION_RIGHT_TO_LEFT;
+    struct layout_effective_inline *inrun;
+    struct layout_effective_run *erun;
+    UINT32 line;
+
+    erun = layout_get_next_erun(layout, NULL);
+    inrun = layout_get_next_inline_run(layout, NULL);
+
+    for (line = 0; line < layout->metrics.lineCount; line++) {
+        FLOAT width = layout_get_line_width(layout, erun, inrun, line);
+        FLOAT shift = layout->metrics.layoutWidth - width;
+
+        if (is_rtl)
+            shift *= -1.0;
+
+        while (erun && erun->line == line) {
+            erun->align_dx = shift;
+            erun = layout_get_next_erun(layout, erun);
+        }
+
+        while (inrun && inrun->line == line) {
+            inrun->align_dx = shift;
+            inrun = layout_get_next_inline_run(layout, inrun);
+        }
+    }
+
+    layout->metrics.left = is_rtl ? 0.0 : layout->metrics.layoutWidth - layout->metrics.width;
+}
+
+static inline FLOAT layout_get_centered_shift(struct dwrite_textlayout *layout, BOOL skiptransform,
+    FLOAT width, FLOAT det)
+{
+    if (is_layout_gdi_compatible(layout)) {
+        struct dwrite_vec vec = { layout->metrics.layoutWidth - width, 0.0 };
+        layout_apply_snapping(&vec, skiptransform, layout->ppdip, &layout->transform, det);
+        return floorf(vec.x / 2.0f);
+    }
+    else
+        return (layout->metrics.layoutWidth - width) / 2.0f;
+}
+
+static void layout_apply_centered_alignment(struct dwrite_textlayout *layout)
+{
+    BOOL is_rtl = layout->format.readingdir == DWRITE_READING_DIRECTION_RIGHT_TO_LEFT;
+    struct layout_effective_inline *inrun;
+    struct layout_effective_run *erun;
+    BOOL skiptransform;
+    UINT32 line;
+    FLOAT det;
+
+    erun = layout_get_next_erun(layout, NULL);
+    inrun = layout_get_next_inline_run(layout, NULL);
+
+    skiptransform = should_skip_transform(&layout->transform, &det);
+
+    for (line = 0; line < layout->metrics.lineCount; line++) {
+        FLOAT width = layout_get_line_width(layout, erun, inrun, line);
+        FLOAT shift = layout_get_centered_shift(layout, skiptransform, width, det);
+
+        if (is_rtl)
+            shift *= -1.0;
+
+        while (erun && erun->line == line) {
+            erun->align_dx = shift;
+            erun = layout_get_next_erun(layout, erun);
+        }
+
+        while (inrun && inrun->line == line) {
+            inrun->align_dx = shift;
+            inrun = layout_get_next_inline_run(layout, inrun);
+        }
+    }
+
+    layout->metrics.left = (layout->metrics.layoutWidth - layout->metrics.width) / 2.0;
+}
+
+static void layout_apply_text_alignment(struct dwrite_textlayout *layout)
+{
+    switch (layout->format.textalignment)
+    {
+    case DWRITE_TEXT_ALIGNMENT_LEADING:
+        layout_apply_leading_alignment(layout);
+        break;
+    case DWRITE_TEXT_ALIGNMENT_TRAILING:
+        layout_apply_trailing_alignment(layout);
+        break;
+    case DWRITE_TEXT_ALIGNMENT_CENTER:
+        layout_apply_centered_alignment(layout);
+        break;
+    case DWRITE_TEXT_ALIGNMENT_JUSTIFIED:
+        FIXME("alignment %d not implemented\n", layout->format.textalignment);
+        break;
+    default:
+        ;
+    }
+}
+
+static void layout_apply_par_alignment(struct dwrite_textlayout *layout)
+{
+    struct layout_effective_inline *inrun;
+    struct layout_effective_run *erun;
+    FLOAT origin_y = 0.0;
+    UINT32 line;
+
+    /* alignment mode defines origin, after that all run origins are updated
+       the same way */
+
+    switch (layout->format.paralign)
+    {
+    case DWRITE_PARAGRAPH_ALIGNMENT_NEAR:
+        origin_y = 0.0;
+        break;
+    case DWRITE_PARAGRAPH_ALIGNMENT_FAR:
+        origin_y = layout->metrics.layoutHeight - layout->metrics.height;
+        break;
+    case DWRITE_PARAGRAPH_ALIGNMENT_CENTER:
+        origin_y = (layout->metrics.layoutHeight - layout->metrics.height) / 2.0;
+        break;
+    default:
+        ;
+    }
+
+    layout->metrics.top = origin_y;
+
+    erun = layout_get_next_erun(layout, NULL);
+    inrun = layout_get_next_inline_run(layout, NULL);
+    for (line = 0; line < layout->metrics.lineCount; line++) {
+        origin_y += layout->lines[line].baseline;
+
+        while (erun && erun->line == line) {
+            erun->origin_y = origin_y;
+            erun = layout_get_next_erun(layout, erun);
+        }
+
+        while (inrun && inrun->line == line) {
+            inrun->origin_y = origin_y;
+            inrun = layout_get_next_inline_run(layout, inrun);
+        }
+    }
 }
 
 static HRESULT layout_compute_effective_runs(struct dwrite_textlayout *layout)
 {
-    DWRITE_LINE_METRICS metrics;
+    BOOL is_rtl = layout->format.readingdir == DWRITE_READING_DIRECTION_RIGHT_TO_LEFT;
+    struct layout_effective_inline *inrun;
+    struct layout_effective_run *erun;
     const struct layout_run *run;
-    FLOAT width, origin_x;
-    UINT32 i, start, line;
-    BOOL can_wrap_after;
+    DWRITE_LINE_METRICS metrics;
+    FLOAT width, origin_x, origin_y;
+    UINT32 i, start, line, textpos;
     HRESULT hr;
+    BOOL s[2];
 
     if (!(layout->recompute & RECOMPUTE_EFFECTIVE_RUNS))
         return S_OK;
@@ -838,38 +1392,60 @@ static HRESULT layout_compute_effective_runs(struct dwrite_textlayout *layout)
     if (FAILED(hr))
         return hr;
 
-    layout->line_count = 0;
-    origin_x = 0.0;
+    layout->metrics.lineCount = 0;
+    origin_x = is_rtl ? layout->metrics.layoutWidth : 0.0;
     line = 0;
     run = layout->clusters[0].run;
-    can_wrap_after = layout->clustermetrics[0].canWrapLineAfter;
     memset(&metrics, 0, sizeof(metrics));
+    s[0] = s[1] = layout_get_strikethrough_from_pos(layout, 0);
 
-    for (i = 0, start = 0, width = 0.0; i < layout->cluster_count; i++) {
-        if (run != layout->clusters[i].run) {
-            /* switched to next nominal run */
-            hr = layout_add_effective_run(layout, run, start, i - start, origin_x);
+    for (i = 0, start = 0, textpos = 0, width = 0.0; i < layout->cluster_count; i++) {
+        BOOL overflow;
+
+        s[1] = layout_get_strikethrough_from_pos(layout, textpos);
+
+        /* switched to next nominal run, at this point all previous pending clusters are already
+           checked for layout line overflow, so new effective run will fit in current line */
+        if (run != layout->clusters[i].run || s[0] != s[1]) {
+            hr = layout_add_effective_run(layout, run, start, i - start, line, origin_x, s[0]);
             if (FAILED(hr))
                 return hr;
-            origin_x += get_cluster_range_width(layout, start, i);
+            origin_x += is_rtl ? -get_cluster_range_width(layout, start, i) :
+                                  get_cluster_range_width(layout, start, i);
+            run = layout->clusters[i].run;
             start = i;
         }
 
-        /* check if we got new line */
-        if (((can_wrap_after && (width + layout->clustermetrics[i].width > layout->maxwidth)) ||
-              layout->clustermetrics[i].isNewline || /* always wrap on new line */
-              i == layout->cluster_count - 1)) /* end of the text */ {
+        overflow = layout->clustermetrics[i].canWrapLineAfter &&
+            (width + layout->clustermetrics[i].width > layout->metrics.layoutWidth);
+        /* check if we got new */
+        if (overflow ||
+            layout->clustermetrics[i].isNewline || /* always wrap on new line */
+            i == layout->cluster_count - 1) /* end of the text */ {
 
-            UINT32 strlength = metrics.length, index = i;
+            UINT32 strlength, last_cluster, index;
+            FLOAT descent, trailingspacewidth;
 
-            if (i > start) {
-                hr = layout_add_effective_run(layout, run, start, i - start, origin_x);
+            if (!overflow) {
+                width += layout->clustermetrics[i].width;
+                metrics.length += layout->clustermetrics[i].length;
+                last_cluster = i;
+            }
+            else
+                last_cluster = i ? i - 1 : i;
+
+            if (i >= start) {
+                hr = layout_add_effective_run(layout, run, start, last_cluster - start + 1, line, origin_x, s[0]);
                 if (FAILED(hr))
                     return hr;
                 /* we don't need to update origin for next run as we're going to wrap */
             }
 
-            /* take a look at clusters we got for this line in reverse order */
+            /* take a look at clusters we got for this line in reverse order to set
+               trailing properties for current line */
+            strlength = metrics.length;
+            index = last_cluster;
+            trailingspacewidth = 0.0;
             while (strlength) {
                 DWRITE_CLUSTER_METRICS *cluster = &layout->clustermetrics[index];
 
@@ -881,23 +1457,49 @@ static HRESULT layout_compute_effective_runs(struct dwrite_textlayout *layout)
                     metrics.newlineLength += cluster->length;
                 }
 
-                if (cluster->isWhitespace)
+                if (cluster->isWhitespace) {
                     metrics.trailingWhitespaceLength += cluster->length;
+                    trailingspacewidth += cluster->width;
+                }
 
                 strlength -= cluster->length;
                 index--;
             }
 
-            metrics.height = 0.0;   /* FIXME */
-            metrics.baseline = 0.0; /* FIXME */
-            metrics.isTrimmed = width > layout->maxwidth;
+            /* look for max baseline and descent for this line */
+            strlength = metrics.length;
+            index = last_cluster;
+            metrics.baseline = 0.0;
+            descent = 0.0;
+            while (strlength) {
+                DWRITE_CLUSTER_METRICS *cluster = &layout->clustermetrics[index];
+                const struct layout_run *cur = layout->clusters[index].run;
+                FLOAT cur_descent = cur->height - cur->baseline;
+
+                if (cur->baseline > metrics.baseline)
+                    metrics.baseline = cur->baseline;
+
+                if (cur_descent > descent)
+                    descent = cur_descent;
+
+                strlength -= cluster->length;
+                index--;
+            }
+            metrics.height = descent + metrics.baseline;
+
+            if (width > layout->metrics.widthIncludingTrailingWhitespace)
+                layout->metrics.widthIncludingTrailingWhitespace = width;
+            if (width - trailingspacewidth > layout->metrics.width)
+                layout->metrics.width = width - trailingspacewidth;
+
+            metrics.isTrimmed = width > layout->metrics.layoutWidth;
             hr = layout_set_line_metrics(layout, &metrics, &line);
             if (FAILED(hr))
                 return hr;
 
             width = layout->clustermetrics[i].width;
             memset(&metrics, 0, sizeof(metrics));
-            origin_x = 0.0;
+            origin_x = is_rtl ? layout->metrics.layoutWidth : 0.0;
             start = i;
         }
         else {
@@ -905,28 +1507,60 @@ static HRESULT layout_compute_effective_runs(struct dwrite_textlayout *layout)
             width += layout->clustermetrics[i].width;
         }
 
-        can_wrap_after = layout->clustermetrics[i].canWrapLineAfter;
+        s[0] = s[1];
+        textpos += layout->clustermetrics[i].length;
     }
 
-    layout->line_count = line;
+    layout->metrics.left = is_rtl ? layout->metrics.layoutWidth - layout->metrics.width : 0;
+    layout->metrics.top = 0.0;
+    layout->metrics.maxBidiReorderingDepth = 1; /* FIXME */
+    layout->metrics.height = 0.0;
+
+    /* Now all line info is here, update effective runs positions in flow direction */
+    erun = layout_get_next_erun(layout, NULL);
+    inrun = layout_get_next_inline_run(layout, NULL);
+
+    origin_y = 0.0;
+    for (line = 0; line < layout->metrics.lineCount; line++) {
+
+        origin_y += layout->lines[line].baseline;
+
+        /* For all runs on this line */
+        while (erun && erun->line == line) {
+            erun->origin_y = origin_y;
+            erun = layout_get_next_erun(layout, erun);
+        }
+
+        /* Same for inline runs */
+        while (inrun && inrun->line == line) {
+            inrun->origin_y = origin_y;
+            inrun = layout_get_next_inline_run(layout, inrun);
+        }
+
+        layout->metrics.height += layout->lines[line].height;
+    }
+
+    /* initial alignment is always leading */
+    if (layout->format.textalignment != DWRITE_TEXT_ALIGNMENT_LEADING)
+        layout_apply_text_alignment(layout);
+
+    /* initial paragraph alignment is always near */
+    if (layout->format.paralign != DWRITE_PARAGRAPH_ALIGNMENT_NEAR)
+        layout_apply_par_alignment(layout);
+
+    layout->metrics.heightIncludingTrailingWhitespace = layout->metrics.height; /* FIXME: not true for vertical text */
+
     layout->recompute &= ~RECOMPUTE_EFFECTIVE_RUNS;
     return hr;
 }
 
-/* To be used in IDWriteTextLayout methods to validate and fix passed range */
-static inline BOOL validate_text_range(struct dwrite_textlayout *layout, DWRITE_TEXT_RANGE *r)
+static BOOL is_same_layout_attrvalue(struct layout_range_header const *h, enum layout_range_attr_kind attr, struct layout_range_attr_value *value)
 {
-    if (r->startPosition >= layout->len)
-        return FALSE;
+    struct layout_range_spacing const *range_spacing = (struct layout_range_spacing*)h;
+    struct layout_range_effect const *range_effect = (struct layout_range_effect*)h;
+    struct layout_range_bool const *range_bool = (struct layout_range_bool*)h;
+    struct layout_range const *range = (struct layout_range*)h;
 
-    if (r->startPosition + r->length > layout->len)
-        r->length = layout->len - r->startPosition;
-
-    return TRUE;
-}
-
-static BOOL is_same_layout_attrvalue(struct layout_range const *range, enum layout_range_attr_kind attr, struct layout_range_attr_value *value)
-{
     switch (attr) {
     case LAYOUT_RANGE_ATTR_WEIGHT:
         return range->weight == value->u.weight;
@@ -939,11 +1573,11 @@ static BOOL is_same_layout_attrvalue(struct layout_range const *range, enum layo
     case LAYOUT_RANGE_ATTR_INLINE:
         return range->object == value->u.object;
     case LAYOUT_RANGE_ATTR_EFFECT:
-        return range->effect == value->u.effect;
+        return range_effect->effect == value->u.effect;
     case LAYOUT_RANGE_ATTR_UNDERLINE:
         return range->underline == value->u.underline;
     case LAYOUT_RANGE_ATTR_STRIKETHROUGH:
-        return range->strikethrough == value->u.strikethrough;
+        return range_bool->value == value->u.strikethrough;
     case LAYOUT_RANGE_ATTR_PAIR_KERNING:
         return range->pair_kerning == value->u.pair_kerning;
     case LAYOUT_RANGE_ATTR_FONTCOLL:
@@ -952,6 +1586,10 @@ static BOOL is_same_layout_attrvalue(struct layout_range const *range, enum layo
         return strcmpW(range->locale, value->u.locale) == 0;
     case LAYOUT_RANGE_ATTR_FONTFAMILY:
         return strcmpW(range->fontfamily, value->u.fontfamily) == 0;
+    case LAYOUT_RANGE_ATTR_SPACING:
+        return range_spacing->leading == value->u.spacing[0] &&
+               range_spacing->trailing == value->u.spacing[1] &&
+               range_spacing->min_advance == value->u.spacing[2];
     default:
         ;
     }
@@ -959,20 +1597,49 @@ static BOOL is_same_layout_attrvalue(struct layout_range const *range, enum layo
     return FALSE;
 }
 
-static inline BOOL is_same_layout_attributes(struct layout_range const *left, struct layout_range const *right)
+static inline BOOL is_same_layout_attributes(struct layout_range_header const *hleft, struct layout_range_header const *hright)
 {
-    return left->weight == right->weight &&
-           left->style  == right->style &&
-           left->stretch == right->stretch &&
-           left->fontsize == right->fontsize &&
-           left->object == right->object &&
-           left->effect == right->effect &&
-           left->underline == right->underline &&
-           left->strikethrough == right->strikethrough &&
-           left->pair_kerning == right->pair_kerning &&
-           left->collection == right->collection &&
-          !strcmpW(left->locale, right->locale) &&
-          !strcmpW(left->fontfamily, right->fontfamily);
+    switch (hleft->kind)
+    {
+    case LAYOUT_RANGE_REGULAR:
+    {
+        struct layout_range const *left = (struct layout_range const*)hleft;
+        struct layout_range const *right = (struct layout_range const*)hright;
+        return left->weight == right->weight &&
+               left->style  == right->style &&
+               left->stretch == right->stretch &&
+               left->fontsize == right->fontsize &&
+               left->object == right->object &&
+               left->underline == right->underline &&
+               left->pair_kerning == right->pair_kerning &&
+               left->collection == right->collection &&
+              !strcmpW(left->locale, right->locale) &&
+              !strcmpW(left->fontfamily, right->fontfamily);
+    }
+    case LAYOUT_RANGE_STRIKETHROUGH:
+    {
+        struct layout_range_bool const *left = (struct layout_range_bool const*)hleft;
+        struct layout_range_bool const *right = (struct layout_range_bool const*)hright;
+        return left->value == right->value;
+    }
+    case LAYOUT_RANGE_EFFECT:
+    {
+        struct layout_range_effect const *left = (struct layout_range_effect const*)hleft;
+        struct layout_range_effect const *right = (struct layout_range_effect const*)hright;
+        return left->effect == right->effect;
+    }
+    case LAYOUT_RANGE_SPACING:
+    {
+        struct layout_range_spacing const *left = (struct layout_range_spacing const*)hleft;
+        struct layout_range_spacing const *right = (struct layout_range_spacing const*)hright;
+        return left->leading == right->leading &&
+               left->trailing == right->trailing &&
+               left->min_advance == right->min_advance;
+    }
+    default:
+        FIXME("unknown range kind %d\n", hleft->kind);
+        return FALSE;
+    }
 }
 
 static inline BOOL is_same_text_range(const DWRITE_TEXT_RANGE *left, const DWRITE_TEXT_RANGE *right)
@@ -981,93 +1648,215 @@ static inline BOOL is_same_text_range(const DWRITE_TEXT_RANGE *left, const DWRIT
 }
 
 /* Allocates range and inits it with default values from text format. */
-static struct layout_range *alloc_layout_range(struct dwrite_textlayout *layout, const DWRITE_TEXT_RANGE *r)
+static struct layout_range_header *alloc_layout_range(struct dwrite_textlayout *layout, const DWRITE_TEXT_RANGE *r,
+    enum layout_range_kind kind)
 {
-    struct layout_range *range;
+    struct layout_range_header *h;
 
-    range = heap_alloc(sizeof(*range));
-    if (!range) return NULL;
+    switch (kind)
+    {
+    case LAYOUT_RANGE_REGULAR:
+    {
+        struct layout_range *range;
 
-    range->range = *r;
-    range->weight = layout->format.weight;
-    range->style  = layout->format.style;
-    range->stretch = layout->format.stretch;
-    range->fontsize = layout->format.fontsize;
-    range->object = NULL;
-    range->effect = NULL;
-    range->underline = FALSE;
-    range->strikethrough = FALSE;
-    range->pair_kerning = FALSE;
+        range = heap_alloc(sizeof(*range));
+        if (!range) return NULL;
 
-    range->fontfamily = heap_strdupW(layout->format.family_name);
-    if (!range->fontfamily) {
-        heap_free(range);
+        range->weight = layout->format.weight;
+        range->style  = layout->format.style;
+        range->stretch = layout->format.stretch;
+        range->fontsize = layout->format.fontsize;
+        range->object = NULL;
+        range->underline = FALSE;
+        range->pair_kerning = FALSE;
+
+        range->fontfamily = heap_strdupW(layout->format.family_name);
+        if (!range->fontfamily) {
+            heap_free(range);
+            return NULL;
+        }
+
+        range->collection = layout->format.collection;
+        if (range->collection)
+            IDWriteFontCollection_AddRef(range->collection);
+        strcpyW(range->locale, layout->format.locale);
+
+        h = &range->h;
+        break;
+    }
+    case LAYOUT_RANGE_STRIKETHROUGH:
+    {
+        struct layout_range_bool *range;
+
+        range = heap_alloc(sizeof(*range));
+        if (!range) return NULL;
+
+        range->value = FALSE;
+        h = &range->h;
+        break;
+    }
+    case LAYOUT_RANGE_EFFECT:
+    {
+        struct layout_range_effect *range;
+
+        range = heap_alloc(sizeof(*range));
+        if (!range) return NULL;
+
+        range->effect = NULL;
+        h = &range->h;
+        break;
+    }
+    case LAYOUT_RANGE_SPACING:
+    {
+        struct layout_range_spacing *range;
+
+        range = heap_alloc(sizeof(*range));
+        if (!range) return NULL;
+
+        range->leading = 0.0;
+        range->trailing = 0.0;
+        range->min_advance = 0.0;
+        h = &range->h;
+        break;
+    }
+    default:
+        FIXME("unknown range kind %d\n", kind);
         return NULL;
     }
 
-    range->collection = layout->format.collection;
-    if (range->collection)
-        IDWriteFontCollection_AddRef(range->collection);
-    strcpyW(range->locale, layout->format.locale);
-
-    return range;
+    h->kind = kind;
+    h->range = *r;
+    return h;
 }
 
-static struct layout_range *alloc_layout_range_from(struct layout_range *from, const DWRITE_TEXT_RANGE *r)
+static struct layout_range_header *alloc_layout_range_from(struct layout_range_header *h, const DWRITE_TEXT_RANGE *r)
 {
-    struct layout_range *range;
+    struct layout_range_header *ret;
 
-    range = heap_alloc(sizeof(*range));
-    if (!range) return NULL;
+    switch (h->kind)
+    {
+    case LAYOUT_RANGE_REGULAR:
+    {
+        struct layout_range *from = (struct layout_range*)h;
 
-    *range = *from;
-    range->range = *r;
+        struct layout_range *range = heap_alloc(sizeof(*range));
+        if (!range) return NULL;
 
-    range->fontfamily = heap_strdupW(from->fontfamily);
-    if (!range->fontfamily) {
-        heap_free(range);
+        *range = *from;
+        range->fontfamily = heap_strdupW(from->fontfamily);
+        if (!range->fontfamily) {
+            heap_free(range);
+            return NULL;
+        }
+
+        /* update refcounts */
+        if (range->object)
+            IDWriteInlineObject_AddRef(range->object);
+        if (range->collection)
+            IDWriteFontCollection_AddRef(range->collection);
+        ret = &range->h;
+        break;
+    }
+    case LAYOUT_RANGE_STRIKETHROUGH:
+    {
+        struct layout_range_bool *strike = heap_alloc(sizeof(*strike));
+        if (!strike) return NULL;
+
+        *strike = *(struct layout_range_bool*)h;
+        ret = &strike->h;
+        break;
+    }
+    case LAYOUT_RANGE_EFFECT:
+    {
+        struct layout_range_effect *effect = heap_alloc(sizeof(*effect));
+        if (!effect) return NULL;
+
+        *effect = *(struct layout_range_effect*)h;
+        if (effect->effect)
+            IUnknown_AddRef(effect->effect);
+        ret = &effect->h;
+        break;
+    }
+    case LAYOUT_RANGE_SPACING:
+    {
+        struct layout_range_spacing *spacing = heap_alloc(sizeof(*spacing));
+        if (!spacing) return NULL;
+
+        *spacing = *(struct layout_range_spacing*)h;
+        ret = &spacing->h;
+        break;
+    }
+    default:
+        FIXME("unknown range kind %d\n", h->kind);
         return NULL;
     }
 
-    /* update refcounts */
-    if (range->object)
-        IDWriteInlineObject_AddRef(range->object);
-    if (range->effect)
-        IUnknown_AddRef(range->effect);
-    if (range->collection)
-        IDWriteFontCollection_AddRef(range->collection);
-
-    return range;
+    ret->range = *r;
+    return ret;
 }
 
-static void free_layout_range(struct layout_range *range)
+static void free_layout_range(struct layout_range_header *h)
 {
-    if (!range)
+    if (!h)
         return;
-    if (range->object)
-        IDWriteInlineObject_Release(range->object);
-    if (range->effect)
-        IUnknown_Release(range->effect);
-    if (range->collection)
-        IDWriteFontCollection_Release(range->collection);
-    heap_free(range->fontfamily);
-    heap_free(range);
+
+    switch (h->kind)
+    {
+    case LAYOUT_RANGE_REGULAR:
+    {
+        struct layout_range *range = (struct layout_range*)h;
+
+        if (range->object)
+            IDWriteInlineObject_Release(range->object);
+        if (range->collection)
+            IDWriteFontCollection_Release(range->collection);
+        heap_free(range->fontfamily);
+        break;
+    }
+    case LAYOUT_RANGE_EFFECT:
+    {
+        struct layout_range_effect *effect = (struct layout_range_effect*)h;
+        if (effect->effect)
+            IUnknown_Release(effect->effect);
+        break;
+    }
+    default:
+        ;
+    }
+
+    heap_free(h);
 }
 
 static void free_layout_ranges_list(struct dwrite_textlayout *layout)
 {
-    struct layout_range *cur, *cur2;
-    LIST_FOR_EACH_ENTRY_SAFE(cur, cur2, &layout->ranges, struct layout_range, entry) {
+    struct layout_range_header *cur, *cur2;
+
+    LIST_FOR_EACH_ENTRY_SAFE(cur, cur2, &layout->ranges, struct layout_range_header, entry) {
+        list_remove(&cur->entry);
+        free_layout_range(cur);
+    }
+
+    LIST_FOR_EACH_ENTRY_SAFE(cur, cur2, &layout->strike_ranges, struct layout_range_header, entry) {
+        list_remove(&cur->entry);
+        free_layout_range(cur);
+    }
+
+    LIST_FOR_EACH_ENTRY_SAFE(cur, cur2, &layout->effects, struct layout_range_header, entry) {
+        list_remove(&cur->entry);
+        free_layout_range(cur);
+    }
+
+    LIST_FOR_EACH_ENTRY_SAFE(cur, cur2, &layout->spacing, struct layout_range_header, entry) {
         list_remove(&cur->entry);
         free_layout_range(cur);
     }
 }
 
-static struct layout_range *find_outer_range(struct dwrite_textlayout *layout, const DWRITE_TEXT_RANGE *range)
+static struct layout_range_header *find_outer_range(struct list *ranges, const DWRITE_TEXT_RANGE *range)
 {
-    struct layout_range *cur;
+    struct layout_range_header *cur;
 
-    LIST_FOR_EACH_ENTRY(cur, &layout->ranges, struct layout_range, entry) {
+    LIST_FOR_EACH_ENTRY(cur, ranges, struct layout_range_header, entry) {
 
         if (cur->range.startPosition > range->startPosition)
             return NULL;
@@ -1086,8 +1875,8 @@ static struct layout_range *get_layout_range_by_pos(struct dwrite_textlayout *la
 {
     struct layout_range *cur;
 
-    LIST_FOR_EACH_ENTRY(cur, &layout->ranges, struct layout_range, entry) {
-        DWRITE_TEXT_RANGE *r = &cur->range;
+    LIST_FOR_EACH_ENTRY(cur, &layout->ranges, struct layout_range, h.entry) {
+        DWRITE_TEXT_RANGE *r = &cur->h.range;
         if (r->startPosition <= pos && pos < r->startPosition + r->length)
             return cur;
     }
@@ -1108,8 +1897,13 @@ static inline BOOL set_layout_range_iface_attr(IUnknown **dest, IUnknown *value)
     return TRUE;
 }
 
-static BOOL set_layout_range_attrval(struct layout_range *dest, enum layout_range_attr_kind attr, struct layout_range_attr_value *value)
+static BOOL set_layout_range_attrval(struct layout_range_header *h, enum layout_range_attr_kind attr, struct layout_range_attr_value *value)
 {
+    struct layout_range_spacing *dest_spacing = (struct layout_range_spacing*)h;
+    struct layout_range_effect *dest_effect = (struct layout_range_effect*)h;
+    struct layout_range_bool *dest_bool = (struct layout_range_bool*)h;
+    struct layout_range *dest = (struct layout_range*)h;
+
     BOOL changed = FALSE;
 
     switch (attr) {
@@ -1133,15 +1927,15 @@ static BOOL set_layout_range_attrval(struct layout_range *dest, enum layout_rang
         changed = set_layout_range_iface_attr((IUnknown**)&dest->object, (IUnknown*)value->u.object);
         break;
     case LAYOUT_RANGE_ATTR_EFFECT:
-        changed = set_layout_range_iface_attr((IUnknown**)&dest->effect, (IUnknown*)value->u.effect);
+        changed = set_layout_range_iface_attr((IUnknown**)&dest_effect->effect, (IUnknown*)value->u.effect);
         break;
     case LAYOUT_RANGE_ATTR_UNDERLINE:
         changed = dest->underline != value->u.underline;
         dest->underline = value->u.underline;
         break;
     case LAYOUT_RANGE_ATTR_STRIKETHROUGH:
-        changed = dest->strikethrough != value->u.strikethrough;
-        dest->strikethrough = value->u.strikethrough;
+        changed = dest_bool->value != value->u.strikethrough;
+        dest_bool->value = value->u.strikethrough;
         break;
     case LAYOUT_RANGE_ATTR_PAIR_KERNING:
         changed = dest->pair_kerning != value->u.pair_kerning;
@@ -1162,6 +1956,14 @@ static BOOL set_layout_range_attrval(struct layout_range *dest, enum layout_rang
             dest->fontfamily = heap_strdupW(value->u.fontfamily);
         }
         break;
+    case LAYOUT_RANGE_ATTR_SPACING:
+        changed = dest_spacing->leading != value->u.spacing[0] ||
+            dest_spacing->trailing != value->u.spacing[1] ||
+            dest_spacing->min_advance != value->u.spacing[2];
+        dest_spacing->leading = value->u.spacing[0];
+        dest_spacing->trailing = value->u.spacing[1];
+        dest_spacing->min_advance = value->u.spacing[2];
+        break;
     default:
         ;
     }
@@ -1175,25 +1977,55 @@ static inline BOOL is_in_layout_range(const DWRITE_TEXT_RANGE *outer, const DWRI
            (inner->startPosition + inner->length <= outer->startPosition + outer->length);
 }
 
-static inline HRESULT return_range(const struct layout_range *range, DWRITE_TEXT_RANGE *r)
+static inline HRESULT return_range(const struct layout_range_header *h, DWRITE_TEXT_RANGE *r)
 {
-    if (r) *r = range->range;
+    if (r) *r = h->range;
     return S_OK;
 }
 
 /* Set attribute value for given range, does all needed splitting/merging of existing ranges. */
 static HRESULT set_layout_range_attr(struct dwrite_textlayout *layout, enum layout_range_attr_kind attr, struct layout_range_attr_value *value)
 {
-    struct layout_range *outer, *right, *left, *cur;
-    struct list *ranges = &layout->ranges;
+    struct layout_range_header *cur, *right, *left, *outer;
     BOOL changed = FALSE;
+    struct list *ranges;
     DWRITE_TEXT_RANGE r;
 
-    if (!validate_text_range(layout, &value->range))
+    /* ignore zero length ranges */
+    if (value->range.length == 0)
         return S_OK;
 
+    /* select from ranges lists */
+    switch (attr)
+    {
+    case LAYOUT_RANGE_ATTR_WEIGHT:
+    case LAYOUT_RANGE_ATTR_STYLE:
+    case LAYOUT_RANGE_ATTR_STRETCH:
+    case LAYOUT_RANGE_ATTR_FONTSIZE:
+    case LAYOUT_RANGE_ATTR_INLINE:
+    case LAYOUT_RANGE_ATTR_UNDERLINE:
+    case LAYOUT_RANGE_ATTR_PAIR_KERNING:
+    case LAYOUT_RANGE_ATTR_FONTCOLL:
+    case LAYOUT_RANGE_ATTR_LOCALE:
+    case LAYOUT_RANGE_ATTR_FONTFAMILY:
+        ranges = &layout->ranges;
+        break;
+    case LAYOUT_RANGE_ATTR_STRIKETHROUGH:
+        ranges = &layout->strike_ranges;
+        break;
+    case LAYOUT_RANGE_ATTR_EFFECT:
+        ranges = &layout->effects;
+        break;
+    case LAYOUT_RANGE_ATTR_SPACING:
+        ranges = &layout->spacing;
+        break;
+    default:
+        FIXME("unknown attr kind %d\n", attr);
+        return E_FAIL;
+    }
+
     /* If new range is completely within existing range, split existing range in two */
-    if ((outer = find_outer_range(layout, &value->range))) {
+    if ((outer = find_outer_range(ranges, &value->range))) {
 
         /* no need to add same range */
         if (is_same_layout_attrvalue(outer, attr, value))
@@ -1255,7 +2087,7 @@ static HRESULT set_layout_range_attr(struct dwrite_textlayout *layout, enum layo
 
     /* Now it's only possible that given range contains some existing ranges, fully or partially.
        Update all of them. */
-    left = get_layout_range_by_pos(layout, value->range.startPosition);
+    left = get_layout_range_header_by_pos(ranges, value->range.startPosition);
     if (left->range.startPosition == value->range.startPosition)
         changed = set_layout_range_attrval(left, attr, value);
     else /* need to split */ {
@@ -1266,12 +2098,12 @@ static HRESULT set_layout_range_attr(struct dwrite_textlayout *layout, enum layo
         changed = set_layout_range_attrval(cur, attr, value);
         list_add_after(&left->entry, &cur->entry);
     }
-    cur = LIST_ENTRY(list_next(ranges, &left->entry), struct layout_range, entry);
+    cur = LIST_ENTRY(list_next(ranges, &left->entry), struct layout_range_header, entry);
 
     /* for all existing ranges covered by new one update value */
-    while (is_in_layout_range(&value->range, &cur->range)) {
+    while (cur && is_in_layout_range(&value->range, &cur->range)) {
         changed = set_layout_range_attrval(cur, attr, value);
-        cur = LIST_ENTRY(list_next(ranges, &cur->entry), struct layout_range, entry);
+        cur = LIST_ENTRY(list_next(ranges, &cur->entry), struct layout_range_header, entry);
     }
 
     /* it's possible rightmost range intersects */
@@ -1292,9 +2124,9 @@ done:
         layout->recompute = RECOMPUTE_EVERYTHING;
         i = list_head(ranges);
         while ((next = list_next(ranges, i))) {
-            struct layout_range *next_range = LIST_ENTRY(next, struct layout_range, entry);
+            struct layout_range_header *next_range = LIST_ENTRY(next, struct layout_range_header, entry);
 
-            cur = LIST_ENTRY(i, struct layout_range, entry);
+            cur = LIST_ENTRY(i, struct layout_range_header, entry);
             if (is_same_layout_attributes(cur, next_range)) {
                 /* remove similar range */
                 cur->range.length += next_range->range.length;
@@ -1341,7 +2173,7 @@ static HRESULT get_string_attribute_length(struct dwrite_textlayout *layout, enu
 
     str = get_string_attribute_ptr(range, kind);
     *length = strlenW(str);
-    return return_range(range, r);
+    return return_range(&range->h, r);
 }
 
 static HRESULT get_string_attribute_value(struct dwrite_textlayout *layout, enum layout_range_attr_kind kind, UINT32 position,
@@ -1363,7 +2195,7 @@ static HRESULT get_string_attribute_value(struct dwrite_textlayout *layout, enum
         return E_NOT_SUFFICIENT_BUFFER;
 
     strcpyW(ret, str);
-    return return_range(range, r);
+    return return_range(&range->h, r);
 }
 
 static HRESULT WINAPI dwritetextlayout_QueryInterface(IDWriteTextLayout2 *iface, REFIID riid, void **obj)
@@ -1428,28 +2260,24 @@ static ULONG WINAPI dwritetextlayout_Release(IDWriteTextLayout2 *iface)
 static HRESULT WINAPI dwritetextlayout_SetTextAlignment(IDWriteTextLayout2 *iface, DWRITE_TEXT_ALIGNMENT alignment)
 {
     struct dwrite_textlayout *This = impl_from_IDWriteTextLayout2(iface);
-    TRACE("(%p)->(%d)\n", This, alignment);
     return IDWriteTextFormat1_SetTextAlignment(&This->IDWriteTextFormat1_iface, alignment);
 }
 
 static HRESULT WINAPI dwritetextlayout_SetParagraphAlignment(IDWriteTextLayout2 *iface, DWRITE_PARAGRAPH_ALIGNMENT alignment)
 {
     struct dwrite_textlayout *This = impl_from_IDWriteTextLayout2(iface);
-    TRACE("(%p)->(%d)\n", This, alignment);
     return IDWriteTextFormat1_SetParagraphAlignment(&This->IDWriteTextFormat1_iface, alignment);
 }
 
 static HRESULT WINAPI dwritetextlayout_SetWordWrapping(IDWriteTextLayout2 *iface, DWRITE_WORD_WRAPPING wrapping)
 {
     struct dwrite_textlayout *This = impl_from_IDWriteTextLayout2(iface);
-    TRACE("(%p)->(%d)\n", This, wrapping);
     return IDWriteTextFormat1_SetWordWrapping(&This->IDWriteTextFormat1_iface, wrapping);
 }
 
 static HRESULT WINAPI dwritetextlayout_SetReadingDirection(IDWriteTextLayout2 *iface, DWRITE_READING_DIRECTION direction)
 {
     struct dwrite_textlayout *This = impl_from_IDWriteTextLayout2(iface);
-    TRACE("(%p)->(%d)\n", This, direction);
     return IDWriteTextFormat1_SetReadingDirection(&This->IDWriteTextFormat1_iface, direction);
 }
 
@@ -1486,42 +2314,36 @@ static HRESULT WINAPI dwritetextlayout_SetLineSpacing(IDWriteTextLayout2 *iface,
 static DWRITE_TEXT_ALIGNMENT WINAPI dwritetextlayout_GetTextAlignment(IDWriteTextLayout2 *iface)
 {
     struct dwrite_textlayout *This = impl_from_IDWriteTextLayout2(iface);
-    TRACE("(%p)\n", This);
     return IDWriteTextFormat1_GetTextAlignment(&This->IDWriteTextFormat1_iface);
 }
 
 static DWRITE_PARAGRAPH_ALIGNMENT WINAPI dwritetextlayout_GetParagraphAlignment(IDWriteTextLayout2 *iface)
 {
     struct dwrite_textlayout *This = impl_from_IDWriteTextLayout2(iface);
-    TRACE("(%p)\n", This);
     return IDWriteTextFormat1_GetParagraphAlignment(&This->IDWriteTextFormat1_iface);
 }
 
 static DWRITE_WORD_WRAPPING WINAPI dwritetextlayout_GetWordWrapping(IDWriteTextLayout2 *iface)
 {
     struct dwrite_textlayout *This = impl_from_IDWriteTextLayout2(iface);
-    TRACE("(%p)\n", This);
     return IDWriteTextFormat1_GetWordWrapping(&This->IDWriteTextFormat1_iface);
 }
 
 static DWRITE_READING_DIRECTION WINAPI dwritetextlayout_GetReadingDirection(IDWriteTextLayout2 *iface)
 {
     struct dwrite_textlayout *This = impl_from_IDWriteTextLayout2(iface);
-    TRACE("(%p)\n", This);
     return IDWriteTextFormat1_GetReadingDirection(&This->IDWriteTextFormat1_iface);
 }
 
 static DWRITE_FLOW_DIRECTION WINAPI dwritetextlayout_GetFlowDirection(IDWriteTextLayout2 *iface)
 {
     struct dwrite_textlayout *This = impl_from_IDWriteTextLayout2(iface);
-    TRACE("(%p)\n", This);
     return IDWriteTextFormat1_GetFlowDirection(&This->IDWriteTextFormat1_iface);
 }
 
 static FLOAT WINAPI dwritetextlayout_GetIncrementalTabStop(IDWriteTextLayout2 *iface)
 {
     struct dwrite_textlayout *This = impl_from_IDWriteTextLayout2(iface);
-    TRACE("(%p)\n", This);
     return IDWriteTextFormat1_GetIncrementalTabStop(&This->IDWriteTextFormat1_iface);
 }
 
@@ -1529,7 +2351,6 @@ static HRESULT WINAPI dwritetextlayout_GetTrimming(IDWriteTextLayout2 *iface, DW
     IDWriteInlineObject **trimming_sign)
 {
     struct dwrite_textlayout *This = impl_from_IDWriteTextLayout2(iface);
-    TRACE("(%p)->(%p %p)\n", This, options, trimming_sign);
     return IDWriteTextFormat1_GetTrimming(&This->IDWriteTextFormat1_iface, options, trimming_sign);
 }
 
@@ -1537,94 +2358,86 @@ static HRESULT WINAPI dwritetextlayout_GetLineSpacing(IDWriteTextLayout2 *iface,
     FLOAT *spacing, FLOAT *baseline)
 {
     struct dwrite_textlayout *This = impl_from_IDWriteTextLayout2(iface);
-    TRACE("(%p)->(%p %p %p)\n", This, method, spacing, baseline);
     return IDWriteTextFormat1_GetLineSpacing(&This->IDWriteTextFormat1_iface, method, spacing, baseline);
 }
 
 static HRESULT WINAPI dwritetextlayout_GetFontCollection(IDWriteTextLayout2 *iface, IDWriteFontCollection **collection)
 {
     struct dwrite_textlayout *This = impl_from_IDWriteTextLayout2(iface);
-    TRACE("(%p)->(%p)\n", This, collection);
     return IDWriteTextFormat1_GetFontCollection(&This->IDWriteTextFormat1_iface, collection);
 }
 
 static UINT32 WINAPI dwritetextlayout_GetFontFamilyNameLength(IDWriteTextLayout2 *iface)
 {
     struct dwrite_textlayout *This = impl_from_IDWriteTextLayout2(iface);
-    TRACE("(%p)\n", This);
     return IDWriteTextFormat1_GetFontFamilyNameLength(&This->IDWriteTextFormat1_iface);
 }
 
 static HRESULT WINAPI dwritetextlayout_GetFontFamilyName(IDWriteTextLayout2 *iface, WCHAR *name, UINT32 size)
 {
     struct dwrite_textlayout *This = impl_from_IDWriteTextLayout2(iface);
-    TRACE("(%p)->(%p %u)\n", This, name, size);
     return IDWriteTextFormat1_GetFontFamilyName(&This->IDWriteTextFormat1_iface, name, size);
 }
 
 static DWRITE_FONT_WEIGHT WINAPI dwritetextlayout_GetFontWeight(IDWriteTextLayout2 *iface)
 {
     struct dwrite_textlayout *This = impl_from_IDWriteTextLayout2(iface);
-    TRACE("(%p)\n", This);
     return IDWriteTextFormat1_GetFontWeight(&This->IDWriteTextFormat1_iface);
 }
 
 static DWRITE_FONT_STYLE WINAPI dwritetextlayout_GetFontStyle(IDWriteTextLayout2 *iface)
 {
     struct dwrite_textlayout *This = impl_from_IDWriteTextLayout2(iface);
-    TRACE("(%p)\n", This);
     return IDWriteTextFormat1_GetFontStyle(&This->IDWriteTextFormat1_iface);
 }
 
 static DWRITE_FONT_STRETCH WINAPI dwritetextlayout_GetFontStretch(IDWriteTextLayout2 *iface)
 {
     struct dwrite_textlayout *This = impl_from_IDWriteTextLayout2(iface);
-    TRACE("(%p)\n", This);
     return IDWriteTextFormat1_GetFontStretch(&This->IDWriteTextFormat1_iface);
 }
 
 static FLOAT WINAPI dwritetextlayout_GetFontSize(IDWriteTextLayout2 *iface)
 {
     struct dwrite_textlayout *This = impl_from_IDWriteTextLayout2(iface);
-    TRACE("(%p)\n", This);
     return IDWriteTextFormat1_GetFontSize(&This->IDWriteTextFormat1_iface);
 }
 
 static UINT32 WINAPI dwritetextlayout_GetLocaleNameLength(IDWriteTextLayout2 *iface)
 {
     struct dwrite_textlayout *This = impl_from_IDWriteTextLayout2(iface);
-    TRACE("(%p)\n", This);
     return IDWriteTextFormat1_GetLocaleNameLength(&This->IDWriteTextFormat1_iface);
 }
 
 static HRESULT WINAPI dwritetextlayout_GetLocaleName(IDWriteTextLayout2 *iface, WCHAR *name, UINT32 size)
 {
     struct dwrite_textlayout *This = impl_from_IDWriteTextLayout2(iface);
-    TRACE("(%p)->(%p %u)\n", This, name, size);
     return IDWriteTextFormat1_GetLocaleName(&This->IDWriteTextFormat1_iface, name, size);
 }
 
 static HRESULT WINAPI dwritetextlayout_SetMaxWidth(IDWriteTextLayout2 *iface, FLOAT maxWidth)
 {
     struct dwrite_textlayout *This = impl_from_IDWriteTextLayout2(iface);
-    TRACE("(%p)->(%.1f)\n", This, maxWidth);
+
+    TRACE("(%p)->(%.2f)\n", This, maxWidth);
 
     if (maxWidth < 0.0)
         return E_INVALIDARG;
 
-    This->maxwidth = maxWidth;
+    This->metrics.layoutWidth = maxWidth;
     return S_OK;
 }
 
 static HRESULT WINAPI dwritetextlayout_SetMaxHeight(IDWriteTextLayout2 *iface, FLOAT maxHeight)
 {
     struct dwrite_textlayout *This = impl_from_IDWriteTextLayout2(iface);
-    TRACE("(%p)->(%.1f)\n", This, maxHeight);
+
+    TRACE("(%p)->(%.2f)\n", This, maxHeight);
 
     if (maxHeight < 0.0)
         return E_INVALIDARG;
 
-    This->maxheight = maxHeight;
+    This->metrics.layoutHeight = maxHeight;
     return S_OK;
 }
 
@@ -1674,6 +2487,9 @@ static HRESULT WINAPI dwritetextlayout_SetFontStyle(IDWriteTextLayout2 *iface, D
 
     TRACE("(%p)->(%d %s)\n", This, style, debugstr_range(&range));
 
+    if ((UINT32)style > DWRITE_FONT_STYLE_ITALIC)
+        return E_INVALIDARG;
+
     value.range = range;
     value.u.style = style;
     return set_layout_range_attr(This, LAYOUT_RANGE_ATTR_STYLE, &value);
@@ -1686,6 +2502,9 @@ static HRESULT WINAPI dwritetextlayout_SetFontStretch(IDWriteTextLayout2 *iface,
 
     TRACE("(%p)->(%d %s)\n", This, stretch, debugstr_range(&range));
 
+    if (stretch == DWRITE_FONT_STRETCH_UNDEFINED || (UINT32)stretch > DWRITE_FONT_STRETCH_ULTRA_EXPANDED)
+        return E_INVALIDARG;
+
     value.range = range;
     value.u.stretch = stretch;
     return set_layout_range_attr(This, LAYOUT_RANGE_ATTR_STRETCH, &value);
@@ -1697,6 +2516,9 @@ static HRESULT WINAPI dwritetextlayout_SetFontSize(IDWriteTextLayout2 *iface, FL
     struct layout_range_attr_value value;
 
     TRACE("(%p)->(%.2f %s)\n", This, size, debugstr_range(&range));
+
+    if (size <= 0.0)
+        return E_INVALIDARG;
 
     value.range = range;
     value.u.fontsize = size;
@@ -1777,14 +2599,14 @@ static FLOAT WINAPI dwritetextlayout_GetMaxWidth(IDWriteTextLayout2 *iface)
 {
     struct dwrite_textlayout *This = impl_from_IDWriteTextLayout2(iface);
     TRACE("(%p)\n", This);
-    return This->maxwidth;
+    return This->metrics.layoutWidth;
 }
 
 static FLOAT WINAPI dwritetextlayout_GetMaxHeight(IDWriteTextLayout2 *iface)
 {
     struct dwrite_textlayout *This = impl_from_IDWriteTextLayout2(iface);
     TRACE("(%p)\n", This);
-    return This->maxheight;
+    return This->metrics.layoutHeight;
 }
 
 static HRESULT WINAPI dwritetextlayout_layout_GetFontCollection(IDWriteTextLayout2 *iface, UINT32 position,
@@ -1795,12 +2617,15 @@ static HRESULT WINAPI dwritetextlayout_layout_GetFontCollection(IDWriteTextLayou
 
     TRACE("(%p)->(%u %p %p)\n", This, position, collection, r);
 
+    if (position >= This->len)
+        return S_OK;
+
     range = get_layout_range_by_pos(This, position);
-    *collection = range ? range->collection : NULL;
+    *collection = range->collection;
     if (*collection)
         IDWriteFontCollection_AddRef(*collection);
 
-    return return_range(range, r);
+    return return_range(&range->h, r);
 }
 
 static HRESULT WINAPI dwritetextlayout_layout_GetFontFamilyNameLength(IDWriteTextLayout2 *iface,
@@ -1833,7 +2658,7 @@ static HRESULT WINAPI dwritetextlayout_layout_GetFontWeight(IDWriteTextLayout2 *
     range = get_layout_range_by_pos(This, position);
     *weight = range->weight;
 
-    return return_range(range, r);
+    return return_range(&range->h, r);
 }
 
 static HRESULT WINAPI dwritetextlayout_layout_GetFontStyle(IDWriteTextLayout2 *iface,
@@ -1844,13 +2669,9 @@ static HRESULT WINAPI dwritetextlayout_layout_GetFontStyle(IDWriteTextLayout2 *i
 
     TRACE("(%p)->(%u %p %p)\n", This, position, style, r);
 
-    if (position >= This->len)
-        return S_OK;
-
     range = get_layout_range_by_pos(This, position);
     *style = range->style;
-
-    return return_range(range, r);
+    return return_range(&range->h, r);
 }
 
 static HRESULT WINAPI dwritetextlayout_layout_GetFontStretch(IDWriteTextLayout2 *iface,
@@ -1861,13 +2682,9 @@ static HRESULT WINAPI dwritetextlayout_layout_GetFontStretch(IDWriteTextLayout2 
 
     TRACE("(%p)->(%u %p %p)\n", This, position, stretch, r);
 
-    if (position >= This->len)
-        return S_OK;
-
     range = get_layout_range_by_pos(This, position);
     *stretch = range->stretch;
-
-    return return_range(range, r);
+    return return_range(&range->h, r);
 }
 
 static HRESULT WINAPI dwritetextlayout_layout_GetFontSize(IDWriteTextLayout2 *iface,
@@ -1878,13 +2695,9 @@ static HRESULT WINAPI dwritetextlayout_layout_GetFontSize(IDWriteTextLayout2 *if
 
     TRACE("(%p)->(%u %p %p)\n", This, position, size, r);
 
-    if (position >= This->len)
-        return S_OK;
-
     range = get_layout_range_by_pos(This, position);
     *size = range->fontsize;
-
-    return return_range(range, r);
+    return return_range(&range->h, r);
 }
 
 static HRESULT WINAPI dwritetextlayout_GetUnderline(IDWriteTextLayout2 *iface,
@@ -1901,43 +2714,37 @@ static HRESULT WINAPI dwritetextlayout_GetUnderline(IDWriteTextLayout2 *iface,
     range = get_layout_range_by_pos(This, position);
     *underline = range->underline;
 
-    return return_range(range, r);
+    return return_range(&range->h, r);
 }
 
 static HRESULT WINAPI dwritetextlayout_GetStrikethrough(IDWriteTextLayout2 *iface,
     UINT32 position, BOOL *strikethrough, DWRITE_TEXT_RANGE *r)
 {
     struct dwrite_textlayout *This = impl_from_IDWriteTextLayout2(iface);
-    struct layout_range *range;
+    struct layout_range_bool *range;
 
     TRACE("(%p)->(%u %p %p)\n", This, position, strikethrough, r);
 
-    if (position >= This->len)
-        return S_OK;
+    range = (struct layout_range_bool*)get_layout_range_header_by_pos(&This->strike_ranges, position);
+    *strikethrough = range->value;
 
-    range = get_layout_range_by_pos(This, position);
-    *strikethrough = range->strikethrough;
-
-    return return_range(range, r);
+    return return_range(&range->h, r);
 }
 
 static HRESULT WINAPI dwritetextlayout_GetDrawingEffect(IDWriteTextLayout2 *iface,
     UINT32 position, IUnknown **effect, DWRITE_TEXT_RANGE *r)
 {
     struct dwrite_textlayout *This = impl_from_IDWriteTextLayout2(iface);
-    struct layout_range *range;
+    struct layout_range_effect *range;
 
     TRACE("(%p)->(%u %p %p)\n", This, position, effect, r);
 
-    if (position >= This->len)
-        return S_OK;
-
-    range = get_layout_range_by_pos(This, position);
+    range = (struct layout_range_effect*)get_layout_range_header_by_pos(&This->effects, position);
     *effect = range->effect;
     if (*effect)
         IUnknown_AddRef(*effect);
 
-    return return_range(range, r);
+    return return_range(&range->h, r);
 }
 
 static HRESULT WINAPI dwritetextlayout_GetInlineObject(IDWriteTextLayout2 *iface,
@@ -1948,12 +2755,15 @@ static HRESULT WINAPI dwritetextlayout_GetInlineObject(IDWriteTextLayout2 *iface
 
     TRACE("(%p)->(%u %p %p)\n", This, position, object, r);
 
+    if (position >= This->len)
+        return S_OK;
+
     range = get_layout_range_by_pos(This, position);
-    *object = range ? range->object : NULL;
+    *object = range->object;
     if (*object)
         IDWriteInlineObject_AddRef(*object);
 
-    return return_range(range, r);
+    return return_range(&range->h, r);
 }
 
 static HRESULT WINAPI dwritetextlayout_GetTypography(IDWriteTextLayout2 *iface,
@@ -1980,11 +2790,43 @@ static HRESULT WINAPI dwritetextlayout_layout_GetLocaleName(IDWriteTextLayout2 *
     return get_string_attribute_value(This, LAYOUT_RANGE_ATTR_LOCALE, position, locale, length, r);
 }
 
+static inline FLOAT renderer_apply_snapping(FLOAT coord, BOOL skiptransform, FLOAT ppdip, FLOAT det,
+    const DWRITE_MATRIX *m)
+{
+    FLOAT vec[2], vec2[2];
+
+    if (!skiptransform) {
+        /* apply transform */
+        vec[0] = 0.0;
+        vec[1] = coord * ppdip;
+
+        vec2[0] = m->m11 * vec[0] + m->m21 * vec[1] + m->dx;
+        vec2[1] = m->m12 * vec[0] + m->m22 * vec[1] + m->dy;
+
+        /* snap */
+        vec2[0] = floorf(vec2[0] + 0.5f);
+        vec2[1] = floorf(vec2[1] + 0.5f);
+
+        /* apply inverted transform, we don't care about X component at this point */
+        vec[1] = (-m->m12 * vec2[0] + m->m11 * vec2[1] - (m->m11 * m->dy - m->m12 * m->dx)) / det;
+        vec[1] /= ppdip;
+    }
+    else
+        vec[1] = floorf(coord * ppdip + 0.5f) / ppdip;
+
+    return vec[1];
+}
+
 static HRESULT WINAPI dwritetextlayout_Draw(IDWriteTextLayout2 *iface,
     void *context, IDWriteTextRenderer* renderer, FLOAT origin_x, FLOAT origin_y)
 {
     struct dwrite_textlayout *This = impl_from_IDWriteTextLayout2(iface);
+    BOOL disabled = FALSE, skiptransform = FALSE;
+    struct layout_effective_inline *inlineobject;
     struct layout_effective_run *run;
+    struct layout_strikethrough *s;
+    FLOAT det = 0.0, ppdip = 0.0;
+    DWRITE_MATRIX m = { 0 };
     HRESULT hr;
 
     TRACE("(%p)->(%p %p %.2f %.2f)\n", This, context, renderer, origin_x, origin_y);
@@ -1993,6 +2835,29 @@ static HRESULT WINAPI dwritetextlayout_Draw(IDWriteTextLayout2 *iface,
     if (FAILED(hr))
         return hr;
 
+    hr = IDWriteTextRenderer_IsPixelSnappingDisabled(renderer, context, &disabled);
+    if (FAILED(hr))
+        return hr;
+
+    if (!disabled) {
+        hr = IDWriteTextRenderer_GetPixelsPerDip(renderer, context, &ppdip);
+        if (FAILED(hr))
+            return hr;
+
+        hr = IDWriteTextRenderer_GetCurrentTransform(renderer, context, &m);
+        if (FAILED(hr))
+            return hr;
+
+        /* it's only allowed to have a diagonal/antidiagonal transform matrix */
+        if (ppdip <= 0.0 ||
+            (m.m11 * m.m22 != 0.0 && (m.m12 != 0.0 || m.m21 != 0.0)) ||
+            (m.m12 * m.m21 != 0.0 && (m.m11 != 0.0 || m.m22 != 0.0)))
+            disabled = TRUE;
+        else
+            skiptransform = should_skip_transform(&m, &det);
+    }
+
+#define SNAP_COORD(x) renderer_apply_snapping((x), skiptransform, ppdip, det, &m)
     /* 1. Regular runs */
     LIST_FOR_EACH_ENTRY(run, &This->eruns, struct layout_effective_run, entry) {
         const struct regular_layout_run *regular = &run->run->u.regular;
@@ -2021,17 +2886,38 @@ static HRESULT WINAPI dwritetextlayout_Draw(IDWriteTextLayout2 *iface,
         /* return value is ignored */
         IDWriteTextRenderer_DrawGlyphRun(renderer,
             context,
-            run->origin_x + origin_x,
-            run->origin_y + origin_y,
-            DWRITE_MEASURING_MODE_NATURAL,
+            run->origin_x + run->align_dx + origin_x,
+            disabled ? run->origin_y + origin_y : SNAP_COORD(run->origin_y + origin_y),
+            This->measuringmode,
             &glyph_run,
             &descr,
-            NULL /* FIXME */);
+            NULL);
     }
 
-    /* TODO: 2. Inline objects */
+    /* 2. Inline objects */
+    LIST_FOR_EACH_ENTRY(inlineobject, &This->inlineobjects, struct layout_effective_inline, entry) {
+        IDWriteTextRenderer_DrawInlineObject(renderer,
+            context,
+            inlineobject->origin_x + inlineobject->align_dx + origin_x,
+            disabled ? inlineobject->origin_y + origin_y : SNAP_COORD(inlineobject->origin_y + origin_y),
+            inlineobject->object,
+            inlineobject->is_sideways,
+            inlineobject->is_rtl,
+            inlineobject->effect);
+    }
+
     /* TODO: 3. Underlines */
-    /* TODO: 4. Strikethrough */
+
+    /* 4. Strikethrough */
+    LIST_FOR_EACH_ENTRY(s, &This->strikethrough, struct layout_strikethrough, entry) {
+        IDWriteTextRenderer_DrawStrikethrough(renderer,
+            context,
+            s->run->origin_x,
+            disabled ? s->run->origin_y : SNAP_COORD(s->run->origin_y),
+            &s->s,
+            NULL);
+    }
+#undef SNAP_COORD
 
     return S_OK;
 }
@@ -2049,10 +2935,10 @@ static HRESULT WINAPI dwritetextlayout_GetLineMetrics(IDWriteTextLayout2 *iface,
         return hr;
 
     if (metrics)
-        memcpy(metrics, This->lines, sizeof(DWRITE_LINE_METRICS)*min(max_count, This->line_count));
+        memcpy(metrics, This->lines, sizeof(*metrics)*min(max_count, This->metrics.lineCount));
 
-    *count = This->line_count;
-    return max_count >= This->line_count ? S_OK : E_NOT_SUFFICIENT_BUFFER;
+    *count = This->metrics.lineCount;
+    return max_count >= This->metrics.lineCount ? S_OK : E_NOT_SUFFICIENT_BUFFER;
 }
 
 static HRESULT WINAPI dwritetextlayout_GetMetrics(IDWriteTextLayout2 *iface, DWRITE_TEXT_METRICS *metrics)
@@ -2205,30 +3091,56 @@ static HRESULT WINAPI dwritetextlayout1_GetPairKerning(IDWriteTextLayout2 *iface
     range = get_layout_range_by_pos(This, position);
     *is_pairkerning_enabled = range->pair_kerning;
 
-    return return_range(range, r);
+    return return_range(&range->h, r);
 }
 
-static HRESULT WINAPI dwritetextlayout1_SetCharacterSpacing(IDWriteTextLayout2 *iface, FLOAT leading_spacing, FLOAT trailing_spacing,
-    FLOAT minimum_advance_width, DWRITE_TEXT_RANGE range)
+static HRESULT WINAPI dwritetextlayout1_SetCharacterSpacing(IDWriteTextLayout2 *iface, FLOAT leading, FLOAT trailing,
+    FLOAT min_advance, DWRITE_TEXT_RANGE range)
 {
     struct dwrite_textlayout *This = impl_from_IDWriteTextLayout2(iface);
-    FIXME("(%p)->(%f %f %f %s): stub\n", This, leading_spacing, trailing_spacing, minimum_advance_width, debugstr_range(&range));
-    return E_NOTIMPL;
+    struct layout_range_attr_value value;
+
+    TRACE("(%p)->(%.2f %.2f %.2f %s)\n", This, leading, trailing, min_advance, debugstr_range(&range));
+
+    if (min_advance < 0.0)
+        return E_INVALIDARG;
+
+    value.range = range;
+    value.u.spacing[0] = leading;
+    value.u.spacing[1] = trailing;
+    value.u.spacing[2] = min_advance;
+    return set_layout_range_attr(This, LAYOUT_RANGE_ATTR_SPACING, &value);
 }
 
-static HRESULT WINAPI dwritetextlayout1_GetCharacterSpacing(IDWriteTextLayout2 *iface, UINT32 position, FLOAT* leading_spacing,
-    FLOAT* trailing_spacing, FLOAT* minimum_advance_width, DWRITE_TEXT_RANGE *range)
+static HRESULT WINAPI dwritetextlayout1_GetCharacterSpacing(IDWriteTextLayout2 *iface, UINT32 position, FLOAT *leading,
+    FLOAT *trailing, FLOAT *min_advance, DWRITE_TEXT_RANGE *r)
 {
     struct dwrite_textlayout *This = impl_from_IDWriteTextLayout2(iface);
-    FIXME("(%p)->(%u %p %p %p %p): stub\n", This, position, leading_spacing, trailing_spacing, minimum_advance_width, range);
-    return E_NOTIMPL;
+    struct layout_range_spacing *range;
+
+    TRACE("(%p)->(%u %p %p %p %p)\n", This, position, leading, trailing, min_advance, r);
+
+    range = (struct layout_range_spacing*)get_layout_range_header_by_pos(&This->spacing, position);
+    *leading = range->leading;
+    *trailing = range->trailing;
+    *min_advance = range->min_advance;
+
+    return return_range(&range->h, r);
 }
 
 static HRESULT WINAPI dwritetextlayout2_GetMetrics(IDWriteTextLayout2 *iface, DWRITE_TEXT_METRICS1 *metrics)
 {
     struct dwrite_textlayout *This = impl_from_IDWriteTextLayout2(iface);
-    FIXME("(%p)->(%p): stub\n", This, metrics);
-    return E_NOTIMPL;
+    HRESULT hr;
+
+    TRACE("(%p)->(%p)\n", This, metrics);
+
+    hr = layout_compute_effective_runs(This);
+    if (FAILED(hr))
+        return hr;
+
+    *metrics = This->metrics;
+    return S_OK;
 }
 
 static HRESULT WINAPI dwritetextlayout2_SetVerticalGlyphOrientation(IDWriteTextLayout2 *iface, DWRITE_VERTICAL_GLYPH_ORIENTATION orientation)
@@ -2398,29 +3310,75 @@ static ULONG WINAPI dwritetextformat1_layout_Release(IDWriteTextFormat1 *iface)
 static HRESULT WINAPI dwritetextformat1_layout_SetTextAlignment(IDWriteTextFormat1 *iface, DWRITE_TEXT_ALIGNMENT alignment)
 {
     struct dwrite_textlayout *This = impl_layout_form_IDWriteTextFormat1(iface);
-    FIXME("(%p)->(%d): stub\n", This, alignment);
-    return E_NOTIMPL;
+    BOOL changed;
+    HRESULT hr;
+
+    TRACE("(%p)->(%d)\n", This, alignment);
+
+    hr = format_set_textalignment(&This->format, alignment, &changed);
+    if (FAILED(hr))
+        return hr;
+
+    /* if layout is not ready there's nothing to align */
+    if (changed && !(This->recompute & RECOMPUTE_EFFECTIVE_RUNS))
+        layout_apply_text_alignment(This);
+
+    return S_OK;
 }
 
 static HRESULT WINAPI dwritetextformat1_layout_SetParagraphAlignment(IDWriteTextFormat1 *iface, DWRITE_PARAGRAPH_ALIGNMENT alignment)
 {
     struct dwrite_textlayout *This = impl_layout_form_IDWriteTextFormat1(iface);
-    FIXME("(%p)->(%d): stub\n", This, alignment);
-    return E_NOTIMPL;
+    BOOL changed;
+    HRESULT hr;
+
+    TRACE("(%p)->(%d)\n", This, alignment);
+
+    hr = format_set_paralignment(&This->format, alignment, &changed);
+    if (FAILED(hr))
+        return hr;
+
+    /* if layout is not ready there's nothing to align */
+    if (changed && !(This->recompute & RECOMPUTE_EFFECTIVE_RUNS))
+        layout_apply_par_alignment(This);
+
+    return S_OK;
 }
 
 static HRESULT WINAPI dwritetextformat1_layout_SetWordWrapping(IDWriteTextFormat1 *iface, DWRITE_WORD_WRAPPING wrapping)
 {
     struct dwrite_textlayout *This = impl_layout_form_IDWriteTextFormat1(iface);
-    FIXME("(%p)->(%d): stub\n", This, wrapping);
-    return E_NOTIMPL;
+    BOOL changed;
+    HRESULT hr;
+
+    TRACE("(%p)->(%d)\n", This, wrapping);
+
+    hr = format_set_wordwrapping(&This->format, wrapping, &changed);
+    if (FAILED(hr))
+        return hr;
+
+    if (changed)
+        This->recompute |= RECOMPUTE_EFFECTIVE_RUNS;
+
+    return S_OK;
 }
 
 static HRESULT WINAPI dwritetextformat1_layout_SetReadingDirection(IDWriteTextFormat1 *iface, DWRITE_READING_DIRECTION direction)
 {
     struct dwrite_textlayout *This = impl_layout_form_IDWriteTextFormat1(iface);
-    FIXME("(%p)->(%d): stub\n", This, direction);
-    return E_NOTIMPL;
+    BOOL changed;
+    HRESULT hr;
+
+    TRACE("(%p)->(%d)\n", This, direction);
+
+    hr = format_set_readingdirection(&This->format, direction, &changed);
+    if (FAILED(hr))
+        return hr;
+
+    if (changed)
+        This->recompute = RECOMPUTE_EVERYTHING;
+
+    return S_OK;
 }
 
 static HRESULT WINAPI dwritetextformat1_layout_SetFlowDirection(IDWriteTextFormat1 *iface, DWRITE_FLOW_DIRECTION direction)
@@ -2470,7 +3428,7 @@ static DWRITE_PARAGRAPH_ALIGNMENT WINAPI dwritetextformat1_layout_GetParagraphAl
 static DWRITE_WORD_WRAPPING WINAPI dwritetextformat1_layout_GetWordWrapping(IDWriteTextFormat1 *iface)
 {
     struct dwrite_textlayout *This = impl_layout_form_IDWriteTextFormat1(iface);
-    FIXME("(%p): stub\n", This);
+    TRACE("(%p)\n", This);
     return This->format.wrapping;
 }
 
@@ -2795,7 +3753,7 @@ static HRESULT WINAPI dwritetextlayout_sink_SetBidiLevel(IDWriteTextAnalysisSink
 
         /* reduce existing run */
         cur->run.bidiLevel = resolvedLevel;
-        cur->descr.stringLength -= length;
+        cur->descr.stringLength = length;
 
         list_add_after(&cur_run->entry, &run->entry);
         break;
@@ -2963,8 +3921,8 @@ static HRESULT layout_format_from_textformat(struct dwrite_textlayout *layout, I
 
 static HRESULT init_textlayout(const WCHAR *str, UINT32 len, IDWriteTextFormat *format, FLOAT maxwidth, FLOAT maxheight, struct dwrite_textlayout *layout)
 {
-    DWRITE_TEXT_RANGE r = { 0, len };
-    struct layout_range *range;
+    struct layout_range_header *range, *strike, *effect, *spacing;
+    DWRITE_TEXT_RANGE r = { 0, ~0u };
     HRESULT hr;
 
     layout->IDWriteTextLayout2_iface.lpVtbl = &dwritetextlayoutvtbl;
@@ -2973,8 +3931,6 @@ static HRESULT init_textlayout(const WCHAR *str, UINT32 len, IDWriteTextFormat *
     layout->IDWriteTextAnalysisSource_iface.lpVtbl = &dwritetextlayoutsourcevtbl;
     layout->ref = 1;
     layout->len = len;
-    layout->maxwidth = maxwidth;
-    layout->maxheight = maxheight;
     layout->recompute = RECOMPUTE_EVERYTHING;
     layout->nominal_breakpoints = NULL;
     layout->actual_breakpoints = NULL;
@@ -2982,17 +3938,23 @@ static HRESULT init_textlayout(const WCHAR *str, UINT32 len, IDWriteTextFormat *
     layout->clustermetrics = NULL;
     layout->clusters = NULL;
     layout->lines = NULL;
-    layout->line_count = 0;
     layout->line_alloc = 0;
     layout->minwidth = 0.0;
     list_init(&layout->eruns);
+    list_init(&layout->inlineobjects);
+    list_init(&layout->strikethrough);
     list_init(&layout->runs);
     list_init(&layout->ranges);
+    list_init(&layout->strike_ranges);
+    list_init(&layout->effects);
+    list_init(&layout->spacing);
     memset(&layout->format, 0, sizeof(layout->format));
+    memset(&layout->metrics, 0, sizeof(layout->metrics));
+    layout->metrics.layoutWidth = maxwidth;
+    layout->metrics.layoutHeight = maxheight;
+    layout->measuringmode = DWRITE_MEASURING_MODE_NATURAL;
 
-    layout->gdicompatible = FALSE;
-    layout->pixels_per_dip = 0.0;
-    layout->use_gdi_natural = FALSE;
+    layout->ppdip = 0.0;
     memset(&layout->transform, 0, sizeof(layout->transform));
 
     layout->str = heap_strdupnW(str, len);
@@ -3005,13 +3967,23 @@ static HRESULT init_textlayout(const WCHAR *str, UINT32 len, IDWriteTextFormat *
     if (FAILED(hr))
         goto fail;
 
-    range = alloc_layout_range(layout, &r);
-    if (!range) {
+    range = alloc_layout_range(layout, &r, LAYOUT_RANGE_REGULAR);
+    strike = alloc_layout_range(layout, &r, LAYOUT_RANGE_STRIKETHROUGH);
+    effect = alloc_layout_range(layout, &r, LAYOUT_RANGE_EFFECT);
+    spacing = alloc_layout_range(layout, &r, LAYOUT_RANGE_SPACING);
+    if (!range || !strike || !effect || !spacing) {
+        free_layout_range(range);
+        free_layout_range(strike);
+        free_layout_range(effect);
+        free_layout_range(spacing);
         hr = E_OUTOFMEMORY;
         goto fail;
     }
 
     list_add_head(&layout->ranges, &range->entry);
+    list_add_head(&layout->strike_ranges, &strike->entry);
+    list_add_head(&layout->effects, &effect->entry);
+    list_add_head(&layout->spacing, &spacing->entry);
     return S_OK;
 
 fail:
@@ -3037,7 +4009,7 @@ HRESULT create_textlayout(const WCHAR *str, UINT32 len, IDWriteTextFormat *forma
 }
 
 HRESULT create_gdicompat_textlayout(const WCHAR *str, UINT32 len, IDWriteTextFormat *format, FLOAT maxwidth, FLOAT maxheight,
-    FLOAT pixels_per_dip, const DWRITE_MATRIX *transform, BOOL use_gdi_natural, IDWriteTextLayout **ret)
+    FLOAT ppdip, const DWRITE_MATRIX *transform, BOOL use_gdi_natural, IDWriteTextLayout **ret)
 {
     struct dwrite_textlayout *layout;
     HRESULT hr;
@@ -3049,10 +4021,10 @@ HRESULT create_gdicompat_textlayout(const WCHAR *str, UINT32 len, IDWriteTextFor
 
     hr = init_textlayout(str, len, format, maxwidth, maxheight, layout);
     if (hr == S_OK) {
+        layout->measuringmode = use_gdi_natural ? DWRITE_MEASURING_MODE_GDI_NATURAL : DWRITE_MEASURING_MODE_GDI_CLASSIC;
+
         /* set gdi-specific properties */
-        layout->gdicompatible = TRUE;
-        layout->pixels_per_dip = pixels_per_dip;
-        layout->use_gdi_natural = use_gdi_natural;
+        layout->ppdip = ppdip;
         layout->transform = transform ? *transform : identity;
 
         *ret = (IDWriteTextLayout*)&layout->IDWriteTextLayout2_iface;
@@ -3075,7 +4047,6 @@ static HRESULT WINAPI dwritetrimmingsign_QueryInterface(IDWriteInlineObject *ifa
 
     *obj = NULL;
     return E_NOINTERFACE;
-
 }
 
 static ULONG WINAPI dwritetrimmingsign_AddRef(IDWriteInlineObject *iface)
@@ -3093,25 +4064,44 @@ static ULONG WINAPI dwritetrimmingsign_Release(IDWriteInlineObject *iface)
 
     TRACE("(%p)->(%d)\n", This, ref);
 
-    if (!ref)
+    if (!ref) {
+        IDWriteTextLayout_Release(This->layout);
         heap_free(This);
+    }
 
     return ref;
 }
 
 static HRESULT WINAPI dwritetrimmingsign_Draw(IDWriteInlineObject *iface, void *context, IDWriteTextRenderer *renderer,
-    FLOAT originX, FLOAT originY, BOOL is_sideways, BOOL is_rtl, IUnknown *drawing_effect)
+    FLOAT originX, FLOAT originY, BOOL is_sideways, BOOL is_rtl, IUnknown *effect)
 {
     struct dwrite_trimmingsign *This = impl_from_IDWriteInlineObject(iface);
-    FIXME("(%p)->(%p %p %f %f %d %d %p): stub\n", This, context, renderer, originX, originY, is_sideways, is_rtl, drawing_effect);
-    return E_NOTIMPL;
+    DWRITE_TEXT_RANGE range = { 0, ~0u };
+
+    TRACE("(%p)->(%p %p %.2f %.2f %d %d %p)\n", This, context, renderer, originX, originY, is_sideways, is_rtl, effect);
+
+    IDWriteTextLayout_SetDrawingEffect(This->layout, effect, range);
+    return IDWriteTextLayout_Draw(This->layout, context, renderer, originX, originY);
 }
 
-static HRESULT WINAPI dwritetrimmingsign_GetMetrics(IDWriteInlineObject *iface, DWRITE_INLINE_OBJECT_METRICS *metrics)
+static HRESULT WINAPI dwritetrimmingsign_GetMetrics(IDWriteInlineObject *iface, DWRITE_INLINE_OBJECT_METRICS *ret)
 {
     struct dwrite_trimmingsign *This = impl_from_IDWriteInlineObject(iface);
-    FIXME("(%p)->(%p): stub\n", This, metrics);
-    memset(metrics, 0, sizeof(*metrics));
+    DWRITE_TEXT_METRICS metrics;
+    HRESULT hr;
+
+    TRACE("(%p)->(%p)\n", This, ret);
+
+    hr = IDWriteTextLayout_GetMetrics(This->layout, &metrics);
+    if (FAILED(hr)) {
+        memset(ret, 0, sizeof(*ret));
+        return hr;
+    }
+
+    ret->width = metrics.width;
+    ret->height = 0.0;
+    ret->baseline = 0.0;
+    ret->supportsSideways = FALSE;
     return S_OK;
 }
 
@@ -3143,18 +4133,63 @@ static const IDWriteInlineObjectVtbl dwritetrimmingsignvtbl = {
     dwritetrimmingsign_GetBreakConditions
 };
 
-HRESULT create_trimmingsign(IDWriteInlineObject **sign)
+static inline BOOL is_reading_direction_horz(DWRITE_READING_DIRECTION direction)
 {
+    return (direction == DWRITE_READING_DIRECTION_LEFT_TO_RIGHT) ||
+           (direction == DWRITE_READING_DIRECTION_RIGHT_TO_LEFT);
+}
+
+static inline BOOL is_reading_direction_vert(DWRITE_READING_DIRECTION direction)
+{
+    return (direction == DWRITE_READING_DIRECTION_TOP_TO_BOTTOM) ||
+           (direction == DWRITE_READING_DIRECTION_BOTTOM_TO_TOP);
+}
+
+static inline BOOL is_flow_direction_horz(DWRITE_FLOW_DIRECTION direction)
+{
+    return (direction == DWRITE_FLOW_DIRECTION_LEFT_TO_RIGHT) ||
+           (direction == DWRITE_FLOW_DIRECTION_RIGHT_TO_LEFT);
+}
+
+static inline BOOL is_flow_direction_vert(DWRITE_FLOW_DIRECTION direction)
+{
+    return (direction == DWRITE_FLOW_DIRECTION_TOP_TO_BOTTOM) ||
+           (direction == DWRITE_FLOW_DIRECTION_BOTTOM_TO_TOP);
+}
+
+HRESULT create_trimmingsign(IDWriteFactory2 *factory, IDWriteTextFormat *format, IDWriteInlineObject **sign)
+{
+    static const WCHAR ellipsisW = 0x2026;
     struct dwrite_trimmingsign *This;
+    DWRITE_READING_DIRECTION reading;
+    DWRITE_FLOW_DIRECTION flow;
+    HRESULT hr;
 
     *sign = NULL;
 
-    This = heap_alloc(sizeof(struct dwrite_trimmingsign));
-    if (!This) return E_OUTOFMEMORY;
+    /* Validate reading/flow direction here, layout creation won't complain about
+       invalid combinations. */
+    reading = IDWriteTextFormat_GetReadingDirection(format);
+    flow = IDWriteTextFormat_GetFlowDirection(format);
+
+    if ((is_reading_direction_horz(reading) && is_flow_direction_horz(flow)) ||
+        (is_reading_direction_vert(reading) && is_flow_direction_vert(flow)))
+        return DWRITE_E_FLOWDIRECTIONCONFLICTS;
+
+    This = heap_alloc(sizeof(*This));
+    if (!This)
+        return E_OUTOFMEMORY;
 
     This->IDWriteInlineObject_iface.lpVtbl = &dwritetrimmingsignvtbl;
     This->ref = 1;
 
+    hr = IDWriteFactory2_CreateTextLayout(factory, &ellipsisW, 1, format, 0.0, 0.0, &This->layout);
+    if (FAILED(hr)) {
+        heap_free(This);
+        return hr;
+    }
+
+    IDWriteTextLayout_SetWordWrapping(This->layout, DWRITE_WORD_WRAPPING_NO_WRAP);
     *sign = &This->IDWriteInlineObject_iface;
 
     return S_OK;
@@ -3208,38 +4243,39 @@ static HRESULT WINAPI dwritetextformat_SetTextAlignment(IDWriteTextFormat1 *ifac
 {
     struct dwrite_textformat *This = impl_from_IDWriteTextFormat1(iface);
     TRACE("(%p)->(%d)\n", This, alignment);
-    This->format.textalignment = alignment;
-    return S_OK;
+    return format_set_textalignment(&This->format, alignment, NULL);
 }
 
 static HRESULT WINAPI dwritetextformat_SetParagraphAlignment(IDWriteTextFormat1 *iface, DWRITE_PARAGRAPH_ALIGNMENT alignment)
 {
     struct dwrite_textformat *This = impl_from_IDWriteTextFormat1(iface);
     TRACE("(%p)->(%d)\n", This, alignment);
-    This->format.paralign = alignment;
-    return S_OK;
+    return format_set_paralignment(&This->format, alignment, NULL);
 }
 
 static HRESULT WINAPI dwritetextformat_SetWordWrapping(IDWriteTextFormat1 *iface, DWRITE_WORD_WRAPPING wrapping)
 {
     struct dwrite_textformat *This = impl_from_IDWriteTextFormat1(iface);
     TRACE("(%p)->(%d)\n", This, wrapping);
-    This->format.wrapping = wrapping;
-    return S_OK;
+    return format_set_wordwrapping(&This->format, wrapping, NULL);
 }
 
 static HRESULT WINAPI dwritetextformat_SetReadingDirection(IDWriteTextFormat1 *iface, DWRITE_READING_DIRECTION direction)
 {
     struct dwrite_textformat *This = impl_from_IDWriteTextFormat1(iface);
     TRACE("(%p)->(%d)\n", This, direction);
-    This->format.readingdir = direction;
-    return S_OK;
+    return format_set_readingdirection(&This->format, direction, NULL);
 }
 
 static HRESULT WINAPI dwritetextformat_SetFlowDirection(IDWriteTextFormat1 *iface, DWRITE_FLOW_DIRECTION direction)
 {
     struct dwrite_textformat *This = impl_from_IDWriteTextFormat1(iface);
+
     TRACE("(%p)->(%d)\n", This, direction);
+
+    if ((UINT32)direction > DWRITE_FLOW_DIRECTION_RIGHT_TO_LEFT)
+        return E_INVALIDARG;
+
     This->format.flow = direction;
     return S_OK;
 }
@@ -3270,7 +4306,12 @@ static HRESULT WINAPI dwritetextformat_SetLineSpacing(IDWriteTextFormat1 *iface,
     FLOAT spacing, FLOAT baseline)
 {
     struct dwrite_textformat *This = impl_from_IDWriteTextFormat1(iface);
+
     TRACE("(%p)->(%d %f %f)\n", This, method, spacing, baseline);
+
+    if (spacing < 0.0 || (UINT32)method > DWRITE_LINE_SPACING_METHOD_UNIFORM)
+        return E_INVALIDARG;
+
     This->format.spacingmethod = method;
     This->format.spacing = spacing;
     This->format.baseline = baseline;

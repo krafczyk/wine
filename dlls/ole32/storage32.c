@@ -876,7 +876,7 @@ static HRESULT removeFromTree(
  * IEnumSTATSTGImpl definitions.
  *
  * Definition of the implementation structure for the IEnumSTATSTGImpl interface.
- * This class allows iterating through the content of a storage and to find
+ * This class allows iterating through the content of a storage and finding
  * specific items inside it.
  */
 struct IEnumSTATSTGImpl
@@ -2421,7 +2421,12 @@ static HRESULT deleteStorageContents(
   /*
    * Enumerate the elements
    */
-  IStorage_EnumElements( childStorage, 0, 0, 0, &elements);
+  hr = IStorage_EnumElements(childStorage, 0, 0, 0, &elements);
+  if (FAILED(hr))
+  {
+    IStorage_Release(childStorage);
+    return hr;
+  }
 
   do
   {
@@ -2513,7 +2518,7 @@ static HRESULT deleteStreamContents(
  * Strategy: This implementation is built this way for simplicity not for speed.
  *          I always delete the topmost element of the enumeration and adjust
  *          the deleted element pointer all the time.  This takes longer to
- *          do but allow to reinvoke DestroyElement whenever we encounter a
+ *          do but allows reinvoking DestroyElement whenever we encounter a
  *          storage object.  The optimisation resides in the usage of another
  *          enumeration strategy that would give all the leaves of a storage
  *          first. (postfix order)
@@ -3441,10 +3446,18 @@ static HRESULT StorageImpl_ReadDirEntry(
       OFFSET_PS_SIZE,
       &buffer->size.u.LowPart);
 
-    StorageUtl_ReadDWord(
-      currentEntry,
-      OFFSET_PS_SIZE_HIGH,
-      &buffer->size.u.HighPart);
+    if (This->bigBlockSize < 4096)
+    {
+      /* Version 3 files may have junk in the high part of size. */
+      buffer->size.u.HighPart = 0;
+    }
+    else
+    {
+      StorageUtl_ReadDWord(
+        currentEntry,
+        OFFSET_PS_SIZE_HIGH,
+        &buffer->size.u.HighPart);
+    }
   }
 
   return readRes;
@@ -4817,9 +4830,31 @@ static HRESULT StorageImpl_SetTransactionSig(StorageBaseImpl *base,
   return S_OK;
 }
 
+static HRESULT StorageImpl_LockRegion(StorageImpl *This, ULARGE_INTEGER offset,
+    ULARGE_INTEGER cb, DWORD dwLockType, BOOL *supported)
+{
+    if ((dwLockType & This->locks_supported) == 0)
+    {
+        if (supported) *supported = FALSE;
+        return S_OK;
+    }
+
+    if (supported) *supported = TRUE;
+    return ILockBytes_LockRegion(This->lockBytes, offset, cb, dwLockType);
+}
+
+static HRESULT StorageImpl_UnlockRegion(StorageImpl *This, ULARGE_INTEGER offset,
+    ULARGE_INTEGER cb, DWORD dwLockType)
+{
+    if ((dwLockType & This->locks_supported) == 0)
+        return S_OK;
+
+    return ILockBytes_UnlockRegion(This->lockBytes, offset, cb, dwLockType);
+}
+
 /* Internal function */
 static HRESULT StorageImpl_LockRegionSync(StorageImpl *This, ULARGE_INTEGER offset,
-    ULARGE_INTEGER cb, DWORD dwLockType)
+    ULARGE_INTEGER cb, DWORD dwLockType, BOOL *supported)
 {
     HRESULT hr;
     int delay = 0;
@@ -4832,7 +4867,7 @@ static HRESULT StorageImpl_LockRegionSync(StorageImpl *This, ULARGE_INTEGER offs
 
     do
     {
-        hr = ILockBytes_LockRegion(This->lockBytes, offset, cb, dwLockType);
+        hr = StorageImpl_LockRegion(This, offset, cb, dwLockType, supported);
 
         if (hr == STG_E_ACCESSDENIED || hr == STG_E_LOCKVIOLATION)
         {
@@ -4852,17 +4887,12 @@ static HRESULT StorageImpl_LockRegionSync(StorageImpl *This, ULARGE_INTEGER offs
                  *
                  * This can collide with another attempt to open the file in
                  * exclusive mode, but it's unlikely, and someone would fail anyway. */
-                hr = ILockBytes_LockRegion(This->lockBytes, sanity_offset, sanity_cb, 0);
+                hr = StorageImpl_LockRegion(This, sanity_offset, sanity_cb, WINE_LOCK_READ, NULL);
                 if (hr == STG_E_ACCESSDENIED || hr == STG_E_LOCKVIOLATION)
                     break;
-                if (hr == STG_E_INVALIDFUNCTION)
-                {
-                    /* ignore this, lockbytes might support dwLockType but not 0 */
-                    hr = STG_E_ACCESSDENIED;
-                }
                 if (SUCCEEDED(hr))
                 {
-                    ILockBytes_UnlockRegion(This->lockBytes, sanity_offset, sanity_cb, 0);
+                    StorageImpl_UnlockRegion(This, sanity_offset, sanity_cb, WINE_LOCK_READ);
                     hr = STG_E_ACCESSDENIED;
                 }
 
@@ -4895,10 +4925,7 @@ static HRESULT StorageImpl_LockTransaction(StorageBaseImpl *base, BOOL write)
     cb.QuadPart = 1;
   }
 
-  hr = StorageImpl_LockRegionSync(This, offset, cb, LOCK_ONLYONCE);
-
-  if (hr == STG_E_INVALIDFUNCTION)
-    hr = S_OK;
+  hr = StorageImpl_LockRegionSync(This, offset, cb, LOCK_ONLYONCE, NULL);
 
   return hr;
 }
@@ -4920,10 +4947,7 @@ static HRESULT StorageImpl_UnlockTransaction(StorageBaseImpl *base, BOOL write)
     cb.QuadPart = 1;
   }
 
-  hr = ILockBytes_UnlockRegion(This->lockBytes, offset, cb, LOCK_ONLYONCE);
-
-  if (hr == STG_E_INVALIDFUNCTION)
-    hr = S_OK;
+  hr = StorageImpl_UnlockRegion(This, offset, cb, LOCK_ONLYONCE);
 
   return hr;
 }
@@ -4950,10 +4974,10 @@ static HRESULT StorageImpl_CheckLockRange(StorageImpl *This, ULONG start,
     offset.QuadPart = start;
     cb.QuadPart = 1 + end - start;
 
-    hr = ILockBytes_LockRegion(This->lockBytes, offset, cb, LOCK_ONLYONCE);
-    if (SUCCEEDED(hr)) ILockBytes_UnlockRegion(This->lockBytes, offset, cb, LOCK_ONLYONCE);
+    hr = StorageImpl_LockRegion(This, offset, cb, LOCK_ONLYONCE, NULL);
+    if (SUCCEEDED(hr)) StorageImpl_UnlockRegion(This, offset, cb, LOCK_ONLYONCE);
 
-    if (hr == STG_E_ACCESSDENIED || hr == STG_E_LOCKVIOLATION)
+    if (FAILED(hr))
         return fail_hr;
     else
         return S_OK;
@@ -4970,7 +4994,7 @@ static HRESULT StorageImpl_LockOne(StorageImpl *This, ULONG start, ULONG end)
     for (i=start; i<=end; i++)
     {
         offset.QuadPart = i;
-        hr = ILockBytes_LockRegion(This->lockBytes, offset, cb, LOCK_ONLYONCE);
+        hr = StorageImpl_LockRegion(This, offset, cb, LOCK_ONLYONCE, NULL);
         if (hr != STG_E_ACCESSDENIED && hr != STG_E_LOCKVIOLATION)
             break;
     }
@@ -4996,6 +5020,7 @@ static HRESULT StorageImpl_GrabLocks(StorageImpl *This, DWORD openFlags)
     ULARGE_INTEGER offset;
     ULARGE_INTEGER cb;
     DWORD share_mode = STGM_SHARE_MODE(openFlags);
+    BOOL supported;
 
     if (openFlags & STGM_NOSNAPSHOT)
     {
@@ -5007,10 +5032,10 @@ static HRESULT StorageImpl_GrabLocks(StorageImpl *This, DWORD openFlags)
     /* Wrap all other locking inside a single lock so we can check ranges safely */
     offset.QuadPart = RANGELOCK_CHECKLOCKS;
     cb.QuadPart = 1;
-    hr = StorageImpl_LockRegionSync(This, offset, cb, LOCK_ONLYONCE);
+    hr = StorageImpl_LockRegionSync(This, offset, cb, LOCK_ONLYONCE, &supported);
 
     /* If the ILockBytes doesn't support locking that's ok. */
-    if (hr == STG_E_INVALIDFUNCTION) return S_OK;
+    if (!supported) return S_OK;
     else if (FAILED(hr)) return hr;
 
     hr = S_OK;
@@ -5030,6 +5055,14 @@ static HRESULT StorageImpl_GrabLocks(StorageImpl *This, DWORD openFlags)
 
     if (SUCCEEDED(hr) && (share_mode == STGM_SHARE_DENY_WRITE || share_mode == STGM_SHARE_EXCLUSIVE))
         hr = StorageImpl_CheckLockRange(This, RANGELOCK_WRITE_FIRST, RANGELOCK_WRITE_LAST, STG_E_LOCKVIOLATION);
+
+    if (SUCCEEDED(hr) && STGM_ACCESS_MODE(openFlags) == STGM_READ && share_mode == STGM_SHARE_EXCLUSIVE)
+    {
+        hr = StorageImpl_CheckLockRange(This, 0, RANGELOCK_CHECKLOCKS-1, STG_E_LOCKVIOLATION);
+
+        if (SUCCEEDED(hr))
+            hr = StorageImpl_CheckLockRange(This, RANGELOCK_CHECKLOCKS+1, RANGELOCK_LAST, STG_E_LOCKVIOLATION);
+    }
 
     /* Then grab our locks. */
     if (SUCCEEDED(hr) && (openFlags & STGM_PRIORITY) == STGM_PRIORITY)
@@ -5056,7 +5089,7 @@ static HRESULT StorageImpl_GrabLocks(StorageImpl *This, DWORD openFlags)
 
     offset.QuadPart = RANGELOCK_CHECKLOCKS;
     cb.QuadPart = 1;
-    ILockBytes_UnlockRegion(This->lockBytes, offset, cb, LOCK_ONLYONCE);
+    StorageImpl_UnlockRegion(This, offset, cb, LOCK_ONLYONCE);
 
     return hr;
 }
@@ -5121,7 +5154,7 @@ static void StorageImpl_Destroy(StorageBaseImpl* iface)
     if (This->locked_bytes[i] != 0)
     {
       offset.QuadPart = This->locked_bytes[i];
-      ILockBytes_UnlockRegion(This->lockBytes, offset, cb, LOCK_ONLYONCE);
+      StorageImpl_UnlockRegion(This, offset, cb, LOCK_ONLYONCE);
     }
   }
 
@@ -5188,7 +5221,8 @@ static HRESULT StorageImpl_Construct(
   StorageImpl** result)
 {
   StorageImpl* This;
-  HRESULT     hr = S_OK;
+  HRESULT hr = S_OK;
+  STATSTG stat;
 
   if ( FAILED( validateSTGM(openFlags) ))
     return STG_E_INVALIDFLAG;
@@ -5234,7 +5268,17 @@ static HRESULT StorageImpl_Construct(
   }
 
   if (SUCCEEDED(hr))
+    hr = ILockBytes_Stat(This->lockBytes, &stat, STATFLAG_NONAME);
+
+  if (SUCCEEDED(hr))
+  {
+    This->locks_supported = stat.grfLocksSupported;
+    if (!hFile)
+        /* Don't try to use wine-internal locking flag with custom ILockBytes */
+        This->locks_supported &= ~WINE_LOCK_READ;
+
     hr = StorageImpl_GrabLocks(This, openFlags);
+  }
 
   if (SUCCEEDED(hr))
     hr = StorageImpl_Refresh(This, TRUE, create);
@@ -9147,7 +9191,10 @@ static HRESULT STREAM_ReadString( IStream *stm, LPWSTR *string )
     count = 0;
     r = IStream_Read( stm, str, len, &count );
     if( FAILED( r ) )
+    {
+        CoTaskMemFree( str );
         return r;
+    }
     if( count != len )
     {
         CoTaskMemFree( str );

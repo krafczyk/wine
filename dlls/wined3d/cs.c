@@ -446,7 +446,8 @@ static void wined3d_cs_exec_set_depth_stencil_view(struct wined3d_cs *cs, const 
         device_invalidate_state(device, STATE_RENDER(WINED3D_RS_STENCILWRITEMASK));
         device_invalidate_state(device, STATE_RENDER(WINED3D_RS_DEPTHBIAS));
     }
-    else if (prev && prev->format->depth_size != op->view->format->depth_size)
+    else if (prev && (prev->format_flags & WINED3DFMT_FLAG_FLOAT)
+            != (op->view->format_flags & WINED3DFMT_FLAG_FLOAT))
     {
         device_invalidate_state(device, STATE_RENDER(WINED3D_RS_DEPTHBIAS));
     }
@@ -858,7 +859,7 @@ static void wined3d_cs_exec_set_transform(struct wined3d_cs *cs, const void *dat
     const struct wined3d_cs_set_transform *op = data;
 
     cs->state.transforms[op->state] = *op->matrix;
-    if (op->state < WINED3D_TS_WORLD_MATRIX(cs->device->adapter->gl_info.limits.blends))
+    if (op->state < WINED3D_TS_WORLD_MATRIX(cs->device->adapter->d3d_info.limits.ffp_vertex_blend_matrices))
         device_invalidate_state(cs->device, STATE_TRANSFORM(op->state));
 }
 
@@ -902,7 +903,7 @@ static void wined3d_cs_exec_set_color_key(struct wined3d_cs *cs, const void *dat
 
     if (op->set)
     {
-        switch (op->flags & ~WINED3D_CKEY_COLORSPACE)
+        switch (op->flags)
         {
             case WINED3D_CKEY_DST_BLT:
                 texture->async.dst_blt_color_key = op->color_key;
@@ -934,7 +935,7 @@ static void wined3d_cs_exec_set_color_key(struct wined3d_cs *cs, const void *dat
     }
     else
     {
-        switch (op->flags & ~WINED3D_CKEY_COLORSPACE)
+        switch (op->flags)
         {
             case WINED3D_CKEY_DST_BLT:
                 texture->async.color_key_flags &= ~WINED3D_CKEY_DST_BLT;

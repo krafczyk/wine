@@ -80,9 +80,8 @@ typedef struct tagUSER_DRIVER {
     BOOL   (CDECL *pSetCursorPos)(INT,INT);
     BOOL   (CDECL *pClipCursor)(LPCRECT);
     /* clipboard functions */
-    INT    (CDECL *pAcquireClipboard)(HWND);                     /* Acquire selection */
     BOOL   (CDECL *pCountClipboardFormats)(void);                /* Count available clipboard formats */
-    void   (CDECL *pEmptyClipboard)(BOOL);                       /* Empty clipboard data */
+    void   (CDECL *pEmptyClipboard)(void);                       /* Empty clipboard data */
     void   (CDECL *pEndClipboardUpdate)(void);                   /* End clipboard update */
     UINT   (CDECL *pEnumClipboardFormats)(UINT);                 /* Enumerate clipboard formats */
     HANDLE (CDECL *pGetClipboardData)(UINT);                     /* Get specified selection data */
@@ -176,6 +175,7 @@ struct user_thread_info
     DWORD                         changed_mask;           /* Current queue changed mask */
     WORD                          recursion_count;        /* SendMessage recursion counter */
     WORD                          message_count;          /* Get/PeekMessage loop counter */
+    WORD                          hook_call_depth;        /* Number of recursively called hook procs */
     BOOL                          hook_unicode;           /* Is current hook unicode? */
     HHOOK                         hook;                   /* Current hook */
     struct received_message_info *receive_info;           /* Message being currently received */
@@ -223,7 +223,7 @@ extern HMODULE user32_module DECLSPEC_HIDDEN;
 struct dce;
 struct tagWND;
 
-extern BOOL CLIPBOARD_ReleaseOwner(void) DECLSPEC_HIDDEN;
+extern void CLIPBOARD_ReleaseOwner( HWND hwnd ) DECLSPEC_HIDDEN;
 extern BOOL FOCUS_MouseActivate( HWND hwnd ) DECLSPEC_HIDDEN;
 extern BOOL set_capture_window( HWND hwnd, UINT gui_flags, HWND *prev_ret ) DECLSPEC_HIDDEN;
 extern void free_dce( struct dce *dce, HWND hwnd ) DECLSPEC_HIDDEN;

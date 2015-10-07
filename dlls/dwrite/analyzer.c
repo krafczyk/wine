@@ -21,6 +21,8 @@
 
 #define COBJMACROS
 
+#include <math.h>
+
 #include "dwrite_private.h"
 #include "scripts.h"
 
@@ -43,6 +45,8 @@ struct dwritescript_properties {
 static const struct dwritescript_properties dwritescripts_properties[Script_LastId+1] = {
     { /* Zzzz */ { 0x7a7a7a5a, 999, 15, 0x0020, 0, 0, 0, 0, 0, 0, 0 } },
     { /* Zyyy */ { 0x7979795a, 998,  1, 0x0020, 0, 1, 1, 0, 0, 0, 0 } },
+    { /* Ahom */ { 0x6d6f6841, 338,  1, 0x0020, 0, 0, 0, 0, 0, 0, 0 } },
+    { /* Hluw */ { 0x77756c48,  80,  1, 0x0020, 0, 0, 0, 0, 0, 0, 0 } },
     { /* Arab */ { 0x62617241, 160,  8, 0x0640, 0, 1, 0, 0, 0, 1, 1 }, _OT('a','r','a','b'), 0, TRUE },
     { /* Armn */ { 0x6e6d7241, 230,  1, 0x0020, 0, 1, 1, 0, 0, 0, 0 }, _OT('a','r','m','n') },
     { /* Avst */ { 0x74737641, 134,  8, 0x0020, 0, 1, 1, 0, 0, 0, 0 }, _OT('a','v','s','t') },
@@ -82,6 +86,7 @@ static const struct dwritescript_properties dwritescripts_properties[Script_Last
     { /* Hani */ { 0x696e6148, 500,  8, 0x0020, 0, 0, 1, 1, 0, 0, 0 }, _OT('h','a','n','i') },
     { /* Hang */ { 0x676e6148, 286,  8, 0x0020, 1, 1, 1, 1, 0, 0, 0 }, _OT('h','a','n','g'), 0, TRUE },
     { /* Hano */ { 0x6f6e6148, 371,  8, 0x0020, 0, 0, 1, 0, 0, 0, 0 }, _OT('h','a','n','o') },
+    { /* Hatr */ { 0x72746148, 127,  1, 0x0020, 0, 0, 0, 0, 0, 0, 0 } },
     { /* Hebr */ { 0x72626548, 125,  8, 0x0020, 1, 1, 1, 0, 0, 0, 0 }, _OT('h','e','b','r'), 0, TRUE },
     { /* Hira */ { 0x61726948, 410,  8, 0x0020, 0, 0, 1, 1, 0, 0, 0 }, _OT('k','a','n','a') },
     { /* Armi */ { 0x696d7241, 124,  1, 0x0020, 0, 1, 1, 0, 0, 0, 0 }, _OT('a','r','m','i') },
@@ -117,12 +122,14 @@ static const struct dwritescript_properties dwritescripts_properties[Script_Last
     { /* Modi */ { 0x69646f4d, 324,  1, 0x0020, 0, 0, 0, 0, 0, 0, 0 } },
     { /* Mong */ { 0x676e6f4d, 145,  8, 0x0020, 0, 1, 0, 0, 0, 1, 1 }, _OT('m','o','n','g'), 0, TRUE },
     { /* Mroo */ { 0x6f6f724d, 199,  1, 0x0020, 0, 0, 0, 0, 0, 0, 0 } },
+    { /* Mult */ { 0x746c754d, 323,  1, 0x0020, 0, 0, 0, 0, 0, 0, 0 } },
     { /* Mymr */ { 0x726d794d, 350, 15, 0x0020, 1, 1, 1, 0, 0, 0, 0 }, _OT('m','y','m','r'), 0, TRUE },
     { /* Nbat */ { 0x7461624e, 159,  1, 0x0020, 0, 0, 0, 0, 0, 0, 0 } },
     { /* Talu */ { 0x756c6154, 354,  8, 0x0020, 1, 1, 1, 0, 0, 0, 0 }, _OT('t','a','l','u'), 0, TRUE },
     { /* Nkoo */ { 0x6f6f6b4e, 165,  8, 0x0020, 0, 1, 0, 0, 0, 1, 1 }, _OT('n','k','o',' '), 0, TRUE },
     { /* Ogam */ { 0x6d61674f, 212,  1, 0x1680, 0, 1, 0, 0, 0, 1, 0 }, _OT('o','g','a','m'), 0, TRUE },
     { /* Olck */ { 0x6b636c4f, 261,  1, 0x0020, 0, 1, 1, 0, 0, 0, 0 }, _OT('o','l','c','k') },
+    { /* Hung */ { 0x676e7548, 176,  1, 0x0020, 0, 0, 0, 0, 0, 0, 0 } },
     { /* Ital */ { 0x6c617449, 210,  1, 0x0020, 0, 1, 1, 0, 0, 0, 0 }, _OT('i','t','a','l') },
     { /* Narb */ { 0x6272614e, 106,  1, 0x0020, 0, 0, 0, 0, 0, 0, 0 } },
     { /* Perm */ { 0x6d726550, 227,  1, 0x0020, 0, 0, 0, 0, 0, 0, 0 } },
@@ -144,6 +151,7 @@ static const struct dwritescript_properties dwritescripts_properties[Script_Last
     { /* Shrd */ { 0x64726853, 319,  1, 0x0020, 0, 0, 0, 0, 0, 0, 0 }, _OT('s','h','r','d') },
     { /* Shaw */ { 0x77616853, 281,  1, 0x0020, 0, 1, 1, 0, 0, 0, 0 }, _OT('s','h','a','w') },
     { /* Sidd */ { 0x64646953, 302,  1, 0x0020, 0, 0, 0, 0, 0, 0, 0 } },
+    { /* Sgnw */ { 0x776e6753,  95,  1, 0x0020, 0, 0, 0, 0, 0, 0, 0 } },
     { /* Sinh */ { 0x686e6953, 348,  8, 0x0020, 1, 1, 1, 0, 0, 0, 0 }, _OT('s','i','n','h'), 0, TRUE },
     { /* Sora */ { 0x61726f53, 398,  1, 0x0020, 0, 0, 0, 0, 0, 0, 0 }, _OT('s','o','r','a') },
     { /* Sund */ { 0x646e7553, 362,  8, 0x0020, 1, 1, 1, 0, 0, 0, 0 }, _OT('s','u','n','d') },
@@ -1014,11 +1022,6 @@ done:
     return hr;
 }
 
-static inline FLOAT get_scaled_advance_width(INT32 advance, FLOAT emSize, const DWRITE_FONT_METRICS *metrics)
-{
-    return (FLOAT)advance * emSize / (FLOAT)metrics->designUnitsPerEm;
-}
-
 static HRESULT WINAPI dwritetextanalyzer_GetGlyphPlacements(IDWriteTextAnalyzer2 *iface,
     WCHAR const* text, UINT16 const* clustermap, DWRITE_SHAPING_TEXT_PROPERTIES* props,
     UINT32 text_len, UINT16 const* glyphs, DWRITE_SHAPING_GLYPH_PROPERTIES const* glyph_props,
@@ -1058,22 +1061,61 @@ static HRESULT WINAPI dwritetextanalyzer_GetGlyphPlacements(IDWriteTextAnalyzer2
     }
 
     /* FIXME: actually apply features */
+
+    IDWriteFontFace1_Release(fontface1);
     return S_OK;
 }
 
 static HRESULT WINAPI dwritetextanalyzer_GetGdiCompatibleGlyphPlacements(IDWriteTextAnalyzer2 *iface,
     WCHAR const* text, UINT16 const* clustermap, DWRITE_SHAPING_TEXT_PROPERTIES* props,
-    UINT32 text_len, UINT16 const* glyph_indices, DWRITE_SHAPING_GLYPH_PROPERTIES const* glyph_props,
-    UINT32 glyph_count, IDWriteFontFace * font_face, FLOAT fontEmSize, FLOAT pixels_per_dip,
+    UINT32 text_len, UINT16 const* glyphs, DWRITE_SHAPING_GLYPH_PROPERTIES const* glyph_props,
+    UINT32 glyph_count, IDWriteFontFace *fontface, FLOAT emSize, FLOAT ppdip,
     DWRITE_MATRIX const* transform, BOOL use_gdi_natural, BOOL is_sideways, BOOL is_rtl,
     DWRITE_SCRIPT_ANALYSIS const* analysis, WCHAR const* locale, DWRITE_TYPOGRAPHIC_FEATURES const** features,
-    UINT32 const* feature_range_lengths, UINT32 feature_ranges, FLOAT* glyph_advances, DWRITE_GLYPH_OFFSET* glyph_offsets)
+    UINT32 const* feature_range_lengths, UINT32 feature_ranges, FLOAT *advances, DWRITE_GLYPH_OFFSET *offsets)
 {
-    FIXME("(%s %p %p %u %p %p %u %p %f %f %p %d %d %d %p %s %p %p %u %p %p): stub\n", debugstr_wn(text, text_len),
-        clustermap, props, text_len, glyph_indices, glyph_props, glyph_count, font_face, fontEmSize, pixels_per_dip,
+    DWRITE_FONT_METRICS metrics;
+    IDWriteFontFace1 *fontface1;
+    HRESULT hr;
+    UINT32 i;
+
+    TRACE("(%s %p %p %u %p %p %u %p %.2f %.2f %p %d %d %d %p %s %p %p %u %p %p)\n", debugstr_wn(text, text_len),
+        clustermap, props, text_len, glyphs, glyph_props, glyph_count, fontface, emSize, ppdip,
         transform, use_gdi_natural, is_sideways, is_rtl, analysis, debugstr_w(locale), features, feature_range_lengths,
-        feature_ranges, glyph_advances, glyph_offsets);
-    return E_NOTIMPL;
+        feature_ranges, advances, offsets);
+
+    if (glyph_count == 0)
+        return S_OK;
+
+    hr = IDWriteFontFace_QueryInterface(fontface, &IID_IDWriteFontFace1, (void**)&fontface1);
+    if (FAILED(hr)) {
+        WARN("failed to get IDWriteFontFace1.\n");
+        return hr;
+    }
+
+    hr = IDWriteFontFace_GetGdiCompatibleMetrics(fontface, emSize, ppdip, transform, &metrics);
+    if (FAILED(hr)) {
+        IDWriteFontFace1_Release(fontface1);
+        WARN("failed to get compat metrics, 0x%08x\n", hr);
+        return hr;
+    }
+    for (i = 0; i < glyph_count; i++) {
+        INT32 a;
+
+        hr = IDWriteFontFace1_GetGdiCompatibleGlyphAdvances(fontface1, emSize, ppdip,
+            transform, use_gdi_natural, is_sideways, 1, &glyphs[i], &a);
+        if (FAILED(hr))
+            advances[i] = 0.0;
+        else
+            advances[i] = floorf(a * emSize * ppdip / metrics.designUnitsPerEm + 0.5f) / ppdip;
+        offsets[i].advanceOffset = 0.0;
+        offsets[i].ascenderOffset = 0.0;
+    }
+
+    /* FIXME: actually apply features */
+
+    IDWriteFontFace1_Release(fontface1);
+    return S_OK;
 }
 
 static inline FLOAT get_cluster_advance(const FLOAT *advances, UINT32 start, UINT32 end)
@@ -1466,22 +1508,8 @@ static HRESULT WINAPI dwritetextanalyzer2_GetGlyphOrientationTransform(IDWriteTe
     /* shift components represent transform necessary to get from original point to
        rotated one in new coordinate system */
     if ((originX != 0.0 || originY != 0.0) && angle != DWRITE_GLYPH_ORIENTATION_ANGLE_0_DEGREES) {
-        const DWRITE_MATRIX *p;
-
-        switch (angle) {
-        case DWRITE_GLYPH_ORIENTATION_ANGLE_90_DEGREES:
-            angle = DWRITE_GLYPH_ORIENTATION_ANGLE_270_DEGREES;
-            break;
-        case DWRITE_GLYPH_ORIENTATION_ANGLE_270_DEGREES:
-            angle = DWRITE_GLYPH_ORIENTATION_ANGLE_90_DEGREES;
-            break;
-        default:
-            ;
-        }
-
-        p = &transforms[angle];
-        m->dx = originX - (p->m11 * originX + p->m12 * originY);
-        m->dy = originY - (p->m21 * originX + p->m22 * originY);
+        m->dx = originX - (m->m11 * originX + m->m21 * originY);
+        m->dy = originY - (m->m12 * originX + m->m22 * originY);
     }
 
     return S_OK;

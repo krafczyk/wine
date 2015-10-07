@@ -1,7 +1,7 @@
 /*
  *    FreeType integration
  *
- * Copyright 2014 Nikolay Sivov for CodeWeavers
+ * Copyright 2014-2015 Nikolay Sivov for CodeWeavers
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -28,6 +28,7 @@
 #include FT_CACHE_H
 #include FT_FREETYPE_H
 #include FT_OUTLINE_H
+#include FT_TRUETYPE_TABLES_H
 #endif /* HAVE_FT2BUILD_H */
 
 #include "windef.h"
@@ -54,6 +55,7 @@ static void *ft_handle = NULL;
 static FT_Library library = 0;
 static FTC_Manager cache_manager = 0;
 static FTC_CMapCache cmap_cache = 0;
+static FTC_ImageCache image_cache = 0;
 typedef struct
 {
     FT_Int major;
@@ -63,14 +65,24 @@ typedef struct
 
 #define MAKE_FUNCPTR(f) static typeof(f) * p##f = NULL
 MAKE_FUNCPTR(FT_Done_FreeType);
+MAKE_FUNCPTR(FT_Get_First_Char);
 MAKE_FUNCPTR(FT_Get_Kerning);
+MAKE_FUNCPTR(FT_Get_Sfnt_Table);
+MAKE_FUNCPTR(FT_Glyph_Get_CBox);
 MAKE_FUNCPTR(FT_Init_FreeType);
 MAKE_FUNCPTR(FT_Library_Version);
 MAKE_FUNCPTR(FT_Load_Glyph);
 MAKE_FUNCPTR(FT_New_Memory_Face);
+MAKE_FUNCPTR(FT_Outline_Copy);
+MAKE_FUNCPTR(FT_Outline_Done);
+MAKE_FUNCPTR(FT_Outline_Get_Bitmap);
+MAKE_FUNCPTR(FT_Outline_New);
 MAKE_FUNCPTR(FT_Outline_Transform);
+MAKE_FUNCPTR(FT_Outline_Translate);
 MAKE_FUNCPTR(FTC_CMapCache_Lookup);
 MAKE_FUNCPTR(FTC_CMapCache_New);
+MAKE_FUNCPTR(FTC_ImageCache_Lookup);
+MAKE_FUNCPTR(FTC_ImageCache_New);
 MAKE_FUNCPTR(FTC_Manager_New);
 MAKE_FUNCPTR(FTC_Manager_Done);
 MAKE_FUNCPTR(FTC_Manager_LookupFace);
@@ -136,14 +148,24 @@ BOOL init_freetype(void)
 
 #define LOAD_FUNCPTR(f) if((p##f = wine_dlsym(ft_handle, #f, NULL, 0)) == NULL){WARN("Can't find symbol %s\n", #f); goto sym_not_found;}
     LOAD_FUNCPTR(FT_Done_FreeType)
+    LOAD_FUNCPTR(FT_Get_First_Char)
     LOAD_FUNCPTR(FT_Get_Kerning)
+    LOAD_FUNCPTR(FT_Get_Sfnt_Table)
+    LOAD_FUNCPTR(FT_Glyph_Get_CBox)
     LOAD_FUNCPTR(FT_Init_FreeType)
     LOAD_FUNCPTR(FT_Library_Version)
     LOAD_FUNCPTR(FT_Load_Glyph)
     LOAD_FUNCPTR(FT_New_Memory_Face)
+    LOAD_FUNCPTR(FT_Outline_Copy)
+    LOAD_FUNCPTR(FT_Outline_Done)
+    LOAD_FUNCPTR(FT_Outline_Get_Bitmap)
+    LOAD_FUNCPTR(FT_Outline_New)
     LOAD_FUNCPTR(FT_Outline_Transform)
+    LOAD_FUNCPTR(FT_Outline_Translate)
     LOAD_FUNCPTR(FTC_CMapCache_Lookup)
     LOAD_FUNCPTR(FTC_CMapCache_New)
+    LOAD_FUNCPTR(FTC_ImageCache_Lookup)
+    LOAD_FUNCPTR(FTC_ImageCache_New)
     LOAD_FUNCPTR(FTC_Manager_New)
     LOAD_FUNCPTR(FTC_Manager_Done)
     LOAD_FUNCPTR(FTC_Manager_LookupFace)
@@ -161,7 +183,8 @@ BOOL init_freetype(void)
 
     /* init cache manager */
     if (pFTC_Manager_New(library, 0, 0, 0, &face_requester, NULL, &cache_manager) != 0 ||
-        pFTC_CMapCache_New(cache_manager, &cmap_cache) != 0) {
+        pFTC_CMapCache_New(cache_manager, &cmap_cache) != 0 ||
+        pFTC_ImageCache_New(cache_manager, &image_cache) != 0) {
 
         ERR("Failed to init FreeType cache\n");
         pFTC_Manager_Done(cache_manager);
@@ -244,109 +267,121 @@ static inline void ft_vector_to_d2d_point(const FT_Vector *v, D2D1_POINT_2F *p)
     p->y = v->y / 64.0;
 }
 
-static HRESULT get_outline_data(const FT_Outline *outline, struct glyph_outline **ret)
+/* Convert the quadratic Beziers to cubic Beziers. */
+static void get_cubic_glyph_outline(const FT_Outline *outline, short point, short first_pt,
+    short contour, FT_Vector *cubic_control)
 {
-    short i, j, contour = 0;
-    D2D1_POINT_2F *points;
-    UINT16 count = 0;
-    UINT8 *tags;
-    HRESULT hr;
+    /*
+       The parametric eqn for a cubic Bezier is, from PLRM:
+       r(t) = at^3 + bt^2 + ct + r0
+       with the control points:
+       r1 = r0 + c/3
+       r2 = r1 + (c + b)/3
+       r3 = r0 + c + b + a
 
-    /* we need all curves in cubic format */
-    for (i = 0; i < outline->n_points; i++) {
-        /* control point */
-        if (!(outline->tags[i] & FT_Curve_Tag_On)) {
-            if (!(outline->tags[i] & FT_Curve_Tag_Cubic)) {
-                count++;
-            }
+       A quadratic Bezier has the form:
+       p(t) = (1-t)^2 p0 + 2(1-t)t p1 + t^2 p2
+
+       So equating powers of t leads to:
+       r1 = 2/3 p1 + 1/3 p0
+       r2 = 2/3 p1 + 1/3 p2
+       and of course r0 = p0, r3 = p2
+    */
+
+    /* FIXME: Possible optimization in endpoint calculation
+       if there are two consecutive curves */
+    cubic_control[0] = outline->points[point-1];
+    if (!(outline->tags[point-1] & FT_Curve_Tag_On)) {
+        cubic_control[0].x += outline->points[point].x + 1;
+        cubic_control[0].y += outline->points[point].y + 1;
+        cubic_control[0].x >>= 1;
+        cubic_control[0].y >>= 1;
+    }
+    if (point+1 > outline->contours[contour])
+        cubic_control[3] = outline->points[first_pt];
+    else {
+        cubic_control[3] = outline->points[point+1];
+        if (!(outline->tags[point+1] & FT_Curve_Tag_On)) {
+            cubic_control[3].x += outline->points[point].x + 1;
+            cubic_control[3].y += outline->points[point].y + 1;
+            cubic_control[3].x >>= 1;
+            cubic_control[3].y >>= 1;
         }
+    }
+
+    /* r1 = 1/3 p0 + 2/3 p1
+       r2 = 1/3 p2 + 2/3 p1 */
+    cubic_control[1].x = (2 * outline->points[point].x + 1) / 3;
+    cubic_control[1].y = (2 * outline->points[point].y + 1) / 3;
+    cubic_control[2] = cubic_control[1];
+    cubic_control[1].x += (cubic_control[0].x + 1) / 3;
+    cubic_control[1].y += (cubic_control[0].y + 1) / 3;
+    cubic_control[2].x += (cubic_control[3].x + 1) / 3;
+    cubic_control[2].y += (cubic_control[3].y + 1) / 3;
+}
+
+static short get_outline_data(const FT_Outline *outline, struct glyph_outline *ret)
+{
+    short contour, point = 0, first_pt, count;
+
+    for (contour = 0, count = 0; contour < outline->n_contours; contour++) {
+        first_pt = point;
+        if (ret) {
+            ft_vector_to_d2d_point(&outline->points[point], &ret->points[count]);
+            ret->tags[count] = OUTLINE_POINT_START;
+            if (count)
+                ret->tags[count-1] |= OUTLINE_POINT_END;
+        }
+
+        point++;
         count++;
-    }
 
-    hr = new_glyph_outline(count, ret);
-    if (FAILED(hr))
-        return hr;
+        while (point <= outline->contours[contour]) {
+            do {
+                if (outline->tags[point] & FT_Curve_Tag_On) {
+                    if (ret) {
+                        ft_vector_to_d2d_point(&outline->points[point], &ret->points[count]);
+                        ret->tags[count] |= OUTLINE_POINT_LINE;
+                    }
 
-    points = (*ret)->points;
-    tags = (*ret)->tags;
+                    point++;
+                    count++;
+                }
+                else {
 
-    ft_vector_to_d2d_point(outline->points, points);
-    tags[0] = OUTLINE_POINT_START;
+                    if (ret) {
+                        FT_Vector cubic_control[4];
 
-    for (i = 1, j = 1; i < outline->n_points; i++, j++) {
-        /* mark start of new contour */
-        if (tags[j-1] & OUTLINE_POINT_END)
-            tags[j] = OUTLINE_POINT_START;
-        else
-            tags[j] = 0;
+                        get_cubic_glyph_outline(outline, point, first_pt, contour, cubic_control);
+                        ft_vector_to_d2d_point(&cubic_control[1], &ret->points[count]);
+                        ft_vector_to_d2d_point(&cubic_control[2], &ret->points[count+1]);
+                        ft_vector_to_d2d_point(&cubic_control[3], &ret->points[count+2]);
+                        ret->tags[count] = OUTLINE_POINT_BEZIER;
+                        ret->tags[count+1] = OUTLINE_POINT_BEZIER;
+                        ret->tags[count+2] = OUTLINE_POINT_BEZIER;
+                    }
 
-        if (outline->tags[i] & FT_Curve_Tag_On) {
-            ft_vector_to_d2d_point(outline->points+i, points+j);
-            tags[j] |= OUTLINE_POINT_LINE;
-        }
-        else {
-            /* third order curve */
-            if (outline->tags[i] & FT_Curve_Tag_Cubic) {
-                /* store 3 points, advance 3 points */
+                    count += 3;
+                    point++;
+                }
+            } while (point <= outline->contours[contour] &&
+                    (outline->tags[point] & FT_Curve_Tag_On) ==
+                    (outline->tags[point-1] & FT_Curve_Tag_On));
 
-                ft_vector_to_d2d_point(outline->points+i,   points+j);
-                ft_vector_to_d2d_point(outline->points+i+1, points+j+1);
-                ft_vector_to_d2d_point(outline->points+i+2, points+j+2);
-
-                i += 2;
+            if (point <= outline->contours[contour] &&
+               outline->tags[point] & FT_Curve_Tag_On)
+            {
+                /* This is the closing pt of a bezier, but we've already
+                   added it, so just inc point and carry on */
+                point++;
             }
-            else {
-                FT_Vector vec;
-
-                /* Convert the quadratic Beziers to cubic Beziers.
-                   The parametric eqn for a cubic Bezier is, from PLRM:
-                   r(t) = at^3 + bt^2 + ct + r0
-                   with the control points:
-                   r1 = r0 + c/3
-                   r2 = r1 + (c + b)/3
-                   r3 = r0 + c + b + a
-
-                   A quadratic Bezier has the form:
-                   p(t) = (1-t)^2 p0 + 2(1-t)t p1 + t^2 p2
-
-                   So equating powers of t leads to:
-                   r1 = 2/3 p1 + 1/3 p0
-                   r2 = 2/3 p1 + 1/3 p2
-                   and of course r0 = p0, r3 = p2
-                */
-
-                /* r1 */
-                vec.x = 2 * outline->points[i].x + outline->points[i-1].x;
-                vec.y = 2 * outline->points[i].y + outline->points[i-1].y;
-                ft_vector_to_d2d_point(&vec, points+j);
-                points[j].x /= 3.0;
-                points[j].y /= 3.0;
-
-                /* r2 */
-                vec.x = 2 * outline->points[i].x + outline->points[i+1].x;
-                vec.y = 2 * outline->points[i].y + outline->points[i+1].y;
-                ft_vector_to_d2d_point(&vec, points+j+1);
-                points[j+1].x /= 3.0;
-                points[j+1].y /= 3.0;
-
-                /* r3 */
-                ft_vector_to_d2d_point(outline->points+i+1, points+j+2);
-
-                i++;
-            }
-
-            tags[j] = tags[j+1] = tags[j+2] = OUTLINE_POINT_BEZIER;
-            j += 2;
-        }
-
-        /* mark end point */
-        if (i < outline->n_points && outline->contours[contour] == i) {
-            tags[j] |= OUTLINE_POINT_END;
-            contour++;
         }
     }
 
-    return S_OK;
+    if (ret)
+        ret->tags[count-1] |= OUTLINE_POINT_END;
+
+    return count;
 }
 
 HRESULT freetype_get_glyph_outline(IDWriteFontFace2 *fontface, FLOAT emSize, UINT16 index, USHORT simulations, struct glyph_outline **ret)
@@ -366,6 +401,7 @@ HRESULT freetype_get_glyph_outline(IDWriteFontFace2 *fontface, FLOAT emSize, UIN
     if (pFTC_Manager_LookupSize(cache_manager, &scaler, &size) == 0) {
          if (pFT_Load_Glyph(size->face, index, FT_LOAD_DEFAULT) == 0) {
              FT_Outline *outline = &size->face->glyph->outline;
+             short count;
              FT_Matrix m;
 
              m.xx = 1 << 16;
@@ -375,9 +411,12 @@ HRESULT freetype_get_glyph_outline(IDWriteFontFace2 *fontface, FLOAT emSize, UIN
 
              pFT_Outline_Transform(outline, &m);
 
-             hr = get_outline_data(outline, ret);
-             if (hr == S_OK)
+             count = get_outline_data(outline, NULL);
+             hr = new_glyph_outline(count, ret);
+             if (hr == S_OK) {
+                 get_outline_data(outline, *ret);
                  (*ret)->advance = size->face->glyph->metrics.horiAdvance >> 6;
+             }
          }
     }
     LeaveCriticalSection(&freetype_cs);
@@ -398,12 +437,20 @@ UINT16 freetype_get_glyphcount(IDWriteFontFace2 *fontface)
     return count;
 }
 
-UINT16 freetype_get_glyphindex(IDWriteFontFace2 *fontface, UINT32 codepoint)
+UINT16 freetype_get_glyphindex(IDWriteFontFace2 *fontface, UINT32 codepoint, INT charmap)
 {
     UINT16 glyph;
 
     EnterCriticalSection(&freetype_cs);
-    glyph = pFTC_CMapCache_Lookup(cmap_cache, fontface, -1, codepoint);
+    if (charmap == -1)
+        glyph = pFTC_CMapCache_Lookup(cmap_cache, fontface, charmap, codepoint);
+    else {
+        /* special handling for symbol fonts */
+        if (codepoint < 0x100) codepoint += 0xf000;
+        glyph = pFTC_CMapCache_Lookup(cmap_cache, fontface, charmap, codepoint);
+        if (!glyph)
+            glyph = pFTC_CMapCache_Lookup(cmap_cache, fontface, charmap, codepoint - 0xf000);
+    }
     LeaveCriticalSection(&freetype_cs);
 
     return glyph;
@@ -438,6 +485,198 @@ INT32 freetype_get_kerning_pair_adjustment(IDWriteFontFace2 *fontface, UINT16 le
     LeaveCriticalSection(&freetype_cs);
 
     return adjustment;
+}
+
+void freetype_get_glyph_bbox(struct dwrite_glyphbitmap *bitmap)
+{
+    FTC_ImageTypeRec imagetype;
+    FT_BBox bbox = { 0 };
+    FT_Glyph glyph;
+
+    imagetype.face_id = bitmap->fontface;
+    imagetype.width = 0;
+    imagetype.height = bitmap->emsize;
+    imagetype.flags = FT_LOAD_DEFAULT;
+
+    EnterCriticalSection(&freetype_cs);
+    if (pFTC_ImageCache_Lookup(image_cache, &imagetype, bitmap->index, &glyph, NULL) == 0)
+        pFT_Glyph_Get_CBox(glyph, FT_GLYPH_BBOX_PIXELS, &bbox);
+    LeaveCriticalSection(&freetype_cs);
+
+    /* flip Y axis */
+    bitmap->bbox.left = bbox.xMin;
+    bitmap->bbox.right = bbox.xMax;
+    bitmap->bbox.top = -bbox.yMax;
+    bitmap->bbox.bottom = -bbox.yMin;
+}
+
+static BOOL freetype_get_aliased_glyph_bitmap(struct dwrite_glyphbitmap *bitmap, FT_Glyph glyph)
+{
+    const RECT *bbox = &bitmap->bbox;
+    int width = bbox->right - bbox->left;
+    int height = bbox->bottom - bbox->top;
+
+    if (glyph->format == FT_GLYPH_FORMAT_OUTLINE) {
+        FT_OutlineGlyph outline = (FT_OutlineGlyph)glyph;
+        const FT_Outline *src = &outline->outline;
+        FT_Bitmap ft_bitmap;
+        FT_Outline copy;
+
+        ft_bitmap.width = width;
+        ft_bitmap.rows = height;
+        ft_bitmap.pitch = bitmap->pitch;
+        ft_bitmap.pixel_mode = FT_PIXEL_MODE_MONO;
+        ft_bitmap.buffer = bitmap->buf;
+
+        /* Note: FreeType will only set 'black' bits for us. */
+        if (pFT_Outline_New(library, src->n_points, src->n_contours, &copy) == 0) {
+            pFT_Outline_Copy(src, &copy);
+            pFT_Outline_Translate(&copy, -bbox->left << 6, bbox->bottom << 6);
+            pFT_Outline_Get_Bitmap(library, &copy, &ft_bitmap);
+            pFT_Outline_Done(library, &copy);
+        }
+    }
+    else if (glyph->format == FT_GLYPH_FORMAT_BITMAP) {
+        FT_Bitmap *ft_bitmap = &((FT_BitmapGlyph)glyph)->bitmap;
+        BYTE *src = ft_bitmap->buffer, *dst = bitmap->buf;
+        int w = min(bitmap->pitch, (ft_bitmap->width + 7) >> 3);
+        int h = min(height, ft_bitmap->rows);
+
+        while (h--) {
+            memcpy(dst, src, w);
+            src += ft_bitmap->pitch;
+            dst += bitmap->pitch;
+        }
+    }
+    else
+        FIXME("format %x not handled\n", glyph->format);
+
+    return TRUE;
+}
+
+static BOOL freetype_get_aa_glyph_bitmap(struct dwrite_glyphbitmap *bitmap, FT_Glyph glyph)
+{
+    const RECT *bbox = &bitmap->bbox;
+    int width = bbox->right - bbox->left;
+    int height = bbox->bottom - bbox->top;
+    BOOL ret = FALSE;
+
+    if (glyph->format == FT_GLYPH_FORMAT_OUTLINE) {
+        FT_OutlineGlyph outline = (FT_OutlineGlyph)glyph;
+        const FT_Outline *src = &outline->outline;
+        FT_Bitmap ft_bitmap;
+        FT_Outline copy;
+
+        ft_bitmap.width = width;
+        ft_bitmap.rows = height;
+        ft_bitmap.pitch = bitmap->pitch;
+        ft_bitmap.pixel_mode = FT_PIXEL_MODE_GRAY;
+        ft_bitmap.buffer = bitmap->buf;
+
+        /* Note: FreeType will only set 'black' bits for us. */
+        if (pFT_Outline_New(library, src->n_points, src->n_contours, &copy) == 0) {
+            pFT_Outline_Copy(src, &copy);
+            pFT_Outline_Translate(&copy, -bbox->left << 6, bbox->bottom << 6);
+            pFT_Outline_Get_Bitmap(library, &copy, &ft_bitmap);
+            pFT_Outline_Done(library, &copy);
+        }
+    }
+    else if (glyph->format == FT_GLYPH_FORMAT_BITMAP) {
+        FT_Bitmap *ft_bitmap = &((FT_BitmapGlyph)glyph)->bitmap;
+        BYTE *src = ft_bitmap->buffer, *dst = bitmap->buf;
+        int w = min(bitmap->pitch, (ft_bitmap->width + 7) >> 3);
+        int h = min(height, ft_bitmap->rows);
+
+        while (h--) {
+            memcpy(dst, src, w);
+            src += ft_bitmap->pitch;
+            dst += bitmap->pitch;
+        }
+
+        ret = TRUE;
+    }
+    else
+        FIXME("format %x not handled\n", glyph->format);
+
+    return ret;
+}
+
+BOOL freetype_get_glyph_bitmap(struct dwrite_glyphbitmap *bitmap)
+{
+    FTC_ImageTypeRec imagetype;
+    BOOL ret = FALSE;
+    FT_Glyph glyph;
+
+    imagetype.face_id = bitmap->fontface;
+    imagetype.width = 0;
+    imagetype.height = bitmap->emsize;
+    imagetype.flags = FT_LOAD_DEFAULT;
+
+    EnterCriticalSection(&freetype_cs);
+    if (pFTC_ImageCache_Lookup(image_cache, &imagetype, bitmap->index, &glyph, NULL) == 0) {
+        if (bitmap->type == DWRITE_TEXTURE_CLEARTYPE_3x1)
+            ret = freetype_get_aa_glyph_bitmap(bitmap, glyph);
+        else
+            ret = freetype_get_aliased_glyph_bitmap(bitmap, glyph);
+    }
+    LeaveCriticalSection(&freetype_cs);
+
+    return ret;
+}
+
+INT freetype_get_charmap_index(IDWriteFontFace2 *fontface, BOOL *is_symbol)
+{
+    INT charmap_index = -1;
+    FT_Face face;
+
+    *is_symbol = FALSE;
+
+    EnterCriticalSection(&freetype_cs);
+    if (pFTC_Manager_LookupFace(cache_manager, fontface, &face) == 0) {
+        TT_OS2 *os2 = pFT_Get_Sfnt_Table(face, ft_sfnt_os2);
+        FT_Int i;
+
+        if (os2) {
+            FT_UInt dummy;
+            if (os2->version == 0)
+                *is_symbol = pFT_Get_First_Char(face, &dummy) >= 0x100;
+            else
+                *is_symbol = os2->ulCodePageRange1 & FS_SYMBOL;
+        }
+
+        for (i = 0; i < face->num_charmaps; i++)
+            if (face->charmaps[i]->encoding == FT_ENCODING_MS_SYMBOL) {
+                *is_symbol = TRUE;
+                charmap_index = i;
+                break;
+            }
+    }
+    LeaveCriticalSection(&freetype_cs);
+
+    return charmap_index;
+}
+
+INT32 freetype_get_glyph_advance(IDWriteFontFace2 *fontface, FLOAT emSize, UINT16 index, DWRITE_MEASURING_MODE mode)
+{
+    FTC_ImageTypeRec imagetype;
+    FT_Glyph glyph;
+    INT32 advance;
+
+    imagetype.face_id = fontface;
+    imagetype.width = 0;
+    imagetype.height = emSize;
+    imagetype.flags = FT_LOAD_DEFAULT;
+    if (mode == DWRITE_MEASURING_MODE_NATURAL)
+        imagetype.flags |= FT_LOAD_NO_HINTING;
+
+    EnterCriticalSection(&freetype_cs);
+    if (pFTC_ImageCache_Lookup(image_cache, &imagetype, index, &glyph, NULL) == 0)
+        advance = glyph->advance.x >> 16;
+    else
+        advance = 0;
+    LeaveCriticalSection(&freetype_cs);
+
+    return advance;
 }
 
 #else /* HAVE_FREETYPE */
@@ -476,7 +715,7 @@ UINT16 freetype_get_glyphcount(IDWriteFontFace2 *fontface)
     return 0;
 }
 
-UINT16 freetype_get_glyphindex(IDWriteFontFace2 *fontface, UINT32 codepoint)
+UINT16 freetype_get_glyphindex(IDWriteFontFace2 *fontface, UINT32 codepoint, INT charmap)
 {
     return 0;
 }
@@ -487,6 +726,27 @@ BOOL freetype_has_kerning_pairs(IDWriteFontFace2 *fontface)
 }
 
 INT32 freetype_get_kerning_pair_adjustment(IDWriteFontFace2 *fontface, UINT16 left, UINT16 right)
+{
+    return 0;
+}
+
+void freetype_get_glyph_bbox(struct dwrite_glyphbitmap *bitmap)
+{
+    memset(&bitmap->bbox, 0, sizeof(bitmap->bbox));
+}
+
+BOOL freetype_get_glyph_bitmap(struct dwrite_glyphbitmap *bitmap)
+{
+    return FALSE;
+}
+
+INT freetype_get_charmap_index(IDWriteFontFace2 *fontface, BOOL *is_symbol)
+{
+    *is_symbol = FALSE;
+    return -1;
+}
+
+INT32 freetype_get_glyph_advance(IDWriteFontFace2 *fontface, FLOAT emSize, UINT16 index, DWRITE_MEASURING_MODE mode)
 {
     return 0;
 }

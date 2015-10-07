@@ -829,7 +829,12 @@ int CDECL _mbsnbicoll(const unsigned char *str1, const unsigned char *str2, MSVC
  */
 int CDECL _mbsicoll(const unsigned char* str, const unsigned char* cmp)
 {
+#if _MSVCR_VER>=60 && _MSVCR_VER<=71
+    return CompareStringA(get_mbcinfo()->mblcid, NORM_IGNORECASE,
+            (const char*)str, -1, (const char*)cmp, -1)-CSTR_EQUAL;
+#else
     return _mbsnbicoll_l(str, cmp, -1, NULL);
+#endif
 }
 
 /*********************************************************************
@@ -870,7 +875,12 @@ int CDECL _mbsnbcoll(const unsigned char *str1, const unsigned char *str2, MSVCR
  */
 int CDECL _mbscoll(const unsigned char* str, const unsigned char* cmp)
 {
+#if _MSVCR_VER>=60 && _MSVCR_VER<=71
+    return CompareStringA(get_mbcinfo()->mblcid, 0,
+            (const char*)str, -1, (const char*)cmp, -1)-CSTR_EQUAL;
+#else
     return _mbsnbcoll_l(str, cmp, -1, NULL);
+#endif
 }
 
 /*********************************************************************
@@ -1050,6 +1060,56 @@ unsigned char * CDECL _mbscat( unsigned char *dst, const unsigned char *src )
 {
     strcat( (char *)dst, (const char *)src );
     return dst;
+}
+
+/*********************************************************************
+ *		_mbscat_s_l (MSVCRT.@)
+ */
+int CDECL _mbscat_s_l( unsigned char *dst, MSVCRT_size_t size,
+        const unsigned char *src, MSVCRT__locale_t locale )
+{
+    MSVCRT_size_t i, j;
+    int ret = 0;
+
+    if(!MSVCRT_CHECK_PMT(dst != NULL)) return MSVCRT_EINVAL;
+    if(!MSVCRT_CHECK_PMT(src != NULL)) return MSVCRT_EINVAL;
+
+    for(i=0; i<size; i++)
+        if(!dst[i]) break;
+    if(i == size) {
+        MSVCRT_INVALID_PMT("dst is not NULL-terminated", MSVCRT_EINVAL);
+        if(size) dst[0] = 0;
+        return MSVCRT_EINVAL;
+    }
+
+    if(i && _ismbblead_l(dst[i-1], locale)) {
+        ret = MSVCRT_EILSEQ;
+        i--;
+    }
+
+    for(j=0; src[j] && i+j<size; j++)
+        dst[i+j] = src[j];
+    if(i+j == size) {
+        MSVCRT_INVALID_PMT("dst buffer is too small", MSVCRT_ERANGE);
+        dst[0] = 0;
+        return MSVCRT_ERANGE;
+    }
+
+    if(j && _ismbblead_l(src[j-1], locale)) {
+        ret = MSVCRT_EILSEQ;
+        j--;
+    }
+
+    dst[i+j] = 0;
+    return ret;
+}
+
+/*********************************************************************
+ *		_mbscat_s (MSVCRT.@)
+ */
+int CDECL _mbscat_s( unsigned char *dst, MSVCRT_size_t size, const unsigned char *src )
+{
+    return _mbscat_s_l(dst, size, src, NULL);
 }
 
 /*********************************************************************
@@ -1374,12 +1434,28 @@ int CDECL _ismbckata(unsigned int c)
   return 0;
 }
 
+
+/*********************************************************************
+ *		_ismbblead_l(MSVCRT.@)
+ */
+int CDECL _ismbblead_l(unsigned int c, MSVCRT__locale_t locale)
+{
+    MSVCRT_pthreadmbcinfo mbcinfo;
+
+    if(!locale)
+        mbcinfo = get_mbcinfo();
+    else
+        mbcinfo = locale->mbcinfo;
+
+    return (mbcinfo->mbctype[(c&0xff) + 1] & _M1) != 0;
+}
+
 /*********************************************************************
  *		_ismbblead(MSVCRT.@)
  */
 int CDECL _ismbblead(unsigned int c)
 {
-  return (get_mbcinfo()->mbctype[(c&0xff) + 1] & _M1) != 0;
+    return _ismbblead_l(c, NULL);
 }
 
 

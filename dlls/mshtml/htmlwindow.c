@@ -256,6 +256,11 @@ static void release_inner_window(HTMLInnerWindow *This)
         IHTMLOptionElementFactory_Release(&This->option_factory->IHTMLOptionElementFactory_iface);
     }
 
+    if(This->xhr_factory) {
+        This->xhr_factory->window = NULL;
+        IHTMLXMLHttpRequestFactory_Release(&This->xhr_factory->IHTMLXMLHttpRequestFactory_iface);
+    }
+
     if(This->screen)
         IHTMLScreen_Release(This->screen);
 
@@ -375,6 +380,11 @@ HRESULT get_frame_by_name(HTMLOuterWindow *This, const WCHAR *name, BOOL deep, H
         return E_FAIL;
     }
 
+    if(!nsframes) {
+        WARN("nsIDOMWindow_GetFrames returned NULL nsframes: %p\n", This->nswindow);
+        return DISP_E_MEMBERNOTFOUND;
+    }
+
     nsAString_InitDepend(&name_str, name);
     nsres = nsIDOMWindowCollection_NamedItem(nsframes, &name_str, &nswindow);
     nsAString_Finish(&name_str);
@@ -405,6 +415,11 @@ HRESULT get_frame_by_name(HTMLOuterWindow *This, const WCHAR *name, BOOL deep, H
         window_iter = nswindow_to_window(nswindow);
 
         nsIDOMWindow_Release(nswindow);
+
+        if(!window_iter) {
+            WARN("nsIDOMWindow without HTMLOuterWindow: %p\n", nswindow);
+            continue;
+        }
 
         hres = IHTMLElement_get_id(&window_iter->frame_element->element.IHTMLElement_iface, &id);
         if(FAILED(hres)) {
@@ -1960,8 +1975,24 @@ static HRESULT WINAPI HTMLWindow5_put_XMLHttpRequest(IHTMLWindow5 *iface, VARIAN
 static HRESULT WINAPI HTMLWindow5_get_XMLHttpRequest(IHTMLWindow5 *iface, VARIANT *p)
 {
     HTMLWindow *This = impl_from_IHTMLWindow5(iface);
-    FIXME("(%p)->(%p)\n", This, p);
-    return E_NOTIMPL;
+    HTMLInnerWindow *window = This->inner_window;
+
+    TRACE("(%p)->(%p)\n", This, p);
+
+    if(!window->xhr_factory) {
+        HRESULT hres;
+
+        hres = HTMLXMLHttpRequestFactory_Create(window, &window->xhr_factory);
+        if(FAILED(hres)) {
+            return hres;
+        }
+    }
+
+    V_VT(p) = VT_DISPATCH;
+    V_DISPATCH(p) = (IDispatch*)&window->xhr_factory->IHTMLXMLHttpRequestFactory_iface;
+    IDispatch_AddRef(V_DISPATCH(p));
+
+    return S_OK;
 }
 
 static const IHTMLWindow5Vtbl HTMLWindow5Vtbl = {

@@ -637,19 +637,42 @@ typedef union
     struct
     {
         unsigned int     major;
+        unsigned int     access;
+        unsigned int     sharing;
+        unsigned int     options;
+        client_ptr_t     device;
+    } create;
+    struct
+    {
+        unsigned int     major;
+        int              __pad;
+        client_ptr_t     file;
+    } close;
+    struct
+    {
+        unsigned int     major;
         unsigned int     key;
+        client_ptr_t     file;
         file_pos_t       pos;
     } read;
     struct
     {
         unsigned int     major;
         unsigned int     key;
+        client_ptr_t     file;
         file_pos_t       pos;
     } write;
     struct
     {
         unsigned int     major;
+        int              __pad;
+        client_ptr_t     file;
+    } flush;
+    struct
+    {
+        unsigned int     major;
         ioctl_code_t     code;
+        client_ptr_t     file;
     } ioctl;
 } irp_params_t;
 
@@ -869,13 +892,26 @@ struct get_thread_info_reply
     process_id_t pid;
     thread_id_t  tid;
     client_ptr_t teb;
+    client_ptr_t entry_point;
     affinity_t   affinity;
-    timeout_t    creation_time;
-    timeout_t    exit_time;
     int          exit_code;
     int          priority;
     int          last;
-    char __pad_60[4];
+    char __pad_52[4];
+};
+
+
+
+struct get_thread_times_request
+{
+    struct request_header __header;
+    obj_handle_t handle;
+};
+struct get_thread_times_reply
+{
+    struct reply_header __header;
+    timeout_t    creation_time;
+    timeout_t    exit_time;
 };
 
 
@@ -887,16 +923,18 @@ struct set_thread_info_request
     int          mask;
     int          priority;
     affinity_t   affinity;
+    client_ptr_t entry_point;
     obj_handle_t token;
-    char __pad_36[4];
+    char __pad_44[4];
 };
 struct set_thread_info_reply
 {
     struct reply_header __header;
 };
-#define SET_THREAD_INFO_PRIORITY 0x01
-#define SET_THREAD_INFO_AFFINITY 0x02
-#define SET_THREAD_INFO_TOKEN    0x04
+#define SET_THREAD_INFO_PRIORITY   0x01
+#define SET_THREAD_INFO_AFFINITY   0x02
+#define SET_THREAD_INFO_TOKEN      0x04
+#define SET_THREAD_INFO_ENTRYPOINT 0x08
 
 
 
@@ -3193,9 +3231,10 @@ struct set_irp_result_request
     obj_handle_t manager;
     obj_handle_t handle;
     unsigned int status;
+    client_ptr_t file_ptr;
     data_size_t  size;
     /* VARARG(data,bytes); */
-    char __pad_28[4];
+    char __pad_36[4];
 };
 struct set_irp_result_reply
 {
@@ -4381,7 +4420,6 @@ struct set_clipboard_info_reply
 };
 
 #define SET_CB_OPEN      0x001
-#define SET_CB_OWNER     0x002
 #define SET_CB_VIEWER    0x004
 #define SET_CB_SEQNO     0x008
 #define SET_CB_RELOWNER  0x010
@@ -4389,6 +4427,18 @@ struct set_clipboard_info_reply
 #define CB_OPEN          0x040
 #define CB_OWNER         0x080
 #define CB_PROCESS       0x100
+
+
+
+struct empty_clipboard_request
+{
+    struct request_header __header;
+    char __pad_12[4];
+};
+struct empty_clipboard_reply
+{
+    struct reply_header __header;
+};
 
 
 
@@ -4760,6 +4810,21 @@ struct get_object_info_reply
 
 
 
+struct get_object_type_request
+{
+    struct request_header __header;
+    obj_handle_t   handle;
+};
+struct get_object_type_reply
+{
+    struct reply_header __header;
+    data_size_t    total;
+    /* VARARG(type,unicode_str); */
+    char __pad_12[4];
+};
+
+
+
 struct unlink_object_request
 {
     struct request_header __header;
@@ -4856,7 +4921,6 @@ struct get_next_device_request_request
 struct get_next_device_request_reply
 {
     struct reply_header __header;
-    client_ptr_t user_ptr;
     irp_params_t params;
     obj_handle_t next;
     process_id_t client_pid;
@@ -5010,6 +5074,35 @@ struct add_fd_completion_request
     char __pad_36[4];
 };
 struct add_fd_completion_reply
+{
+    struct reply_header __header;
+};
+
+
+
+struct set_fd_disp_info_request
+{
+    struct request_header __header;
+    obj_handle_t handle;
+    int          unlink;
+    char __pad_20[4];
+};
+struct set_fd_disp_info_reply
+{
+    struct reply_header __header;
+};
+
+
+
+struct set_fd_name_info_request
+{
+    struct request_header __header;
+    obj_handle_t handle;
+    obj_handle_t rootdir;
+    int          link;
+    /* VARARG(filename,string); */
+};
+struct set_fd_name_info_reply
 {
     struct reply_header __header;
 };
@@ -5246,6 +5339,7 @@ enum request
     REQ_get_process_info,
     REQ_set_process_info,
     REQ_get_thread_info,
+    REQ_get_thread_times,
     REQ_set_thread_info,
     REQ_get_dll_info,
     REQ_suspend_thread,
@@ -5447,6 +5541,7 @@ enum request
     REQ_destroy_class,
     REQ_set_class_info,
     REQ_set_clipboard_info,
+    REQ_empty_clipboard,
     REQ_open_token,
     REQ_set_global_windows,
     REQ_adjust_token_privileges,
@@ -5469,6 +5564,7 @@ enum request
     REQ_open_symlink,
     REQ_query_symlink,
     REQ_get_object_info,
+    REQ_get_object_type,
     REQ_unlink_object,
     REQ_get_token_impersonation_level,
     REQ_allocate_locally_unique_id,
@@ -5485,6 +5581,8 @@ enum request
     REQ_query_completion,
     REQ_set_completion_info,
     REQ_add_fd_completion,
+    REQ_set_fd_disp_info,
+    REQ_set_fd_name_info,
     REQ_get_window_layered_info,
     REQ_set_window_layered_info,
     REQ_alloc_user_handle,
@@ -5517,6 +5615,7 @@ union generic_request
     struct get_process_info_request get_process_info_request;
     struct set_process_info_request set_process_info_request;
     struct get_thread_info_request get_thread_info_request;
+    struct get_thread_times_request get_thread_times_request;
     struct set_thread_info_request set_thread_info_request;
     struct get_dll_info_request get_dll_info_request;
     struct suspend_thread_request suspend_thread_request;
@@ -5718,6 +5817,7 @@ union generic_request
     struct destroy_class_request destroy_class_request;
     struct set_class_info_request set_class_info_request;
     struct set_clipboard_info_request set_clipboard_info_request;
+    struct empty_clipboard_request empty_clipboard_request;
     struct open_token_request open_token_request;
     struct set_global_windows_request set_global_windows_request;
     struct adjust_token_privileges_request adjust_token_privileges_request;
@@ -5740,6 +5840,7 @@ union generic_request
     struct open_symlink_request open_symlink_request;
     struct query_symlink_request query_symlink_request;
     struct get_object_info_request get_object_info_request;
+    struct get_object_type_request get_object_type_request;
     struct unlink_object_request unlink_object_request;
     struct get_token_impersonation_level_request get_token_impersonation_level_request;
     struct allocate_locally_unique_id_request allocate_locally_unique_id_request;
@@ -5756,6 +5857,8 @@ union generic_request
     struct query_completion_request query_completion_request;
     struct set_completion_info_request set_completion_info_request;
     struct add_fd_completion_request add_fd_completion_request;
+    struct set_fd_disp_info_request set_fd_disp_info_request;
+    struct set_fd_name_info_request set_fd_name_info_request;
     struct get_window_layered_info_request get_window_layered_info_request;
     struct set_window_layered_info_request set_window_layered_info_request;
     struct alloc_user_handle_request alloc_user_handle_request;
@@ -5786,6 +5889,7 @@ union generic_reply
     struct get_process_info_reply get_process_info_reply;
     struct set_process_info_reply set_process_info_reply;
     struct get_thread_info_reply get_thread_info_reply;
+    struct get_thread_times_reply get_thread_times_reply;
     struct set_thread_info_reply set_thread_info_reply;
     struct get_dll_info_reply get_dll_info_reply;
     struct suspend_thread_reply suspend_thread_reply;
@@ -5987,6 +6091,7 @@ union generic_reply
     struct destroy_class_reply destroy_class_reply;
     struct set_class_info_reply set_class_info_reply;
     struct set_clipboard_info_reply set_clipboard_info_reply;
+    struct empty_clipboard_reply empty_clipboard_reply;
     struct open_token_reply open_token_reply;
     struct set_global_windows_reply set_global_windows_reply;
     struct adjust_token_privileges_reply adjust_token_privileges_reply;
@@ -6009,6 +6114,7 @@ union generic_reply
     struct open_symlink_reply open_symlink_reply;
     struct query_symlink_reply query_symlink_reply;
     struct get_object_info_reply get_object_info_reply;
+    struct get_object_type_reply get_object_type_reply;
     struct unlink_object_reply unlink_object_reply;
     struct get_token_impersonation_level_reply get_token_impersonation_level_reply;
     struct allocate_locally_unique_id_reply allocate_locally_unique_id_reply;
@@ -6025,6 +6131,8 @@ union generic_reply
     struct query_completion_reply query_completion_reply;
     struct set_completion_info_reply set_completion_info_reply;
     struct add_fd_completion_reply add_fd_completion_reply;
+    struct set_fd_disp_info_reply set_fd_disp_info_reply;
+    struct set_fd_name_info_reply set_fd_name_info_reply;
     struct get_window_layered_info_reply get_window_layered_info_reply;
     struct set_window_layered_info_reply set_window_layered_info_reply;
     struct alloc_user_handle_reply alloc_user_handle_reply;
@@ -6041,6 +6149,6 @@ union generic_reply
     struct terminate_job_reply terminate_job_reply;
 };
 
-#define SERVER_PROTOCOL_VERSION 474
+#define SERVER_PROTOCOL_VERSION 487
 
 #endif /* __WINE_WINE_SERVER_PROTOCOL_H */

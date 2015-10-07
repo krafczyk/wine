@@ -63,9 +63,9 @@
  *   -- if list is sorted by item text LISTVIEW_InsertItemT could use
  *      binary search to calculate item index (e.g. DPA_Search()).
  *      This requires sorted state to be reliably tracked in item modifiers.
- *   -- we should keep an ordered array of coordinates in iconic mode
- *      this would allow to frame items (iterator_frameditems),
- *      and find nearest item (LVFI_NEARESTXY) a lot more efficiently
+ *   -- we should keep an ordered array of coordinates in iconic mode.
+ *      This would allow framing items (iterator_frameditems),
+ *      and finding the nearest item (LVFI_NEARESTXY) a lot more efficiently.
  *
  * Flags
  *   -- LVIF_COLUMNS
@@ -4122,6 +4122,7 @@ static LRESULT LISTVIEW_MouseMove(LISTVIEW_INFO *infoPtr, WORD fwKeys, INT x, IN
     /* see if we are supposed to be tracking mouse hovering */
     if (LISTVIEW_IsHotTracking(infoPtr)) {
         TRACKMOUSEEVENT trackinfo;
+        DWORD flags;
 
         trackinfo.cbSize = sizeof(TRACKMOUSEEVENT);
         trackinfo.dwFlags = TME_QUERY;
@@ -4129,8 +4130,12 @@ static LRESULT LISTVIEW_MouseMove(LISTVIEW_INFO *infoPtr, WORD fwKeys, INT x, IN
         /* see if we are already tracking this hwnd */
         _TrackMouseEvent(&trackinfo);
 
-        if(!(trackinfo.dwFlags & TME_HOVER) || trackinfo.hwndTrack != infoPtr->hwndSelf) {
-            trackinfo.dwFlags     = TME_HOVER;
+        flags = TME_LEAVE;
+        if(infoPtr->dwLvExStyle & LVS_EX_TRACKSELECT)
+            flags |= TME_HOVER;
+
+        if((trackinfo.dwFlags & flags) != flags || trackinfo.hwndTrack != infoPtr->hwndSelf) {
+            trackinfo.dwFlags     = flags;
             trackinfo.dwHoverTime = infoPtr->dwHoverTime;
             trackinfo.hwndTrack   = infoPtr->hwndSelf;
 
@@ -5674,11 +5679,11 @@ static BOOL LISTVIEW_DeleteColumn(LISTVIEW_INFO *infoPtr, INT nColumn)
     }
 
     /* update the other column info */
-    LISTVIEW_UpdateItemSize(infoPtr);
     if(DPA_GetPtrCount(infoPtr->hdpaColumns) == 0)
         LISTVIEW_InvalidateList(infoPtr);
     else
         LISTVIEW_ScrollColumns(infoPtr, nColumn, -(rcCol.right - rcCol.left));
+    LISTVIEW_UpdateItemSize(infoPtr);
 
     return TRUE;
 }
@@ -7846,10 +7851,18 @@ static INT LISTVIEW_InsertItemT(LISTVIEW_INFO *infoPtr, const LVITEMW *lpLVItem,
     item.iItem = nItem;
     if (infoPtr->dwLvExStyle & LVS_EX_CHECKBOXES)
     {
-        item.mask |= LVIF_STATE;
-        item.stateMask |= LVIS_STATEIMAGEMASK;
-        item.state &= ~LVIS_STATEIMAGEMASK;
-        item.state |= INDEXTOSTATEIMAGEMASK(1);
+        if (item.mask & LVIF_STATE)
+        {
+            item.stateMask |= LVIS_STATEIMAGEMASK;
+            item.state &= ~LVIS_STATEIMAGEMASK;
+            item.state |= INDEXTOSTATEIMAGEMASK(1);
+        }
+        else
+        {
+            item.mask |= LVIF_STATE;
+            item.stateMask = LVIS_STATEIMAGEMASK;
+            item.state = INDEXTOSTATEIMAGEMASK(1);
+        }
     }
 
     if (!set_main_item(infoPtr, &item, TRUE, isW, &has_changed)) goto undo;

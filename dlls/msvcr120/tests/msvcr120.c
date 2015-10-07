@@ -63,6 +63,8 @@ static struct MSVCRT_lconv* (CDECL *p_localeconv)(void);
 static size_t (CDECL *p_wcstombs_s)(size_t *ret, char* dest, size_t sz, const wchar_t* src, size_t max);
 static int (CDECL *p__dsign)(double);
 static int (CDECL *p__fdsign)(float);
+static wchar_t** (CDECL *p____lc_locale_name_func)(void);
+static unsigned int (CDECL *p__GetConcurrency)(void);
 
 static BOOL init(void)
 {
@@ -80,6 +82,8 @@ static BOOL init(void)
     p_wcstombs_s = (void*)GetProcAddress(module, "wcstombs_s");
     p__dsign = (void*)GetProcAddress(module, "_dsign");
     p__fdsign = (void*)GetProcAddress(module, "_fdsign");
+    p____lc_locale_name_func = (void*)GetProcAddress(module, "___lc_locale_name_func");
+    p__GetConcurrency = (void*)GetProcAddress(module,"?_GetConcurrency@details@Concurrency@@YAIXZ");
     return TRUE;
 }
 
@@ -171,9 +175,69 @@ static void test__dsign(void)
     ok(ret == 0x8000, "p_fdsign(-1) = %x\n", ret);
 }
 
+static void test____lc_locale_name_func(void)
+{
+    struct {
+        const char *locale;
+        const WCHAR name[10];
+        const WCHAR broken_name[10];
+        BOOL todo;
+    } tests[] = {
+        { "American",  {'e','n',0}, {'e','n','-','U','S',0} },
+        { "Belgian",   {'n','l','-','B','E',0} },
+        { "Chinese",   {'z','h',0}, {'z','h','-','C','N',0}, TRUE },
+        { "Dutch",     {'n','l',0}, {'n','l','-','N','L',0} },
+        { "English",   {'e','n',0}, {'e','n','-','U','S',0} },
+        { "French",    {'f','r',0}, {'f','r','-','F','R',0} },
+        { "German",    {'d','e',0}, {'d','e','-','D','E',0} },
+        { "Hungarian", {'h','u',0}, {'h','u','-','H','U',0} },
+        { "Icelandic", {'i','s',0}, {'i','s','-','I','S',0} },
+        { "Japanese",  {'j','a',0}, {'j','a','-','J','P',0} },
+        { "Korean",    {'k','o',0}, {'k','o','-','K','R',0} }
+    };
+    int i, j;
+    wchar_t **lc_names;
+
+    for(i=0; i<sizeof(tests)/sizeof(*tests); i++) {
+        if(!p_setlocale(LC_ALL, tests[i].locale))
+            continue;
+
+        lc_names = p____lc_locale_name_func();
+        ok(lc_names[0] == NULL, "%d - lc_names[0] = %s\n", i, wine_dbgstr_w(lc_names[0]));
+        if(tests[i].todo) {
+            todo_wine ok(!lstrcmpW(lc_names[1], tests[i].name) || broken(!lstrcmpW(lc_names[1], tests[i].broken_name)),
+                    "%d - lc_names[1] = %s\n", i, wine_dbgstr_w(lc_names[1]));
+        } else {
+            ok(!lstrcmpW(lc_names[1], tests[i].name) || broken(!lstrcmpW(lc_names[1], tests[i].broken_name)),
+                    "%d - lc_names[1] = %s\n", i, wine_dbgstr_w(lc_names[1]));
+        }
+
+        for(j=LC_MIN+2; j<=LC_MAX; j++) {
+            ok(!lstrcmpW(lc_names[1], lc_names[j]), "%d - lc_names[%d] = %s, expected %s\n",
+                    i, j, wine_dbgstr_w(lc_names[j]), wine_dbgstr_w(lc_names[1]));
+        }
+    }
+
+    p_setlocale(LC_ALL, "C");
+    lc_names = p____lc_locale_name_func();
+    ok(!lc_names[1], "___lc_locale_name_func()[1] = %s\n", wine_dbgstr_w(lc_names[1]));
+}
+
+static void test__GetConcurrency(void)
+{
+    SYSTEM_INFO si;
+    unsigned int c;
+
+    GetSystemInfo(&si);
+    c = (*p__GetConcurrency)();
+    ok(c == si.dwNumberOfProcessors, "expected %u, got %u\n", si.dwNumberOfProcessors, c);
+}
+
 START_TEST(msvcr120)
 {
     if (!init()) return;
     test_lconv();
     test__dsign();
+    test____lc_locale_name_func();
+    test__GetConcurrency();
 }

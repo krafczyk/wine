@@ -1965,7 +1965,7 @@ static HRESULT WINAPI domdoc_createNode(
     }
 
     xml_name = xmlchar_from_wchar(name);
-    /* prevent empty href to be allocated */
+    /* prevent empty href from being allocated */
     href = namespaceURI ? xmlchar_from_wchar(namespaceURI) : NULL;
 
     switch(node_type)
@@ -1978,7 +1978,7 @@ static HRESULT WINAPI domdoc_createNode(
 
         xmlnode = xmlNewDocNode(get_doc(This), NULL, local ? local : xml_name, NULL);
 
-        /* allow to create default namespace xmlns= */
+        /* allow creating the default namespace xmlns= */
         if (local || (href && *href))
         {
             xmlNsPtr ns = xmlNewNs(xmlnode, href, prefix);
@@ -2140,7 +2140,13 @@ static HRESULT WINAPI domdoc_load(
             case 1:
                 /* Only takes UTF-8 strings.
                  * NOT NULL-terminated. */
-                SafeArrayAccessData(psa, (void**)&str);
+                hr = SafeArrayAccessData(psa, (void**)&str);
+                if (FAILED(hr))
+                {
+                    This->error = hr;
+                    WARN("failed to access array data, 0x%08x\n", hr);
+                    break;
+                }
                 SafeArrayGetUBound(psa, 1, &len);
 
                 if ((xmldoc = doparse(This, str, ++len, XML_CHAR_ENCODING_UTF8)))

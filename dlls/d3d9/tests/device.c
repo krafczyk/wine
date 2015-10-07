@@ -1053,7 +1053,7 @@ static void test_swapchain(void)
     IDirect3DSwapChain9 *swapchain2;
     IDirect3DSwapChain9 *swapchain3;
     IDirect3DSwapChain9 *swapchainX;
-    IDirect3DSurface9 *backbuffer;
+    IDirect3DSurface9 *backbuffer, *stereo_buffer;
     D3DPRESENT_PARAMETERS d3dpp;
     IDirect3DDevice9 *device;
     IDirect3D9 *d3d;
@@ -1085,11 +1085,50 @@ static void test_swapchain(void)
     ok(d3dpp.BackBufferCount == 1, "Got unexpected back buffer count %u.\n", d3dpp.BackBufferCount);
     IDirect3DSwapChain9_Release(swapchain0);
 
+    hr = IDirect3DSwapChain9_GetBackBuffer(swapchain0, 0, D3DBACKBUFFER_TYPE_MONO, NULL);
+    ok(hr == D3DERR_INVALIDCALL, "Got unexpected hr %#x.\n", hr);
+    /* IDirect3DDevice9::GetBackBuffer crashes if a NULL output pointer is passed. */
+    backbuffer = (void *)0xdeadbeef;
+    hr = IDirect3DDevice9_GetBackBuffer(device, 1, 0, D3DBACKBUFFER_TYPE_MONO, &backbuffer);
+    ok(hr == D3DERR_INVALIDCALL, "Got unexpected hr %#x.\n", hr);
+    ok(!backbuffer, "The back buffer pointer is %p, expected NULL.\n", backbuffer);
+    backbuffer = (void *)0xdeadbeef;
+    hr = IDirect3DDevice9_GetBackBuffer(device, 0, 1, D3DBACKBUFFER_TYPE_MONO, &backbuffer);
+    ok(hr == D3DERR_INVALIDCALL, "Got unexpected hr %#x.\n", hr);
+    ok(!backbuffer, "The back buffer pointer is %p, expected NULL.\n", backbuffer);
+
     /* Check if there is a back buffer */
     hr = IDirect3DSwapChain9_GetBackBuffer(swapchain0, 0, D3DBACKBUFFER_TYPE_MONO, &backbuffer);
     ok(SUCCEEDED(hr), "Failed to get the back buffer (%08x)\n", hr);
     ok(backbuffer != NULL, "The back buffer is NULL\n");
     if(backbuffer) IDirect3DSurface9_Release(backbuffer);
+
+    /* The back buffer type value is ignored. */
+    hr = IDirect3DSwapChain9_GetBackBuffer(swapchain0, 0, D3DBACKBUFFER_TYPE_LEFT, &stereo_buffer);
+    ok(SUCCEEDED(hr), "Failed to get the back buffer, hr %#x.\n", hr);
+    ok(stereo_buffer == backbuffer, "Expected left back buffer = %p, got %p.\n", backbuffer, stereo_buffer);
+    IDirect3DSurface9_Release(stereo_buffer);
+    hr = IDirect3DSwapChain9_GetBackBuffer(swapchain0, 0, D3DBACKBUFFER_TYPE_RIGHT, &stereo_buffer);
+    ok(SUCCEEDED(hr), "Failed to get the back buffer, hr %#x.\n", hr);
+    ok(stereo_buffer == backbuffer, "Expected right back buffer = %p, got %p.\n", backbuffer, stereo_buffer);
+    IDirect3DSurface9_Release(stereo_buffer);
+    hr = IDirect3DSwapChain9_GetBackBuffer(swapchain0, 0, (D3DBACKBUFFER_TYPE)0xdeadbeef, &stereo_buffer);
+    ok(SUCCEEDED(hr), "Failed to get the back buffer, hr %#x.\n", hr);
+    ok(stereo_buffer == backbuffer, "Expected unknown buffer = %p, got %p.\n", backbuffer, stereo_buffer);
+    IDirect3DSurface9_Release(stereo_buffer);
+
+    hr = IDirect3DDevice9_GetBackBuffer(device, 0, 0, D3DBACKBUFFER_TYPE_LEFT, &stereo_buffer);
+    ok(SUCCEEDED(hr), "Failed to get the back buffer, hr %#x.\n", hr);
+    ok(stereo_buffer == backbuffer, "Expected left back buffer = %p, got %p.\n", backbuffer, stereo_buffer);
+    IDirect3DSurface9_Release(stereo_buffer);
+    hr = IDirect3DDevice9_GetBackBuffer(device, 0, 0, D3DBACKBUFFER_TYPE_RIGHT, &stereo_buffer);
+    ok(SUCCEEDED(hr), "Failed to get the back buffer, hr %#x.\n", hr);
+    ok(stereo_buffer == backbuffer, "Expected right back buffer = %p, got %p.\n", backbuffer, stereo_buffer);
+    IDirect3DSurface9_Release(stereo_buffer);
+    hr = IDirect3DDevice9_GetBackBuffer(device, 0, 0, (D3DBACKBUFFER_TYPE)0xdeadbeef, &stereo_buffer);
+    ok(SUCCEEDED(hr), "Failed to get the back buffer, hr %#x.\n", hr);
+    ok(stereo_buffer == backbuffer, "Expected unknown buffer = %p, got %p.\n", backbuffer, stereo_buffer);
+    IDirect3DSurface9_Release(stereo_buffer);
 
     /* Try to get a nonexistent swapchain */
     hr = IDirect3DDevice9_GetSwapChain(device, 1, &swapchainX);
@@ -6627,8 +6666,9 @@ static void test_filter(void)
     DestroyWindow(window);
 }
 
-static void test_get_texture(void)
+static void test_get_set_texture(void)
 {
+    const IDirect3DBaseTexture9Vtbl *texture_vtbl;
     IDirect3DBaseTexture9 *texture;
     IDirect3DDevice9 *device;
     IDirect3D9 *d3d;
@@ -6654,6 +6694,23 @@ static void test_get_texture(void)
     hr = IDirect3DDevice9_GetTexture(device, 0, &texture);
     ok(hr == D3D_OK, "Got unexpected hr %#x.\n", hr);
     ok(!texture, "Got unexpected texture %p.\n", texture);
+
+    hr = IDirect3DDevice9_CreateTexture(device, 16, 16, 1, 0, D3DFMT_A8R8G8B8,
+            D3DPOOL_MANAGED, (IDirect3DTexture9 **)&texture, NULL);
+    ok(SUCCEEDED(hr), "Failed to create texture, hr %#x.\n", hr);
+    texture_vtbl = texture->lpVtbl;
+    texture->lpVtbl = (IDirect3DBaseTexture9Vtbl *)0xdeadbeef;
+    hr = IDirect3DDevice9_SetTexture(device, 0, texture);
+    ok(SUCCEEDED(hr), "Failed to set texture, hr %#x.\n", hr);
+    hr = IDirect3DDevice9_SetTexture(device, 0, NULL);
+    ok(SUCCEEDED(hr), "Failed to set texture, hr %#x.\n", hr);
+    texture->lpVtbl = NULL;
+    hr = IDirect3DDevice9_SetTexture(device, 0, texture);
+    ok(SUCCEEDED(hr), "Failed to set texture, hr %#x.\n", hr);
+    hr = IDirect3DDevice9_SetTexture(device, 0, NULL);
+    ok(SUCCEEDED(hr), "Failed to set texture, hr %#x.\n", hr);
+    texture->lpVtbl = texture_vtbl;
+    IDirect3DBaseTexture9_Release(texture);
 
     refcount = IDirect3DDevice9_Release(device);
     ok(!refcount, "Device has %u references left.\n", refcount);
@@ -10152,6 +10209,149 @@ static void test_resource_priority(void)
     DestroyWindow(window);
 }
 
+static void test_swapchain_parameters(void)
+{
+    IDirect3DDevice9 *device;
+    IDirect3D9 *d3d;
+    HWND window;
+    HRESULT hr;
+    unsigned int i;
+    D3DPRESENT_PARAMETERS present_parameters, present_parameters_windowed = {0}, present_parameters2;
+    IDirect3DSwapChain9 *swapchain;
+    static const struct
+    {
+        BOOL windowed;
+        UINT backbuffer_count;
+        D3DSWAPEFFECT swap_effect;
+        HRESULT hr;
+    }
+    tests[] =
+    {
+        /* Swap effect 0 is not allowed. */
+        {TRUE,  1, 0,                        D3DERR_INVALIDCALL},
+        {FALSE, 1, 0,                        D3DERR_INVALIDCALL},
+
+        /* All (non-ex) swap effects are allowed in
+         * windowed and fullscreen mode. */
+        {TRUE,  1, D3DSWAPEFFECT_DISCARD,    D3D_OK},
+        {TRUE,  1, D3DSWAPEFFECT_FLIP,       D3D_OK},
+        {FALSE, 1, D3DSWAPEFFECT_DISCARD,    D3D_OK},
+        {FALSE, 1, D3DSWAPEFFECT_FLIP,       D3D_OK},
+        {FALSE, 1, D3DSWAPEFFECT_COPY,       D3D_OK},
+
+        /* Only one backbuffer in copy mode. */
+        {TRUE,  0, D3DSWAPEFFECT_COPY,       D3D_OK},
+        {TRUE,  1, D3DSWAPEFFECT_COPY,       D3D_OK},
+        {TRUE,  2, D3DSWAPEFFECT_COPY,       D3DERR_INVALIDCALL},
+        {FALSE, 2, D3DSWAPEFFECT_COPY,       D3DERR_INVALIDCALL},
+
+        /* Ok with the others, in fullscreen and windowed mode. */
+        {TRUE,  2, D3DSWAPEFFECT_DISCARD,    D3D_OK},
+        {TRUE,  2, D3DSWAPEFFECT_FLIP,       D3D_OK},
+        {FALSE, 2, D3DSWAPEFFECT_DISCARD,    D3D_OK},
+        {FALSE, 2, D3DSWAPEFFECT_FLIP,       D3D_OK},
+
+        /* D3D9Ex swap effects. */
+        {TRUE,  1, D3DSWAPEFFECT_OVERLAY,    D3DERR_INVALIDCALL},
+        {TRUE,  1, D3DSWAPEFFECT_FLIPEX,     D3DERR_INVALIDCALL},
+        {TRUE,  1, D3DSWAPEFFECT_FLIPEX + 1, D3DERR_INVALIDCALL},
+        {FALSE, 1, D3DSWAPEFFECT_OVERLAY,    D3DERR_INVALIDCALL},
+        {FALSE, 1, D3DSWAPEFFECT_FLIPEX,     D3DERR_INVALIDCALL},
+        {FALSE, 1, D3DSWAPEFFECT_FLIPEX + 1, D3DERR_INVALIDCALL},
+
+        /* 3 is the highest allowed backbuffer count. */
+        {TRUE,  3, D3DSWAPEFFECT_DISCARD,    D3D_OK},
+        {TRUE,  4, D3DSWAPEFFECT_DISCARD,    D3DERR_INVALIDCALL},
+        {TRUE,  4, D3DSWAPEFFECT_FLIP,       D3DERR_INVALIDCALL},
+        {FALSE, 4, D3DSWAPEFFECT_DISCARD,    D3DERR_INVALIDCALL},
+        {FALSE, 4, D3DSWAPEFFECT_FLIP,       D3DERR_INVALIDCALL},
+    };
+
+    window = CreateWindowA("static", "d3d9_test", WS_OVERLAPPEDWINDOW,
+            0, 0, 640, 480, NULL, NULL, NULL, NULL);
+    d3d = Direct3DCreate9(D3D_SDK_VERSION);
+    ok(!!d3d, "Failed to create a D3D object.\n");
+    if (!(device = create_device(d3d, window, NULL)))
+    {
+        skip("Failed to create a D3D device, skipping tests.\n");
+        IDirect3D9_Release(d3d);
+        DestroyWindow(window);
+        return;
+    }
+    IDirect3DDevice9_Release(device);
+
+    present_parameters_windowed.BackBufferWidth = registry_mode.dmPelsWidth;
+    present_parameters_windowed.BackBufferHeight = registry_mode.dmPelsHeight;
+    present_parameters_windowed.hDeviceWindow = window;
+    present_parameters_windowed.BackBufferFormat = D3DFMT_X8R8G8B8;
+    present_parameters_windowed.SwapEffect = D3DSWAPEFFECT_COPY;
+    present_parameters_windowed.Windowed = TRUE;
+    present_parameters_windowed.BackBufferCount = 1;
+
+    for (i = 0; i < sizeof(tests) / sizeof(*tests); ++i)
+    {
+        memset(&present_parameters, 0, sizeof(present_parameters));
+        present_parameters.BackBufferWidth = registry_mode.dmPelsWidth;
+        present_parameters.BackBufferHeight = registry_mode.dmPelsHeight;
+        present_parameters.hDeviceWindow = window;
+        present_parameters.BackBufferFormat = D3DFMT_X8R8G8B8;
+
+        present_parameters.SwapEffect = tests[i].swap_effect;
+        present_parameters.Windowed = tests[i].windowed;
+        present_parameters.BackBufferCount = tests[i].backbuffer_count;
+
+        hr = IDirect3D9_CreateDevice(d3d, D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, window,
+                D3DCREATE_SOFTWARE_VERTEXPROCESSING, &present_parameters, &device);
+        ok(hr == tests[i].hr, "Expected hr %x, got %x, test %u.\n", tests[i].hr, hr, i);
+        if (SUCCEEDED(hr))
+        {
+            UINT bb_count = tests[i].backbuffer_count ? tests[i].backbuffer_count : 1;
+
+            hr = IDirect3DDevice9_GetSwapChain(device, 0, &swapchain);
+            ok(SUCCEEDED(hr), "Failed to get swapchain, hr %#x, test %u.\n", hr, i);
+
+            hr = IDirect3DSwapChain9_GetPresentParameters(swapchain, &present_parameters2);
+            ok(SUCCEEDED(hr), "Failed to get present parameters, hr %#x, test %u.\n", hr, i);
+            ok(present_parameters2.SwapEffect == tests[i].swap_effect, "Swap effect changed from %u to %u, test %u.\n",
+                    tests[i].swap_effect, present_parameters2.SwapEffect, i);
+            ok(present_parameters2.BackBufferCount == bb_count, "Backbuffer count changed from %u to %u, test %u.\n",
+                    bb_count, present_parameters2.BackBufferCount, i);
+            ok(present_parameters2.Windowed == tests[i].windowed, "Windowed changed from %u to %u, test %u.\n",
+                    tests[i].windowed, present_parameters2.Windowed, i);
+
+            IDirect3DSwapChain9_Release(swapchain);
+            IDirect3DDevice9_Release(device);
+        }
+
+        hr = IDirect3D9_CreateDevice(d3d, D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, window,
+                D3DCREATE_SOFTWARE_VERTEXPROCESSING, &present_parameters_windowed, &device);
+        ok(SUCCEEDED(hr), "Failed to create device, hr %#x, test %u.\n", hr, i);
+
+        memset(&present_parameters, 0, sizeof(present_parameters));
+        present_parameters.BackBufferWidth = registry_mode.dmPelsWidth;
+        present_parameters.BackBufferHeight = registry_mode.dmPelsHeight;
+        present_parameters.hDeviceWindow = window;
+        present_parameters.BackBufferFormat = D3DFMT_X8R8G8B8;
+
+        present_parameters.SwapEffect = tests[i].swap_effect;
+        present_parameters.Windowed = tests[i].windowed;
+        present_parameters.BackBufferCount = tests[i].backbuffer_count;
+
+        hr = IDirect3DDevice9_Reset(device, &present_parameters);
+        ok(hr == tests[i].hr, "Expected hr %x, got %x, test %u.\n", tests[i].hr, hr, i);
+
+        if (FAILED(hr))
+        {
+            hr = IDirect3DDevice9_Reset(device, &present_parameters_windowed);
+            ok(SUCCEEDED(hr), "Failed to reset device, hr %#x, test %u.\n", hr, i);
+        }
+        IDirect3DDevice9_Release(device);
+    }
+
+    IDirect3D9_Release(d3d);
+    DestroyWindow(window);
+}
+
 START_TEST(device)
 {
     WNDCLASSA wc = {0};
@@ -10231,7 +10431,7 @@ START_TEST(device)
     test_cube_textures();
     test_mipmap_gen();
     test_filter();
-    test_get_texture();
+    test_get_set_texture();
     test_lod();
     test_surface_get_container();
     test_surface_alignment();
@@ -10262,6 +10462,7 @@ START_TEST(device)
     test_writeonly_resource();
     test_lost_device();
     test_resource_priority();
+    test_swapchain_parameters();
 
     UnregisterClassA("d3d9_test_wc", GetModuleHandleA(NULL));
 }

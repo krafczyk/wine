@@ -40,7 +40,7 @@
 #include "nsiface.h"
 
 #define NS_ERROR_GENERATE_FAILURE(module,code) \
-    ((nsresult) (((UINT32)(1<<31)) | ((UINT32)(module+0x45)<<16) | ((UINT32)(code))))
+    ((nsresult) (((UINT32)(1u<<31)) | ((UINT32)(module+0x45)<<16) | ((UINT32)(code))))
 
 #define NS_OK                     ((nsresult)0x00000000L)
 #define NS_ERROR_FAILURE          ((nsresult)0x80004005L)
@@ -76,6 +76,7 @@ typedef struct event_target_t event_target_t;
     XDIID(DispCPlugins) \
     XDIID(DispDOMChildrenCollection) \
     XDIID(DispHTMLAnchorElement) \
+    XDIID(DispHTMLAreaElement) \
     XDIID(DispHTMLAttributeCollection) \
     XDIID(DispHTMLBody) \
     XDIID(DispHTMLButtonElement) \
@@ -116,9 +117,11 @@ typedef struct event_target_t event_target_t;
     XDIID(DispHTMLTitleElement) \
     XDIID(DispHTMLUnknownElement) \
     XDIID(DispHTMLWindow2) \
+    XDIID(DispHTMLXMLHttpRequest) \
     XDIID(HTMLDocumentEvents) \
     XDIID(HTMLElementEvents2) \
     XIID(IHTMLAnchorElement) \
+    XIID(IHTMLAreaElement) \
     XIID(IHTMLAttributeCollection) \
     XIID(IHTMLAttributeCollection2) \
     XIID(IHTMLAttributeCollection3) \
@@ -204,6 +207,8 @@ typedef struct event_target_t event_target_t;
     XIID(IHTMLWindow4) \
     XIID(IHTMLWindow5) \
     XIID(IHTMLWindow6) \
+    XIID(IHTMLXMLHttpRequest) \
+    XIID(IHTMLXMLHttpRequestFactory) \
     XIID(IOmHistory) \
     XIID(IOmNavigator)
 
@@ -351,6 +356,15 @@ typedef struct {
     HTMLInnerWindow *window;
 } HTMLImageElementFactory;
 
+typedef struct {
+    DispatchEx dispex;
+    IHTMLXMLHttpRequestFactory IHTMLXMLHttpRequestFactory_iface;
+
+    LONG ref;
+
+    HTMLInnerWindow *window;
+} HTMLXMLHttpRequestFactory;
+
 struct HTMLLocation {
     DispatchEx dispex;
     IHTMLLocation IHTMLLocation_iface;
@@ -437,6 +451,7 @@ struct HTMLInnerWindow {
 
     HTMLImageElementFactory *image_factory;
     HTMLOptionElementFactory *option_factory;
+    HTMLXMLHttpRequestFactory *xhr_factory;
     IHTMLScreen *screen;
     OmHistory *history;
     IHTMLStorage *session_storage;
@@ -775,6 +790,7 @@ HTMLOuterWindow *nswindow_to_window(const nsIDOMWindow*) DECLSPEC_HIDDEN;
 void get_top_window(HTMLOuterWindow*,HTMLOuterWindow**) DECLSPEC_HIDDEN;
 HRESULT HTMLOptionElementFactory_Create(HTMLInnerWindow*,HTMLOptionElementFactory**) DECLSPEC_HIDDEN;
 HRESULT HTMLImageElementFactory_Create(HTMLInnerWindow*,HTMLImageElementFactory**) DECLSPEC_HIDDEN;
+HRESULT HTMLXMLHttpRequestFactory_Create(HTMLInnerWindow*,HTMLXMLHttpRequestFactory**) DECLSPEC_HIDDEN;
 HRESULT HTMLLocation_Create(HTMLInnerWindow*,HTMLLocation**) DECLSPEC_HIDDEN;
 IOmNavigator *OmNavigator_Create(void) DECLSPEC_HIDDEN;
 HRESULT HTMLScreen_Create(IHTMLScreen**) DECLSPEC_HIDDEN;
@@ -841,6 +857,7 @@ HRESULT call_set_active_object(IOleInPlaceUIWindow*,IOleInPlaceActiveObject*) DE
 void *nsalloc(size_t) __WINE_ALLOC_SIZE(1) DECLSPEC_HIDDEN;
 void nsfree(void*) DECLSPEC_HIDDEN;
 
+BOOL nsACString_Init(nsACString *str, const char *data) DECLSPEC_HIDDEN;
 void nsACString_InitDepend(nsACString*,const char*) DECLSPEC_HIDDEN;
 void nsACString_SetData(nsACString*,const char*) DECLSPEC_HIDDEN;
 UINT32 nsACString_GetData(const nsACString*,const char**) DECLSPEC_HIDDEN;
@@ -864,6 +881,7 @@ HRESULT nsnode_to_nsstring(nsIDOMNode*,nsAString*) DECLSPEC_HIDDEN;
 void get_editor_controller(NSContainer*) DECLSPEC_HIDDEN;
 nsresult get_nsinterface(nsISupports*,REFIID,void**) DECLSPEC_HIDDEN;
 nsIWritableVariant *create_nsvariant(void) DECLSPEC_HIDDEN;
+nsIXMLHttpRequest *create_nsxhr(nsIDOMWindow *nswindow) DECLSPEC_HIDDEN;
 nsresult create_nsfile(const PRUnichar*,nsIFile**) DECLSPEC_HIDDEN;
 char *get_nscategory_entry(const char*,const char*) DECLSPEC_HIDDEN;
 
@@ -927,6 +945,7 @@ HRESULT HTMLDOMAttribute_Create(const WCHAR*,HTMLElement*,DISPID,HTMLDOMAttribut
 HRESULT HTMLElement_Create(HTMLDocumentNode*,nsIDOMNode*,BOOL,HTMLElement**) DECLSPEC_HIDDEN;
 HRESULT HTMLCommentElement_Create(HTMLDocumentNode*,nsIDOMNode*,HTMLElement**) DECLSPEC_HIDDEN;
 HRESULT HTMLAnchorElement_Create(HTMLDocumentNode*,nsIDOMHTMLElement*,HTMLElement**) DECLSPEC_HIDDEN;
+HRESULT HTMLAreaElement_Create(HTMLDocumentNode*,nsIDOMHTMLElement*,HTMLElement**) DECLSPEC_HIDDEN;
 HRESULT HTMLBodyElement_Create(HTMLDocumentNode*,nsIDOMHTMLElement*,HTMLElement**) DECLSPEC_HIDDEN;
 HRESULT HTMLButtonElement_Create(HTMLDocumentNode*,nsIDOMHTMLElement*,HTMLElement**) DECLSPEC_HIDDEN;
 HRESULT HTMLEmbedElement_Create(HTMLDocumentNode*,nsIDOMHTMLElement*,HTMLElement**) DECLSPEC_HIDDEN;
@@ -977,6 +996,7 @@ HRESULT search_window_props(HTMLInnerWindow*,BSTR,DWORD,DISPID*) DECLSPEC_HIDDEN
 HRESULT get_frame_by_name(HTMLOuterWindow*,const WCHAR*,BOOL,HTMLOuterWindow**) DECLSPEC_HIDDEN;
 HRESULT get_doc_elem_by_id(HTMLDocumentNode*,const WCHAR*,HTMLElement**) DECLSPEC_HIDDEN;
 HTMLOuterWindow *get_target_window(HTMLOuterWindow*,nsAString*,BOOL*) DECLSPEC_HIDDEN;
+HRESULT handle_link_click_event(HTMLElement*,nsAString*,nsAString*,nsIDOMEvent*,BOOL*) DECLSPEC_HIDDEN;
 
 HRESULT wrap_iface(IUnknown*,IUnknown*,IUnknown**) DECLSPEC_HIDDEN;
 
@@ -1209,6 +1229,23 @@ static inline char *heap_strdupWtoU(const WCHAR *str)
         ret = heap_alloc(size);
         if(ret)
             WideCharToMultiByte(CP_UTF8, 0, str, -1, ret, size, NULL, NULL);
+    }
+
+    return ret;
+}
+
+static inline char *heap_strndupWtoU(LPCWSTR str, unsigned len)
+{
+    char *ret = NULL;
+    DWORD size;
+
+    if(str && len) {
+        size = WideCharToMultiByte(CP_UTF8, 0, str, len, NULL, 0, NULL, NULL);
+        ret = heap_alloc(size + 1);
+        if(ret) {
+            WideCharToMultiByte(CP_UTF8, 0, str, len, ret, size, NULL, NULL);
+            ret[size] = '\0';
+        }
     }
 
     return ret;

@@ -2051,6 +2051,7 @@ static DWORD CALLBACK server_thread(LPVOID param)
     WSADATA wsaData;
     int last_request = 0;
     char host_header[22];
+    char host_header_override[30];
     static BOOL test_b = FALSE;
     static int test_no_cache = 0;
 
@@ -2077,6 +2078,7 @@ static DWORD CALLBACK server_thread(LPVOID param)
     SetEvent(si->hEvent);
 
     sprintf(host_header, "Host: localhost:%d", si->port);
+    sprintf(host_header_override, "Host: test.local:%d\r\n", si->port);
 
     do
     {
@@ -2103,6 +2105,13 @@ static DWORD CALLBACK server_thread(LPVOID param)
             }
             else
                 send(c, notokmsg, sizeof notokmsg-1, 0);
+        }
+        if (strstr(buffer, "CONNECT "))
+        {
+            if (!strstr(buffer, "Content-Length: 0"))
+                send(c, notokmsg, sizeof notokmsg-1, 0);
+            else
+                send(c, proxymsg, sizeof proxymsg-1, 0);
         }
         if (strstr(buffer, "/test2"))
         {
@@ -2151,6 +2160,8 @@ static DWORD CALLBACK server_thread(LPVOID param)
         {
             if (strstr(buffer, "Content-Length: 100"))
             {
+                if (strstr(buffer, "POST /test7b"))
+                    recvfrom(c, buffer, sizeof buffer, 0, NULL, NULL);
                 send(c, okmsg, sizeof okmsg-1, 0);
                 send(c, page1, sizeof page1-1, 0);
             }
@@ -2351,6 +2362,13 @@ static DWORD CALLBACK server_thread(LPVOID param)
             else
                 send(c, notokmsg, sizeof notokmsg-1, 0);
         }
+        if (strstr(buffer, "/test_host_override"))
+        {
+            if (strstr(buffer, host_header_override))
+                send(c, okmsg, sizeof okmsg-1, 0);
+            else
+                send(c, notokmsg, sizeof notokmsg-1, 0);
+        }
         shutdown(c, 2);
         closesocket(c);
         c = -1;
@@ -2401,7 +2419,7 @@ static void test_proxy_indirect(int port)
     DWORD r, sz;
     char buffer[0x40];
 
-    hi = InternetOpenA(NULL, 0, NULL, NULL, 0);
+    hi = InternetOpenA(NULL, INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
     ok(hi != NULL, "open failed\n");
 
     hc = InternetConnectA(hi, "localhost", port, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
@@ -2795,6 +2813,25 @@ static void test_proxy_direct(int port)
     ok(r, "HttpQueryInfo failed\n");
     ok(!strcmp(buffer, "200"), "proxy code wrong\n");
 
+    InternetCloseHandle(hr);
+    InternetCloseHandle(hc);
+    InternetCloseHandle(hi);
+
+    sprintf(buffer, "localhost:%d\n", port);
+    hi = InternetOpenA("winetest", INTERNET_OPEN_TYPE_PROXY, buffer, NULL, 0);
+    ok(hi != NULL, "InternetOpen failed\n");
+
+    hc = InternetConnectA(hi, "test.winehq.org", port, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
+    ok(hc != NULL, "InternetConnect failed\n");
+
+    hr = HttpOpenRequestA(hc, "POST", "/test2", NULL, NULL, NULL, INTERNET_FLAG_SECURE, 0);
+    ok(hr != NULL, "HttpOpenRequest failed\n");
+
+    r = HttpSendRequestA(hr, NULL, 0, (char *)"data", sizeof("data"));
+    ok(r, "HttpSendRequest failed %u\n", GetLastError());
+
+    test_status_code(hr, 407);
+
 done:
     InternetCloseHandle(hr);
     InternetCloseHandle(hc);
@@ -2870,7 +2907,7 @@ static void test_header_handling_order(int port)
     connect = InternetConnectA(session, "localhost", port, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
     ok(connect != NULL, "InternetConnect failed\n");
 
-    request = HttpOpenRequestA(connect, "POST", "/test7b", NULL, NULL, types, 0, 0);
+    request = HttpOpenRequestA(connect, "POST", "/test7b", NULL, NULL, types, INTERNET_FLAG_KEEP_CONNECTION, 0);
     ok(request != NULL, "HttpOpenRequest failed\n");
 
     ret = HttpAddRequestHeadersA(request, "Content-Length: 100\r\n", ~0u, HTTP_ADDREQ_FLAG_ADD_IF_NEW);
@@ -2878,8 +2915,8 @@ static void test_header_handling_order(int port)
 
     data_len = sizeof(data);
     memset(data, 'a', sizeof(data));
-    ret = HttpSendRequestA(request, connection, ~0u, data, data_len);
-    ok(ret, "HttpSendRequest failed\n");
+    ret = HttpSendRequestA(request, NULL, 0, data, data_len);
+    ok(ret, "HttpSendRequest failed: %u\n", GetLastError());
 
     status = 0;
     size = sizeof(status);
@@ -2940,6 +2977,105 @@ static void test_connection_header(int port)
     ok(ret, "HttpSendRequest failed\n");
 
     test_status_code(req, 200);
+
+    InternetCloseHandle(req);
+    InternetCloseHandle(con);
+    InternetCloseHandle(ses);
+}
+
+static void test_header_override(int port)
+{
+    char buffer[128], host_header_override[30], full_url[128];
+    HINTERNET ses, con, req;
+    DWORD size, count, err;
+    BOOL ret;
+
+    sprintf(host_header_override, "Host: test.local:%d\r\n", port);
+    sprintf(full_url, "http://localhost:%d/test_host_override", port);
+
+    ses = InternetOpenA("winetest", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
+    ok(ses != NULL, "InternetOpen failed\n");
+
+    con = InternetConnectA(ses, "localhost", port, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
+    ok(con != NULL, "InternetConnect failed\n");
+
+    req = HttpOpenRequestA(con, NULL, "/test_host_override", NULL, NULL, NULL, INTERNET_FLAG_KEEP_CONNECTION, 0);
+    ok(req != NULL, "HttpOpenRequest failed\n");
+
+    size = sizeof(buffer) - 1;
+    count = 0;
+    memset(buffer, 0, sizeof(buffer));
+    ret = HttpQueryInfoA(req, HTTP_QUERY_HOST | HTTP_QUERY_FLAG_REQUEST_HEADERS, buffer, &size, &count);
+    err = GetLastError();
+    ok(!ret, "HttpQueryInfo succeeded\n");
+    ok(err == ERROR_HTTP_HEADER_NOT_FOUND, "Expected error ERROR_HTTP_HEADER_NOT_FOUND, got %d\n", err);
+
+    size = sizeof(buffer) - 1;
+    memset(buffer, 0, sizeof(buffer));
+    ret = InternetQueryOptionA(req, INTERNET_OPTION_URL, buffer, &size);
+    ok(ret, "InternetQueryOption failed\n");
+    ok(!strcmp(full_url, buffer), "Expected %s, got %s\n", full_url, buffer);
+
+    ret = HttpAddRequestHeadersA(req, host_header_override, ~0u, HTTP_ADDREQ_FLAG_COALESCE);
+    ok(ret, "HttpAddRequestHeaders failed\n");
+
+    size = sizeof(buffer) - 1;
+    count = 0;
+    memset(buffer, 0, sizeof(buffer));
+    ret = HttpQueryInfoA(req, HTTP_QUERY_HOST | HTTP_QUERY_FLAG_REQUEST_HEADERS, buffer, &size, &count);
+    ok(ret, "HttpQueryInfo failed\n");
+
+    size = sizeof(buffer) - 1;
+    memset(buffer, 0, sizeof(buffer));
+    ret = InternetQueryOptionA(req, INTERNET_OPTION_URL, buffer, &size);
+    ok(ret, "InternetQueryOption failed\n");
+    ok(!strcmp(full_url, buffer), "Expected %s, got %s\n", full_url, buffer);
+
+    ret = HttpSendRequestA(req, NULL, 0, NULL, 0);
+    ok(ret, "HttpSendRequest failed\n");
+
+    test_status_code(req, 200);
+
+    InternetCloseHandle(req);
+    req = HttpOpenRequestA(con, NULL, "/test_host_override", NULL, NULL, NULL, INTERNET_FLAG_KEEP_CONNECTION, 0);
+    ok(req != NULL, "HttpOpenRequest failed\n");
+
+    ret = HttpAddRequestHeadersA(req, host_header_override, ~0u, HTTP_ADDREQ_FLAG_COALESCE);
+    ok(ret, "HttpAddRequestHeaders failed\n");
+
+    ret = HttpAddRequestHeadersA(req, host_header_override, ~0u, HTTP_ADDREQ_FLAG_COALESCE);
+    ok(ret, "HttpAddRequestHeaders failed\n");
+
+    ret = HttpSendRequestA(req, NULL, 0, NULL, 0);
+    ok(ret, "HttpSendRequest failed\n");
+
+    test_status_code(req, 400);
+
+    InternetCloseHandle(req);
+    req = HttpOpenRequestA(con, NULL, "/test_host_override", NULL, NULL, NULL, INTERNET_FLAG_KEEP_CONNECTION, 0);
+    ok(req != NULL, "HttpOpenRequest failed\n");
+
+    ret = HttpAddRequestHeadersA(req, host_header_override, ~0u, HTTP_ADDREQ_FLAG_ADD);
+    ok(ret, "HttpAddRequestHeaders failed\n");
+
+    ret = HttpSendRequestA(req, NULL, 0, NULL, 0);
+    ok(ret, "HttpSendRequest failed\n");
+
+    test_status_code(req, 200);
+
+    InternetCloseHandle(req);
+    req = HttpOpenRequestA(con, NULL, "/test_host_override", NULL, NULL, NULL, INTERNET_FLAG_KEEP_CONNECTION, 0);
+    ok(req != NULL, "HttpOpenRequest failed\n");
+
+    ret = HttpAddRequestHeadersA(req, host_header_override, ~0u, HTTP_ADDREQ_FLAG_REPLACE);
+    err = GetLastError();
+    todo_wine ok(!ret, "HttpAddRequestHeaders succeeded\n");
+    todo_wine ok(err == ERROR_HTTP_HEADER_NOT_FOUND, "Expected error ERROR_HTTP_HEADER_NOT_FOUND, got %d\n", err);
+
+    ret = HttpSendRequestA(req, NULL, 0, NULL, 0);
+    ok(ret, "HttpSendRequest failed\n");
+
+    test_status_code_todo(req, 400);
 
     InternetCloseHandle(req);
     InternetCloseHandle(con);
@@ -3192,7 +3328,7 @@ static void test_no_content(int port)
 
     hCompleteEvent = CreateEventW(NULL, FALSE, FALSE, NULL);
 
-    session = InternetOpenA("", INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, INTERNET_FLAG_ASYNC);
+    session = InternetOpenA("", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, INTERNET_FLAG_ASYNC);
     ok(session != NULL,"InternetOpen failed with error %u\n", GetLastError());
 
     pInternetSetStatusCallbackA(session, callback);
@@ -3257,7 +3393,7 @@ static void test_conn_close(int port)
     hCompleteEvent = CreateEventW(NULL, FALSE, FALSE, NULL);
     conn_close_event = CreateEventW(NULL, FALSE, FALSE, NULL);
 
-    session = InternetOpenA("", INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, INTERNET_FLAG_ASYNC);
+    session = InternetOpenA("", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, INTERNET_FLAG_ASYNC);
     ok(session != NULL,"InternetOpen failed with error %u\n", GetLastError());
 
     pInternetSetStatusCallbackA(session, callback);
@@ -4210,7 +4346,7 @@ static void test_accept_encoding(int port)
     HINTERNET ses, con, req;
     BOOL ret;
 
-    ses = InternetOpenA("winetest", INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
+    ses = InternetOpenA("winetest", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
     ok(ses != NULL, "InternetOpen failed\n");
 
     con = InternetConnectA(ses, "localhost", port, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
@@ -4248,7 +4384,7 @@ static void test_basic_auth_credentials_reuse(int port)
     DWORD status, size;
     BOOL ret;
 
-    ses = InternetOpenA( "winetest", 0, NULL, NULL, 0 );
+    ses = InternetOpenA( "winetest", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0 );
     ok( ses != NULL, "InternetOpenA failed\n" );
 
     con = InternetConnectA( ses, "localhost", port, "user", "pwd",
@@ -4271,7 +4407,7 @@ static void test_basic_auth_credentials_reuse(int port)
     InternetCloseHandle( con );
     InternetCloseHandle( ses );
 
-    ses = InternetOpenA( "winetest", 0, NULL, NULL, 0 );
+    ses = InternetOpenA( "winetest", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0 );
     ok( ses != NULL, "InternetOpenA failed\n" );
 
     con = InternetConnectA( ses, "localhost", port, NULL, NULL,
@@ -4322,6 +4458,7 @@ static void test_http_connection(void)
     test_basic_request(si.port, "GET", "/test6");
     test_basic_request(si.port, "GET", "/testF");
     test_connection_header(si.port);
+    test_header_override(si.port);
     test_http1_1(si.port);
     test_cookie_header(si.port);
     test_basic_authentication(si.port);
@@ -4439,7 +4576,7 @@ static void _test_security_info(unsigned line, const char *urlc, DWORD error, DW
         CertFreeCertificateChain(chain);
     }else {
         ok_(__FILE__,line)(!res && GetLastError() == error,
-                           "InternetGetSecurityInfoByURLA returned: %x(%u), exected %u\n", res, GetLastError(), error);
+                           "InternetGetSecurityInfoByURLA returned: %x(%u), expected %u\n", res, GetLastError(), error);
     }
 }
 
@@ -4838,7 +4975,13 @@ static void test_secure_connection(void)
     ok(req != NULL, "HttpOpenRequest failed\n");
 
     ret = HttpSendRequestA(req, NULL, 0, NULL, 0);
-    ok(ret, "HttpSendRequest failed: %d\n", GetLastError());
+    ok(ret || broken(GetLastError() == ERROR_INTERNET_CANNOT_CONNECT),
+                     "HttpSendRequest failed: %d\n", GetLastError());
+    if (!ret)
+    {
+        win_skip("Cannot connect to https.\n");
+        goto done;
+    }
 
     size = sizeof(flags);
     ret = InternetQueryOptionA(req, INTERNET_OPTION_SECURITY_FLAGS, &flags, &size);
@@ -4963,6 +5106,7 @@ static void test_secure_connection(void)
     }
     HeapFree(GetProcessHeap(), 0, certificate_structW);
 
+done:
     InternetCloseHandle(req);
     InternetCloseHandle(con);
     InternetCloseHandle(ses);
@@ -5576,7 +5720,7 @@ static void test_connection_failure(void)
     DWORD error;
     BOOL ret;
 
-    session = InternetOpenA("winetest", INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
+    session = InternetOpenA("winetest", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
     ok(session != NULL, "failed to get session handle\n");
 
     connect = InternetConnectA(session, "localhost", 1, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);

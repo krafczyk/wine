@@ -1128,9 +1128,12 @@ static int encode_var(
 
 	if (typeoffset == typelib->typelib_segdir[MSFT_SEG_TYPEDESC].length) {
 	    int mix_field;
-	    
+
 	    if (target_type & 0x80000000) {
 		mix_field = ((target_type >> 16) & 0x3fff) | VT_BYREF;
+	    } else if (is_array(ref)) {
+		type_t *element_type = type_alias_get_aliasee(type_array_get_element(ref));
+		mix_field = get_type_vt(element_type) | VT_ARRAY | VT_BYREF;
 	    } else {
 		typedata = (void *)&typelib->typelib_segment_data[MSFT_SEG_TYPEDESC][target_type];
 		mix_field = ((typedata[0] >> 16) == 0x7fff)? 0x7fff: 0x7ffe;
@@ -1267,7 +1270,7 @@ static HRESULT set_custdata(msft_typelib_t *typelib, REFGUID guid,
    any default value. */
 static int get_defaultvalue_vt(type_t *type)
 {
-    int vt = get_type_vt(type);
+    int vt;
     if (type_get_type(type) == TYPE_ENUM)
         vt = VT_I4;
     else
@@ -1833,7 +1836,7 @@ static msft_typeinfo_t *create_msft_typeinfo(msft_typelib_t *typelib, enum type_
     MSFT_TypeInfoBase *typeinfo;
     MSFT_GuidEntry guidentry;
 
-    chat("create_msft_typeinfo: name %s kind %d\n", name, kind);
+    chat("create_msft_typeinfo: name %s kind %d index %d\n", name, kind, typelib->typelib_header.nrtypeinfos);
 
     msft_typeinfo = xmalloc(sizeof(*msft_typeinfo));
     memset( msft_typeinfo, 0, sizeof(*msft_typeinfo) );
@@ -2140,20 +2143,31 @@ static void add_enum_typeinfo(msft_typelib_t *typelib, type_t *enumeration)
 
 static void add_typedef_typeinfo(msft_typelib_t *typelib, type_t *tdef)
 {
-    msft_typeinfo_t *msft_typeinfo;
-    int alignment;
+    msft_typeinfo_t *msft_typeinfo = NULL;
+    int alignment, datatype1, datatype2, size;
+    type_t *type;
 
     if (-1 < tdef->typelib_idx)
         return;
 
-    tdef->typelib_idx = typelib->typelib_header.nrtypeinfos;
-    msft_typeinfo = create_msft_typeinfo(typelib, TKIND_ALIAS, tdef->name, tdef->attrs);
-    encode_type(typelib, get_type_vt(type_alias_get_aliasee(tdef)),
-                type_alias_get_aliasee(tdef),
-                &msft_typeinfo->typeinfo->datatype1,
-                &msft_typeinfo->typeinfo->size,
-                &alignment, &msft_typeinfo->typeinfo->datatype2);
-    msft_typeinfo->typeinfo->typekind |= (alignment << 11 | alignment << 6);
+    type = type_alias_get_aliasee(tdef);
+
+    if (!type->name || strcmp(tdef->name, type->name) != 0)
+    {
+        tdef->typelib_idx = typelib->typelib_header.nrtypeinfos;
+        msft_typeinfo = create_msft_typeinfo(typelib, TKIND_ALIAS, tdef->name, tdef->attrs);
+    }
+
+    encode_type(typelib, get_type_vt(type), type,
+                &datatype1, &size, &alignment, &datatype2);
+
+    if (msft_typeinfo)
+    {
+        msft_typeinfo->typeinfo->datatype1 = datatype1;
+        msft_typeinfo->typeinfo->size = size;
+        msft_typeinfo->typeinfo->datatype2 = datatype2;
+        msft_typeinfo->typeinfo->typekind |= (alignment << 11 | alignment << 6);
+    }
 }
 
 static void add_coclass_typeinfo(msft_typelib_t *typelib, type_t *cls)

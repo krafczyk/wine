@@ -57,20 +57,19 @@ msgid "Support Information"
 msgstr "Supportinformation"
 
 #: appwiz.rc:78 avifil32.rc:54 comctl32.rc:55 comdlg32.rc:231 comdlg32.rc:261
-#: comdlg32.rc:304 comdlg32.rc:358 comdlg32.rc:397 comdlg32.rc:451
-#: credui.rc:52 cryptui.rc:263 cryptui.rc:275 cryptui.rc:365 dinput.rc:46
-#: ieframe.rc:96 localui.rc:44 localui.rc:57 mpr.rc:49 msacm32.rc:53
-#: mshtml.rc:47 mshtml.rc:57 msvfw32.rc:36 oledlg.rc:60 oledlg.rc:92
-#: serialui.rc:41 setupapi.rc:59 shell32.rc:276 shell32.rc:300 shell32.rc:322
-#: shell32.rc:340 shlwapi.rc:44 user32.rc:80 user32.rc:98 wininet.rc:51
-#: wininet.rc:71 winspool.rc:42 net.rc:47 notepad.rc:117 oleview.rc:162
-#: oleview.rc:175 progman.rc:106 progman.rc:124 progman.rc:142 progman.rc:158
-#: progman.rc:180 progman.rc:199 progman.rc:216 regedit.rc:247 regedit.rc:258
-#: regedit.rc:271 regedit.rc:287 regedit.rc:300 regedit.rc:313 taskmgr.rc:442
-#: taskmgr.rc:517 winecfg.rc:214 winecfg.rc:224 wineconsole.rc:134
-#: winefile.rc:131 winefile.rc:154 winefile.rc:184 winemine.rc:71
-#: winemine.rc:81 winemine.rc:95 wordpad.rc:207 wordpad.rc:218 wordpad.rc:236
-#: wordpad.rc:249
+#: comdlg32.rc:304 comdlg32.rc:358 comdlg32.rc:397 comdlg32.rc:451 credui.rc:52
+#: cryptui.rc:263 cryptui.rc:275 cryptui.rc:365 dinput.rc:46 ieframe.rc:96
+#: localui.rc:44 localui.rc:57 mpr.rc:49 msacm32.rc:53 mshtml.rc:47
+#: mshtml.rc:57 msvfw32.rc:36 oledlg.rc:62 oledlg.rc:94 serialui.rc:41
+#: setupapi.rc:59 shell32.rc:276 shell32.rc:300 shell32.rc:322 shell32.rc:340
+#: shlwapi.rc:44 user32.rc:80 user32.rc:98 wininet.rc:51 wininet.rc:71
+#: winspool.rc:42 net.rc:47 notepad.rc:117 oleview.rc:162 oleview.rc:175
+#: progman.rc:106 progman.rc:124 progman.rc:142 progman.rc:158 progman.rc:180
+#: progman.rc:199 progman.rc:216 regedit.rc:247 regedit.rc:258 regedit.rc:271
+#: regedit.rc:287 regedit.rc:300 regedit.rc:313 taskmgr.rc:442 taskmgr.rc:517
+#: winecfg.rc:214 winecfg.rc:224 wineconsole.rc:135 winefile.rc:131
+#: winefile.rc:154 winefile.rc:184 winemine.rc:71 winemine.rc:81 winemine.rc:95
+#: wordpad.rc:207 wordpad.rc:218 wordpad.rc:236 wordpad.rc:249
 msgid "OK"
 msgstr "OK"
 
@@ -140,19 +139,19 @@ msgstr "&Installera"
 #: comctl32.rc:71 comdlg32.rc:170 comdlg32.rc:192 comdlg32.rc:210
 #: comdlg32.rc:232 comdlg32.rc:262 comdlg32.rc:305 comdlg32.rc:327
 #: comdlg32.rc:347 comdlg32.rc:359 comdlg32.rc:398 comdlg32.rc:452
-#: comdlg32.rc:477 comdlg32.rc:495 credui.rc:53 cryptui.rc:264 cryptui.rc:276
+#: comdlg32.rc:477 comdlg32.rc:500 credui.rc:53 cryptui.rc:264 cryptui.rc:276
 #: cryptui.rc:366 dinput.rc:47 ieframe.rc:97 inetcpl.rc:81 localui.rc:45
 #: localui.rc:58 mpr.rc:50 msacm32.rc:54 mshtml.rc:48 mshtml.rc:58
-#: msvfw32.rc:37 oledlg.rc:61 oledlg.rc:93 serialui.rc:42 setupapi.rc:42
+#: msvfw32.rc:37 oledlg.rc:63 oledlg.rc:95 serialui.rc:42 setupapi.rc:42
 #: setupapi.rc:60 shell32.rc:277 shell32.rc:301 shell32.rc:312 shell32.rc:341
 #: shlwapi.rc:45 user32.rc:81 user32.rc:99 wininet.rc:52 wininet.rc:72
 #: winspool.rc:43 notepad.rc:118 oleview.rc:163 oleview.rc:176 progman.rc:107
 #: progman.rc:125 progman.rc:143 progman.rc:159 progman.rc:181 progman.rc:200
 #: progman.rc:217 regedit.rc:248 regedit.rc:259 regedit.rc:272 regedit.rc:288
 #: regedit.rc:301 regedit.rc:314 taskmgr.rc:443 taskmgr.rc:518 wineboot.rc:34
-#: winecfg.rc:215 winecfg.rc:225 wineconsole.rc:135 winefile.rc:132
-#: winefile.rc:155 winefile.rc:185 winemine.rc:96 wordpad.rc:208
-#: wordpad.rc:219 wordpad.rc:237 wordpad.rc:250
+#: winecfg.rc:215 winecfg.rc:225 wineconsole.rc:136 winefile.rc:132
+#: winefile.rc:155 winefile.rc:185 winemine.rc:96 wordpad.rc:208 wordpad.rc:219
+#: wordpad.rc:237 wordpad.rc:250
 msgid "Cancel"
 msgstr "Avbryt"
 
@@ -347,11 +346,11 @@ msgstr "&Återställ"
 
 #: comctl32.rc:86 comdlg32.rc:171 comdlg32.rc:193 comdlg32.rc:264
 #: comdlg32.rc:328 comdlg32.rc:348 comdlg32.rc:360 comdlg32.rc:478
-#: comdlg32.rc:496 ieframe.rc:58 msacm32.rc:52 oledlg.rc:94 shell32.rc:128
+#: comdlg32.rc:501 ieframe.rc:58 msacm32.rc:52 oledlg.rc:96 shell32.rc:128
 #: clock.rc:44 notepad.rc:60 notepad.rc:119 oleview.rc:72 progman.rc:55
 #: progman.rc:108 progman.rc:126 progman.rc:144 progman.rc:160 progman.rc:184
 #: progman.rc:202 progman.rc:219 regedit.rc:79 taskmgr.rc:87 winefile.rc:82
-#: winemine.rc:51 winhlp32.rc:56 wordpad.rc:94
+#: winemine.rc:51 winhlp32.rc:57 wordpad.rc:94
 msgid "&Help"
 msgstr "&Hjälp"
 
@@ -527,7 +526,7 @@ msgstr "St&orlek"
 msgid "&Source"
 msgstr "&Källa"
 
-#: comdlg32.rc:249 wineconsole.rc:84
+#: comdlg32.rc:249 wineconsole.rc:85
 msgid "Font"
 msgstr "Typsnitt"
 
@@ -1035,10 +1034,8 @@ msgid "Open File"
 msgstr "Öppna fil"
 
 #: comdlg32.rc:147
-#, fuzzy
-#| msgid "New Folder"
 msgid "Select Folder"
-msgstr "Ny mapp"
+msgstr "Välj mapp"
 
 #: comdlg32.rc:83 oleview.rc:98
 msgid "Ready"
@@ -2724,11 +2721,6 @@ msgstr ""
 "Är du säker du vill ta bort detta certifikat?"
 
 #: cryptui.rc:113
-#, fuzzy
-#| msgid ""
-#| "You will no longer be able to encrypt messages with these certificates, "
-#| "or verify messages signed with it.\n"
-#| "Are you sure you want to remove these certificates?"
 msgid ""
 "You will no longer be able to encrypt messages with these certificates, or "
 "verify messages signed with them.\n"
@@ -3142,10 +3134,8 @@ msgid "&View Source"
 msgstr "&Visa källkod"
 
 #: hhctrl.rc:83
-#, fuzzy
-#| msgid "Properties"
 msgid "Proper&ties"
-msgstr "Egenskaper"
+msgstr "&Egenskaper"
 
 #: hhctrl.rc:87 shdoclc.rc:79 shdoclc.rc:93 shdoclc.rc:117 shdoclc.rc:159
 #: shdoclc.rc:183 user32.rc:60 wordpad.rc:104
@@ -3566,10 +3556,8 @@ msgid "Expected identifier"
 msgstr ""
 
 #: jscript.rc:41
-#, fuzzy
-#| msgid "Expected ';'"
 msgid "Expected '='"
-msgstr "';' förväntades"
+msgstr "'=' förväntades"
 
 #: jscript.rc:42
 msgid "Invalid character"
@@ -3600,20 +3588,16 @@ msgid "Label not found"
 msgstr "Etiketten hittades inte"
 
 #: jscript.rc:49
-#, fuzzy
-#| msgid "Expected ';'"
 msgid "Expected '@end'"
-msgstr "';' förväntades"
+msgstr "'@end' förväntades"
 
 #: jscript.rc:50
 msgid "Conditional compilation is turned off"
 msgstr "Villkorlig kompilering är avslagen"
 
 #: jscript.rc:51
-#, fuzzy
-#| msgid "Expected ';'"
 msgid "Expected '@'"
-msgstr "';' förväntades"
+msgstr "'@' förväntades"
 
 #: jscript.rc:54
 msgid "Number expected"
@@ -6636,16 +6620,12 @@ msgid "The username could not be found.\n"
 msgstr "Användarnamnet kunde inte hittas.\n"
 
 #: winerror.mc:3741
-#, fuzzy
-#| msgid "The site does not exist.\n"
 msgid "This network connection does not exist.\n"
-msgstr "Sidan existerar inte.\n"
+msgstr "Nätverksanslutningen existerar inte.\n"
 
 #: winerror.mc:3746
-#, fuzzy
-#| msgid "Connection refused.\n"
 msgid "Connection reset by peer.\n"
-msgstr "Anslutning nekades.\n"
+msgstr "Anslutningen återställdes.\n"
 
 #: localspl.rc:31 localui.rc:31 winspool.rc:30
 msgid "Local Port"
@@ -7180,72 +7160,54 @@ msgid "outline button"
 msgstr "dispositionsknapp"
 
 #: oleacc.rc:97
-#, fuzzy
-#| msgid "Normal"
 msgctxt "object state"
 msgid "normal"
-msgstr "Normalt"
+msgstr "normalt"
 
 #: oleacc.rc:98
-#, fuzzy
-#| msgid "Unavailable"
 msgctxt "object state"
 msgid "unavailable"
-msgstr "Otillgänglig"
+msgstr "otillgängligt"
 
 #: oleacc.rc:99
-#, fuzzy
-#| msgid "Select"
 msgctxt "object state"
 msgid "selected"
-msgstr "Välj"
+msgstr "valt"
 
 #: oleacc.rc:100
-#, fuzzy
-#| msgid "Paused"
 msgctxt "object state"
 msgid "focused"
-msgstr "Pausad"
+msgstr "fokuserat"
 
 #: oleacc.rc:101
-#, fuzzy
-#| msgid "&Compressed"
 msgctxt "object state"
 msgid "pressed"
-msgstr "&Komprimerad"
+msgstr "tryckt"
 
 #: oleacc.rc:102
 msgctxt "object state"
 msgid "checked"
-msgstr ""
+msgstr "markerat"
 
 #: oleacc.rc:103
-#, fuzzy
-#| msgid "Mixed"
 msgctxt "object state"
 msgid "mixed"
-msgstr "Mixad"
+msgstr "blandat"
 
 #: oleacc.rc:104
-#, fuzzy
-#| msgid "&Read Only"
 msgctxt "object state"
 msgid "read only"
-msgstr "Sk&rivskyddad"
+msgstr "skrivskyddat"
 
 #: oleacc.rc:105
-#, fuzzy
-#| msgid "Hot Tracked Item"
 msgctxt "object state"
 msgid "hot tracked"
-msgstr "Hovrat föremål"
+msgstr ""
 
 #: oleacc.rc:106
-#, fuzzy
-#| msgid "(Default)"
 msgctxt "object state"
 msgid "default"
-msgstr "(Standard)"
+msgstr "standard"
 
 #: oleacc.rc:107
 msgctxt "object state"
@@ -7273,16 +7235,14 @@ msgid "marqueed"
 msgstr ""
 
 #: oleacc.rc:112
-#, fuzzy
-#| msgid "animation"
 msgctxt "object state"
 msgid "animated"
-msgstr "animation"
+msgstr "animerat"
 
 #: oleacc.rc:113
 msgctxt "object state"
 msgid "invisible"
-msgstr ""
+msgstr "osynligt"
 
 #: oleacc.rc:114
 msgctxt "object state"
@@ -7290,18 +7250,14 @@ msgid "offscreen"
 msgstr ""
 
 #: oleacc.rc:115
-#, fuzzy
-#| msgid "Size available"
 msgctxt "object state"
 msgid "sizeable"
-msgstr "Ledigt utrymme"
+msgstr ""
 
 #: oleacc.rc:116
-#, fuzzy
-#| msgid "Remove al&l"
 msgctxt "object state"
 msgid "moveable"
-msgstr "Ta bort a&lla"
+msgstr ""
 
 #: oleacc.rc:117
 msgctxt "object state"
@@ -7309,25 +7265,19 @@ msgid "self voicing"
 msgstr ""
 
 #: oleacc.rc:118
-#, fuzzy
-#| msgid "Paused"
 msgctxt "object state"
 msgid "focusable"
-msgstr "Pausad"
+msgstr ""
 
 #: oleacc.rc:119
-#, fuzzy
-#| msgid "table"
 msgctxt "object state"
 msgid "selectable"
-msgstr "tabell"
+msgstr ""
 
 #: oleacc.rc:120
-#, fuzzy
-#| msgid "link"
 msgctxt "object state"
 msgid "linked"
-msgstr "länk"
+msgstr ""
 
 #: oleacc.rc:121
 msgctxt "object state"
@@ -7335,46 +7285,34 @@ msgid "traversed"
 msgstr ""
 
 #: oleacc.rc:122
-#, fuzzy
-#| msgid "table"
 msgctxt "object state"
 msgid "multi selectable"
-msgstr "tabell"
+msgstr ""
 
 #: oleacc.rc:123
-#, fuzzy
-#| msgid "Please select a file."
 msgctxt "object state"
 msgid "extended selectable"
-msgstr "Var god välj en fil."
+msgstr ""
 
 #: oleacc.rc:124
-#, fuzzy
-#| msgid "alert"
 msgctxt "object state"
 msgid "alert low"
-msgstr "varning"
+msgstr ""
 
 #: oleacc.rc:125
-#, fuzzy
-#| msgid "alert"
 msgctxt "object state"
 msgid "alert medium"
-msgstr "varning"
+msgstr ""
 
 #: oleacc.rc:126
-#, fuzzy
-#| msgid "alert"
 msgctxt "object state"
 msgid "alert high"
-msgstr "varning"
+msgstr ""
 
 #: oleacc.rc:127
-#, fuzzy
-#| msgid "Write protected.\n"
 msgctxt "object state"
 msgid "protected"
-msgstr "Skrivskyddad.\n"
+msgstr "skyddat"
 
 #: oleacc.rc:128
 msgctxt "object state"
@@ -7397,72 +7335,72 @@ msgstr "På"
 msgid "Off"
 msgstr "Av"
 
-#: oledlg.rc:53
+#: oledlg.rc:55
 msgid "Insert Object"
 msgstr "Infoga objekt"
 
-#: oledlg.rc:59
+#: oledlg.rc:61
 msgid "Object Type:"
 msgstr "Objekttyp:"
 
-#: oledlg.rc:62 oledlg.rc:100
+#: oledlg.rc:64 oledlg.rc:102
 msgid "Result"
 msgstr "Resultat"
 
-#: oledlg.rc:63
+#: oledlg.rc:65
 msgid "Create New"
 msgstr "Skapa ny"
 
-#: oledlg.rc:65
+#: oledlg.rc:67
 msgid "Create Control"
 msgstr "Skapa en kontroll"
 
-#: oledlg.rc:67
+#: oledlg.rc:69
 msgid "Create From File"
 msgstr "Skapa från fil"
 
-#: oledlg.rc:70
+#: oledlg.rc:72
 msgid "&Add Control..."
 msgstr "&Lägg till kontroll..."
 
-#: oledlg.rc:71
+#: oledlg.rc:73
 msgid "Display As Icon"
 msgstr "Visa som ikon"
 
-#: oledlg.rc:73 setupapi.rc:61
+#: oledlg.rc:75 setupapi.rc:61
 msgid "Browse..."
 msgstr "Bläddra..."
 
-#: oledlg.rc:74
+#: oledlg.rc:76
 msgid "File:"
 msgstr "Fil:"
 
-#: oledlg.rc:80
+#: oledlg.rc:82
 msgid "Paste Special"
 msgstr "Klistra in special"
 
-#: oledlg.rc:83 setupapi.rc:43
+#: oledlg.rc:85 setupapi.rc:43
 msgid "Source:"
 msgstr "Källa:"
 
-#: oledlg.rc:84 shdoclc.rc:50 shdoclc.rc:82 shdoclc.rc:95 shdoclc.rc:135
+#: oledlg.rc:86 shdoclc.rc:50 shdoclc.rc:82 shdoclc.rc:95 shdoclc.rc:135
 #: shdoclc.rc:162 shdoclc.rc:186 user32.rc:62 wineconsole.rc:33 wordpad.rc:106
 msgid "&Paste"
 msgstr "Klistra &in"
 
-#: oledlg.rc:86
+#: oledlg.rc:88
 msgid "Paste &Link"
 msgstr "Klistra in &länk"
 
-#: oledlg.rc:88
+#: oledlg.rc:90
 msgid "&As:"
 msgstr "&Som:"
 
-#: oledlg.rc:95
+#: oledlg.rc:97
 msgid "&Display As Icon"
 msgstr "&Visa som ikon"
 
-#: oledlg.rc:97
+#: oledlg.rc:99
 msgid "Change &Icon..."
 msgstr "Byt &ikon..."
 
@@ -7490,66 +7428,76 @@ msgstr ""
 msgid "Add Control"
 msgstr "Lägg till kontroll"
 
+#: oledlg.rc:35
+msgid "&Convert..."
+msgstr ""
+
+#: oledlg.rc:36
+#, fuzzy
+#| msgid "&Object"
+msgid "%1 %2 &Object"
+msgstr "&Objekt"
+
 #: oledlg.rc:34
 #, fuzzy
-#| msgid "&Font..."
-msgid "&Convert..."
-msgstr "T&ypsnitt..."
+#| msgid "&Object"
+msgid "%1 &Object"
+msgstr "&Objekt"
 
 #: oledlg.rc:33 oleview.rc:40
 msgid "&Object"
 msgstr "&Objekt"
 
-#: oledlg.rc:39
+#: oledlg.rc:41
 msgid "Inserts the contents of the clipboard into your document as %s."
 msgstr ""
 
-#: oledlg.rc:40
+#: oledlg.rc:42
 msgid ""
 "Inserts the contents of the clipboard into your document so that you can "
 "activate it using %s."
 msgstr ""
 
-#: oledlg.rc:41
+#: oledlg.rc:43
 msgid ""
 "Inserts the contents of the clipboard into your document so that you can "
 "activate it using %s. It will be displayed as an icon."
 msgstr ""
 
-#: oledlg.rc:42
+#: oledlg.rc:44
 msgid ""
 "Inserts the contents of the clipboard into your document as %s. The data is "
 "linked to the source file so that changes to the file will be reflected in "
 "your document."
 msgstr ""
 
-#: oledlg.rc:43
+#: oledlg.rc:45
 msgid ""
 "Inserts a picture of the clipboard contents into your document. The picture "
 "is linked to the source file so that changes to the file will be reflected "
 "in your document."
 msgstr ""
 
-#: oledlg.rc:44
+#: oledlg.rc:46
 msgid ""
 "Inserts a shortcut which points to the location of the clipboard contents. "
 "The shortcut is linked to the source file so that changes to the file will "
 "be reflected in your document."
 msgstr ""
 
-#: oledlg.rc:45
+#: oledlg.rc:47
 msgid "Inserts the contents of the clipboard into your document."
 msgstr ""
 
-#: oledlg.rc:46
+#: oledlg.rc:48
 msgid "Unknown Type"
 msgstr "Okänd typ"
 
-#: oledlg.rc:47
+#: oledlg.rc:49
 msgid "Unknown Source"
 msgstr "Okänd källa"
 
-#: oledlg.rc:48
+#: oledlg.rc:50
 msgid "the program which created it"
 msgstr "programmet som skapade det"
 
@@ -8194,7 +8142,7 @@ msgstr "Mallar"
 msgid "PrintHood"
 msgstr "Skrivare"
 
-#: shell32.rc:214 winhlp32.rc:48
+#: shell32.rc:214 winhlp32.rc:49
 msgid "History"
 msgstr "Historik"
 
@@ -8537,7 +8485,7 @@ msgstr "&Återställ"
 msgid "&Move"
 msgstr "&Flytta"
 
-#: user32.rc:32 user32.rc:45 wineconsole.rc:92
+#: user32.rc:32 user32.rc:45 wineconsole.rc:93
 msgid "&Size"
 msgstr "&Storlek"
 
@@ -8602,10 +8550,8 @@ msgid "Duplex:"
 msgstr "Dubbelsidig:"
 
 #: wineps.rc:50
-#, fuzzy
-#| msgid "&Setup"
 msgid "Setup"
-msgstr "&Inställningar"
+msgstr "Inställningar"
 
 #: wininet.rc:42 wininet.rc:62
 msgid "Realm"
@@ -8923,10 +8869,6 @@ msgstr ""
 "och fortfarande är ansluten till nätverket."
 
 #: winmm.rc:86
-#, fuzzy
-#| msgid ""
-#| "Cannot find the specified device. Make sure it is installed or that the "
-#| "device name is spelled correctly."
 msgid ""
 "Cannot find the specified device. Make sure it is installed and that the "
 "device name is spelled correctly."
@@ -9232,16 +9174,12 @@ msgstr ""
 "eller är ansluten till nätverket."
 
 #: winmm.rc:136
-#, fuzzy
-#| msgid "Wine Mono Installer"
 msgid "Wine Sound Mapper"
-msgstr "Wine Mono Installationsprogram"
+msgstr ""
 
 #: winmm.rc:137
-#, fuzzy
-#| msgid "column"
 msgid "Volume"
-msgstr "kolumn"
+msgstr "Volym"
 
 #: winmm.rc:138
 msgid "Master Volume"
@@ -9503,7 +9441,7 @@ msgstr ""
 msgid "Referral hop limit exceeded"
 msgstr ""
 
-#: attrib.rc:30 cmd.rc:327
+#: attrib.rc:30 cmd.rc:361
 msgid ""
 "Not Yet Implemented\n"
 "\n"
@@ -9511,7 +9449,7 @@ msgstr ""
 "Ännu ej implementerat\n"
 "\n"
 
-#: attrib.rc:31 cmd.rc:330
+#: attrib.rc:31 cmd.rc:364
 msgid "%1: File Not Found\n"
 msgstr "%1: Kunde inte hitta filen\n"
 
@@ -9575,10 +9513,10 @@ msgstr "Klocka"
 
 #: cmd.rc:40
 msgid ""
-"CALL <batchfilename> is used within a batch file to execute commands\n"
-"from another batch file. When the batch file exits, control returns to\n"
-"the file which called it. The CALL command may supply parameters to the\n"
-"called procedure.\n"
+"CALL <batchfilename> is used within a batch file to execute commands from\n"
+"another batch file. When the batch file exits, control returns to the file\n"
+"which called it. The CALL command may supply parameters to the called\n"
+"procedure.\n"
 "\n"
 "Changes to default directory, environment variables etc made within a\n"
 "called procedure are inherited by the caller.\n"
@@ -9591,7 +9529,7 @@ msgstr ""
 "Ändringar av standardsökväg, miljövariabler o.s.v. som görs inom en anropad\n"
 "process ärvs av den som anropar processen.\n"
 
-#: cmd.rc:43
+#: cmd.rc:44
 msgid ""
 "CD <directory> is the short version of CHDIR. It changes the current\n"
 "default directory.\n"
@@ -9599,40 +9537,40 @@ msgstr ""
 "CD <plats> är en synonym för CHDIR. Den används för att\n"
 "ändra standardsökväg.\n"
 
-#: cmd.rc:44
+#: cmd.rc:47
 msgid "CHDIR <directory> changes the current default directory.\n"
 msgstr "CHDIR <plats> ändrar standardsökväg.\n"
 
-#: cmd.rc:46
+#: cmd.rc:50
 msgid "CLS clears the console screen.\n"
 msgstr "CLS rensar konsollen från text.\n"
 
-#: cmd.rc:48
+#: cmd.rc:53
 msgid "COPY <filename> copies a file.\n"
 msgstr "COPY <filename> kopierar en fil.\n"
 
-#: cmd.rc:49
+#: cmd.rc:56
 msgid "CTTY changes the input/output device.\n"
 msgstr "CTTY ändrar input/output-enheter.\n"
 
-#: cmd.rc:50
+#: cmd.rc:59
 msgid "DATE shows or changes the system date.\n"
 msgstr "DATE visar eller ändrar systemets datum.\n"
 
-#: cmd.rc:51
+#: cmd.rc:62
 msgid "DEL <filename> deletes a file or set of files.\n"
 msgstr "DEL <filename> tar bort en eller flera filer.\n"
 
-#: cmd.rc:52
+#: cmd.rc:65
 msgid "DIR lists the contents of a directory.\n"
 msgstr "DIR visar mappens innehåll.\n"
 
-#: cmd.rc:62
+#: cmd.rc:75
 msgid ""
 "ECHO <string> displays <string> on the current terminal device.\n"
 "\n"
-"ECHO ON causes all subsequent commands in a batch file to be displayed\n"
-"on the terminal device before they are executed.\n"
+"ECHO ON causes all subsequent commands in a batch file to be displayed on\n"
+"the terminal device before they are executed.\n"
 "\n"
 "ECHO OFF reverses the effect of a previous ECHO ON (ECHO is OFF by\n"
 "default). The ECHO OFF command can be prevented from displaying by\n"
@@ -9643,16 +9581,15 @@ msgstr ""
 "ECHO ON gör att alla följdkommandon från en batchfil skrivs ut i terminalen\n"
 "innan dessa exekveras.\n"
 "\n"
-"ECHO OFF tar bort effekten av ett föregående ECHO ON. (ECHO är\n"
-"OFF (avstängd) som standard.) Du kan förhindra ECHO OFF från att visas "
-"genom\n"
+"ECHO OFF tar bort effekten av ett föregående ECHO ON. (ECHO är OFF\n"
+"(avstängd) som standard.) Du kan förhindra ECHO OFF från att visas genom\n"
 "att lägga till ett @-tecken innan kommandot.\n"
 
-#: cmd.rc:64
+#: cmd.rc:78
 msgid "ERASE <filename> deletes a file or set of files.\n"
 msgstr "ERASE <filename> tar bort en eller flera filer.\n"
 
-#: cmd.rc:71
+#: cmd.rc:85
 msgid ""
 "The FOR command is used to execute a command for each of a set of files.\n"
 "\n"
@@ -9666,31 +9603,30 @@ msgstr ""
 "\n"
 "%-tecknet måste dubbleras när FOR används i en batchfil.\n"
 
-#: cmd.rc:83
+#: cmd.rc:97
 msgid ""
-"The GOTO command transfers execution to another statement within a\n"
-"batch file.\n"
+"The GOTO command transfers execution to another statement within a batch\n"
+"file.\n"
 "\n"
-"The label which is the target of a GOTO may be up to 255 characters\n"
-"long but may not include spaces (this is different from other operating\n"
-"systems). If two or more identical labels exist in a batch file the\n"
-"first one will always be executed. Attempting to GOTO a nonexistent\n"
-"label terminates the batch file execution.\n"
+"The label which is the target of a GOTO may be up to 255 characters long\n"
+"but may not include spaces (this is different from other operating\n"
+"systems). If two or more identical labels exist in a batch file the first\n"
+"one will always be executed. Attempting to GOTO a nonexistent label\n"
+"terminates the batch file execution.\n"
 "\n"
 "GOTO has no effect when used interactively.\n"
 msgstr ""
-"Kommandot GOTO överlåter exekvering till ett annat påstående\n"
-"i en batchfil.\n"
+"Kommandot GOTO överlåter exekvering till ett annat påstående i en batchfil.\n"
 "\n"
-"En etikett som är målet för ett GOTO kan innehålla upp till 255 tecken,\n"
-"men blanksteg tillåts ej (till skillnad från andra operativsystem).\n"
-"Om två eller flera identiska etiketter existerar i en batchfil, så kommer\n"
-"alltid den första exekveras. Vid försök att använda GOTO till en icke\n"
-"existerande etikett så avbryts batchfilens exekvering.\n"
+"En etikett som är målet för ett GOTO kan innehålla upp till 255 tecken, men\n"
+"blanksteg tillåts ej (till skillnad från andra operativsystem). Om två\n"
+"eller flera identiska etiketter existerar i en batchfil, så kommer alltid\n"
+"den första exekveras. Vid försök att använda GOTO till en icke existerande\n"
+"etikett så avbryts batchfilens exekvering.\n"
 "\n"
 "GOTO har ingen effekt när det används interaktivt.\n"
 
-#: cmd.rc:86
+#: cmd.rc:101
 msgid ""
 "HELP <command> shows brief help details on a topic.\n"
 "HELP without an argument shows all CMD built-in commands.\n"
@@ -9698,7 +9634,7 @@ msgstr ""
 "HELP <command> skriver ut mer detaljerad information ang. ämnet.\n"
 "HELP utan ett argument visar alla inbyggda CMD-kommandon.\n"
 
-#: cmd.rc:96
+#: cmd.rc:111
 msgid ""
 "IF is used to conditionally execute a command.\n"
 "\n"
@@ -9718,7 +9654,7 @@ msgstr ""
 "I den andra IF-satsen måste sträng1 och sträng2 vara inom citattecken.\n"
 "IF bryr sej inte om stora eller små bokstäver.\n"
 
-#: cmd.rc:102
+#: cmd.rc:118
 msgid ""
 "LABEL is used to set a disk volume label.\n"
 "\n"
@@ -9732,23 +9668,22 @@ msgstr ""
 "Kommandot kommer fråga dig efter enhetens nya namn.\n"
 "Du kan visa enhetens namn genom att använda kommandot VOL.\n"
 
-#: cmd.rc:105
+#: cmd.rc:121
 msgid "MD <name> is the short version of MKDIR. It creates a subdirectory.\n"
 msgstr ""
 "MD <name> är en synonym för MKDIR.\n"
 "Den skapar en ny mapp i mappen du befinner dig i.\n"
 
-#: cmd.rc:106
+#: cmd.rc:123
 msgid "MKDIR <name> creates a subdirectory.\n"
 msgstr "MKDIR <name> skapar en ny mapp i mappen du befinner dig i.\n"
 
-#: cmd.rc:113
+#: cmd.rc:131
 msgid ""
 "MOVE relocates a file or directory to a new point within the file system.\n"
 "\n"
-"If the item being moved is a directory then all the files and "
-"subdirectories\n"
-"below the item are moved as well.\n"
+"If the item being moved is a directory then all the files and\n"
+"subdirectories below the item are moved as well.\n"
 "\n"
 "MOVE fails if the old and new locations are on different DOS drive letters.\n"
 msgstr ""
@@ -9759,13 +9694,13 @@ msgstr ""
 "MOVE misslyckas om den gamla och det den nya stället är på olika\n"
 "DOS-enhetsbokstäver.\n"
 
-#: cmd.rc:124
+#: cmd.rc:142
 msgid ""
 "PATH displays or changes the cmd search path.\n"
 "\n"
-"Entering PATH will display the current PATH setting (initially taken\n"
-"from the registry). To change the setting follow the\n"
-"PATH command with the new value.\n"
+"Entering PATH will display the current PATH setting (initially taken from\n"
+"the registry). To change the setting follow the PATH command with the new\n"
+"value.\n"
 "\n"
 "It is also possible to modify the PATH by using the PATH environment\n"
 "variable, for example:\n"
@@ -9773,27 +9708,27 @@ msgid ""
 msgstr ""
 "PATH visar eller ändrar cmd:s sökväg.\n"
 "\n"
-"Om du skriver enbart PATH så visas den aktuella sökvägen\n"
-"(som står i windowsregistret). För att ändra på denna inställning,\n"
-"skriv PATH och sedan den nya sökvägen.\n"
+"Om du skriver enbart PATH så visas den aktuella sökvägen (som står i\n"
+"windowsregistret). För att ändra på denna inställning, skriv PATH och sedan\n"
+"den nya sökvägen.\n"
 "\n"
 "Det går också att ändra PATH genom att använda PATH:s miljövariabler.\n"
 "Till exempel:\n"
 "PATH %PATH%;c:\\temp\n"
 
-#: cmd.rc:130
+#: cmd.rc:148
 msgid ""
 "PAUSE displays a message on the screen asking the user to press a key.\n"
 "\n"
-"It is mainly useful in batch files to allow the user to read the output\n"
-"of a previous command before it scrolls off the screen.\n"
+"It is mainly useful in batch files to allow the user to read the output of\n"
+"a previous command before it scrolls off the screen.\n"
 msgstr ""
 "PAUSE visar ett meddelande som ber användaren att trycka på en tangent.\n"
 "\n"
 "PAUSE används mestadels i batchfiler så att användaren hinner läsa\n"
 "resultatet av ett kört kommando innan det rullar av skärmen.\n"
 
-#: cmd.rc:151
+#: cmd.rc:169
 msgid ""
 "PROMPT sets the command-line prompt.\n"
 "\n"
@@ -9817,8 +9752,8 @@ msgid ""
 msgstr ""
 "PROMPT ändrar promptens utseende.\n"
 "\n"
-"Inmatad sträng efter PROMPT-kommandot (och följande blanksteg)\n"
-"visas i början av nästa rad, när cmd väntar på inmatning.\n"
+"Inmatad sträng efter PROMPT-kommandot (och följande blanksteg) visas i\n"
+"början av nästa rad, när cmd väntar på inmatning.\n"
 "\n"
 "Följande tecken betyder:\n"
 "\n"
@@ -9833,35 +9768,35 @@ msgstr ""
 "och ett större än-tecken (>).\n"
 "(Som kommandot PROMPT $p$g.)\n"
 "\n"
-"Prompten går att ändra genom att modifiera miljövariabeln PROMPT,\n"
-"så kommandot 'SET PROMPT=text' har samma effekt som 'PROMPT text'.\n"
+"Prompten går att ändra genom att modifiera miljövariabeln PROMPT, så\n"
+"kommandot 'SET PROMPT=text' har samma effekt som 'PROMPT text'.\n"
 
-#: cmd.rc:155
+#: cmd.rc:173
 msgid ""
-"A command line beginning with REM (followed by a space) performs no\n"
-"action, and can therefore be used as a comment in a batch file.\n"
+"A command line beginning with REM (followed by a space) performs no action,\n"
+"and can therefore be used as a comment in a batch file.\n"
 msgstr ""
 "En kommandorad som börjar på REM (med ett blanksteg efter) ignoreras.\n"
 "Därav kan REM användas för att kommentera rader i en batchfil.\n"
 
-#: cmd.rc:158
+#: cmd.rc:176
 msgid "REN <filename> is the short version of RENAME. It renames a file.\n"
 msgstr ""
 "REN <filnamn> är en synonym för kommandot RENAME. REN döper om en fil.\n"
 
-#: cmd.rc:159
+#: cmd.rc:178
 msgid "RENAME <filename> renames a file.\n"
 msgstr "RENAME <filnamn> döper om en fil.\n"
 
-#: cmd.rc:161
+#: cmd.rc:181
 msgid "RD <directory> is the short version of RMDIR. It deletes a directory.\n"
 msgstr "RD <plats> är en synonym för RMDIR. RD tar bort vald plats.\n"
 
-#: cmd.rc:162
+#: cmd.rc:183
 msgid "RMDIR <directory> deletes a directory.\n"
 msgstr "RMDIR <plats> tar bort vald plats.\n"
 
-#: cmd.rc:206
+#: cmd.rc:229
 msgid ""
 "SET displays or changes the cmd environment variables.\n"
 "\n"
@@ -9871,14 +9806,13 @@ msgid ""
 "\n"
 "SET <variable>=<value>\n"
 "\n"
-"where <variable> and <value> are character strings. There must be no\n"
-"space before the equals sign, nor can the variable name\n"
-"have embedded spaces.\n"
+"where <variable> and <value> are character strings. There must be no space\n"
+"before the equals sign, nor can the variable name have embedded spaces.\n"
 "\n"
-"Under Wine, the environment of the underlying operating system is\n"
-"included into the Win32 environment, there will generally therefore be\n"
-"many more values than in a native Win32 implementation. Note that it is\n"
-"not possible to affect the operating system environment from within cmd.\n"
+"Under Wine, the environment of the underlying operating system is included\n"
+"into the Win32 environment, there will generally therefore be many more\n"
+"values than in a native Win32 implementation. Note that it is not possible\n"
+"to affect the operating system environment from within cmd.\n"
 msgstr ""
 "SET visar eller ändrar cmd:s miljövariabler.\n"
 "\n"
@@ -9888,71 +9822,72 @@ msgstr ""
 "\n"
 "SET <variabel>=<värde>\n"
 "\n"
-"där <variabel> och <värde> är teckensträngar. Inga blanksteg är\n"
-"tillåtna varken innan lika med tecknet eller inom variabel namnet.\n"
+"där <variabel> och <värde> är teckensträngar. Inga blanksteg är tillåtna\n"
+"varken innan lika med tecknet eller inom variabel namnet.\n"
 "\n"
-"I Wine inkluderas miljövariabler från det underliggande operativsystemet\n"
-"i Win32-miljön vilket resulterar i att det finns många fler värden\n"
-"än i en riktig Win32-implementation. Notera att det inte går att påverka\n"
+"I Wine inkluderas miljövariabler från det underliggande operativsystemet i\n"
+"Win32-miljön vilket resulterar i att det finns många fler värden än i en\n"
+"riktig Win32-implementation. Notera att det inte går att påverka\n"
 "operativsystemets miljövariabler via cmd.\n"
 
-#: cmd.rc:211
+#: cmd.rc:234
 msgid ""
-"SHIFT is used in a batch file to remove one parameter from the head of\n"
-"the list, so parameter 2 becomes parameter 1 and so on. It has no effect\n"
-"if called from the command line.\n"
+"SHIFT is used in a batch file to remove one parameter from the head of the\n"
+"list, so parameter 2 becomes parameter 1 and so on. It has no effect if\n"
+"called from the command line.\n"
 msgstr ""
-"SHIFT används i batchfiler för att ta bort en parameter högst upp på\n"
-"listan så att parameter 2 blir parameter 1 o.s.v. SHIFT har ingen effekt\n"
-"om det anropas ifrån kommandoraden.\n"
+"SHIFT används i batchfiler för att ta bort en parameter högst upp på listan\n"
+"så att parameter 2 blir parameter 1 o.s.v. SHIFT har ingen effekt om det\n"
+"anropas ifrån kommandoraden.\n"
 
-#: cmd.rc:188 start.rc:53
+#: cmd.rc:212 start.rc:56
 msgid ""
-"Start a program, or open a document in the program normally used for files "
+"Start a program, or open a document in the program normally used for files\n"
 "with that suffix.\n"
 "Usage:\n"
 "start [options] program_filename [...]\n"
 "start [options] document_filename\n"
 "\n"
 "Options:\n"
-"\"title\"      Specifies the title of the child windows.\n"
-"/d directory Start the program in the specified directory.\n"
-"/b           Don't create a new console for the program.\n"
-"/i           Start the program with fresh environment variables.\n"
-"/min         Start the program minimized.\n"
-"/max         Start the program maximized.\n"
-"/low         Start the program in the idle priority class.\n"
-"/normal      Start the program in the normal priority class.\n"
-"/high        Start the program in the high priority class.\n"
-"/realtime    Start the program in the realtime priority class.\n"
-"/abovenormal Start the program in the abovenormal priority class.\n"
-"/belownormal Start the program in the belownormal priority class.\n"
-"/node n      Start the program on the specified NUMA node.\n"
+"\"title\"        Specifies the title of the child windows.\n"
+"/d directory   Start the program in the specified directory.\n"
+"/b             Don't create a new console for the program.\n"
+"/i             Start the program with fresh environment variables.\n"
+"/min           Start the program minimized.\n"
+"/max           Start the program maximized.\n"
+"/low           Start the program in the idle priority class.\n"
+"/normal        Start the program in the normal priority class.\n"
+"/high          Start the program in the high priority class.\n"
+"/realtime      Start the program in the realtime priority class.\n"
+"/abovenormal   Start the program in the abovenormal priority class.\n"
+"/belownormal   Start the program in the belownormal priority class.\n"
+"/node n        Start the program on the specified NUMA node.\n"
 "/affinity mask Start the program with the specified affinity mask.\n"
-"/wait        Wait for the started program to finish, then exit with its exit "
-"code.\n"
-"/unix        Use a Unix filename and start the file like windows explorer.\n"
-"/ProgIDOpen  Open a document using the specified progID.\n"
-"/?           Display this help and exit.\n"
+"/wait          Wait for the started program to finish, then exit with its\n"
+"exit code.\n"
+"/unix          Use a Unix filename and start the file like windows\n"
+"explorer.\n"
+"/ProgIDOpen    Open a document using the specified progID.\n"
+"/?             Display this help and exit.\n"
 msgstr ""
 
-#: cmd.rc:213
+#: cmd.rc:237
 msgid "TIME sets or shows the current system time.\n"
 msgstr "TIME ställer in eller skriver ut ditt systems tid.\n"
 
-#: cmd.rc:215
+#: cmd.rc:240
 msgid "TITLE <string> sets the window title for the cmd window.\n"
 msgstr "TITLE <sträng> ändrar fönsternamn för cmd-fönstret.\n"
 
-#: cmd.rc:219
+#: cmd.rc:244
 msgid ""
-"TYPE <filename> copies <filename> to the console device (or elsewhere\n"
-"if redirected). No check is made that the file is readable text.\n"
+"TYPE <filename> copies <filename> to the console device (or elsewhere if\n"
+"redirected). No check is made that the file is readable text.\n"
 msgstr ""
 "TYPE <filnamn> kopierar <filnamn> till konsollen (eller annanstans om\n"
 "angivet). TYPE kollar inte vad filen i fråga är för typ av fil.\n"
 
-#: cmd.rc:228
+#: cmd.rc:253
 msgid ""
 "VERIFY is used to set, clear or test the verify flag. Valid forms are:\n"
 "\n"
@@ -9971,21 +9906,21 @@ msgstr ""
 "\n"
 "Det finns dock ingen användning för verifieraflaggor i Wine.\n"
 
-#: cmd.rc:231
+#: cmd.rc:256
 msgid "VER displays the version of cmd you are running.\n"
 msgstr "VER visar körd version av cmd.\n"
 
-#: cmd.rc:233
+#: cmd.rc:259
 msgid "VOL shows the volume label of a disk device.\n"
 msgstr "VOL visar namnet på en diskvolym.\n"
 
-#: cmd.rc:237
+#: cmd.rc:263
 msgid ""
-"ENDLOCAL ends localization of environment changes in a batch file\n"
-"which were introduced by a preceding SETLOCAL.\n"
+"ENDLOCAL ends localization of environment changes in a batch file which\n"
+"were introduced by a preceding SETLOCAL.\n"
 msgstr ""
 
-#: cmd.rc:245
+#: cmd.rc:271
 msgid ""
 "SETLOCAL starts localization of environment changes in a batch file.\n"
 "\n"
@@ -9995,19 +9930,19 @@ msgid ""
 "settings are restored.\n"
 msgstr ""
 
-#: cmd.rc:248
+#: cmd.rc:275
 msgid ""
-"PUSHD <directory> saves the current directory onto a\n"
-"stack, and then changes the current directory to the supplied one.\n"
+"PUSHD <directory> saves the current directory onto a stack, and then\n"
+"changes the current directory to the supplied one.\n"
 msgstr ""
-"PUSHD <plats> sparar nuvarande sökväg i en stack,\n"
-"och ändrar sedan sökvägen till den angivna mappen.\n"
+"PUSHD <plats> sparar nuvarande sökväg i en stack, och ändrar sedan sökvägen\n"
+"till den angivna mappen.\n"
 
-#: cmd.rc:250
+#: cmd.rc:278
 msgid "POPD changes current directory to the last one saved with PUSHD.\n"
 msgstr "POPD ändrar nuvarande sökväg till den senast angivna i PUSHD.\n"
 
-#: cmd.rc:258
+#: cmd.rc:288
 msgid ""
 "ASSOC shows or modifies file extension associations.\n"
 "\n"
@@ -10015,47 +9950,47 @@ msgid ""
 "\n"
 "ASSOC without parameters displays current file associations.\n"
 "If used with only a file extension, displays the current association.\n"
-"Specifying no file type after the equal sign removes the current "
+"Specifying no file type after the equal sign removes the current\n"
 "association, if any.\n"
 msgstr ""
 
-#: cmd.rc:269
+#: cmd.rc:300
 msgid ""
 "FTYPE shows or modifies open commands associated with file types.\n"
 "\n"
 "Syntax: FTYPE [fileType[=[openCommand]]]\n"
 "\n"
-"Without parameters, shows the file types for which open command strings are "
+"Without parameters, shows the file types for which open command strings are\n"
 "currently defined.\n"
-"If used with only a file type, displays the associated open command string, "
+"If used with only a file type, displays the associated open command string,\n"
 "if any.\n"
-"Specifying no open command after the equal sign removes the command string "
+"Specifying no open command after the equal sign removes the command string\n"
 "associated to the specified file type.\n"
 msgstr ""
 
-#: cmd.rc:271
+#: cmd.rc:303
 msgid "MORE displays output of files or piped input in pages.\n"
 msgstr "MORE visar filer eller inmatad text på sidor.\n"
 
-#: cmd.rc:275
+#: cmd.rc:308
 msgid ""
-"CHOICE displays a text and waits, until the User\n"
-"presses an allowed Key from a selectable list.\n"
+"CHOICE displays a text and waits, until the User presses an allowed Key\n"
+"from a selectable list.\n"
 "CHOICE is mainly used to build a menu selection in a batch file.\n"
 msgstr ""
-"CHOICE visar en text och väntar tills användaren\n"
-"trycker ner en tangent från en valbar lista.\n"
+"CHOICE visar en text och väntar tills användaren trycker ner en tangent\n"
+"från en valbar lista.\n"
 "CHOICE används främst för att skapa menyval i batchfiler.\n"
 
-#: cmd.rc:279
+#: cmd.rc:312
 msgid ""
-"EXIT terminates the current command session and returns\n"
-"to the operating system or shell from which you invoked cmd.\n"
+"EXIT terminates the current command session and returns to the operating\n"
+"system or shell from which you invoked cmd.\n"
 msgstr ""
-"EXIT avslutar cmd och skickar tillbaks användaren till\n"
-"operativsystemet eller skalet som cmd startades ifrån.\n"
+"EXIT avslutar cmd och skickar tillbaks användaren till operativsystemet\n"
+"eller skalet som cmd startades ifrån.\n"
 
-#: cmd.rc:317
+#: cmd.rc:351
 msgid ""
 "CMD built-in commands are:\n"
 "ASSOC\t\tShow or modify file extension associations\n"
@@ -10136,110 +10071,110 @@ msgstr ""
 "\n"
 "Skriv HELP <command> för mer information om något av kommandona ovanför.\n"
 
-#: cmd.rc:319
+#: cmd.rc:353
 msgid "Are you sure?"
 msgstr "Är du säker?"
 
-#: cmd.rc:320 xcopy.rc:43
+#: cmd.rc:354 xcopy.rc:43
 msgctxt "Yes key"
 msgid "Y"
 msgstr "J"
 
-#: cmd.rc:321 xcopy.rc:44
+#: cmd.rc:355 xcopy.rc:44
 msgctxt "No key"
 msgid "N"
 msgstr "N"
 
-#: cmd.rc:322
+#: cmd.rc:356
 msgid "File association missing for extension %1\n"
 msgstr "Det finns ingen filassociation för filformat %1\n"
 
-#: cmd.rc:323
+#: cmd.rc:357
 msgid "No open command associated with file type '%1'\n"
 msgstr "Ingen kommando förknippat med filtyp '%1'\n"
 
-#: cmd.rc:324
+#: cmd.rc:358
 msgid "Overwrite %1?"
 msgstr "Skriva över %1?"
 
-#: cmd.rc:325
+#: cmd.rc:359
 msgid "More..."
 msgstr "Mer..."
 
-#: cmd.rc:326
+#: cmd.rc:360
 msgid "Line in Batch processing possibly truncated. Using:\n"
 msgstr "En rad i batch möjligtvis trunkerad. Använder:\n"
 
-#: cmd.rc:328
+#: cmd.rc:362
 msgid "Argument missing\n"
 msgstr "Argument saknas\n"
 
-#: cmd.rc:329
+#: cmd.rc:363
 msgid "Syntax error\n"
 msgstr "Syntaxfel\n"
 
-#: cmd.rc:331
+#: cmd.rc:365
 msgid "No help available for %1\n"
 msgstr "Ingen hjälp tillgänglig för %1\n"
 
-#: cmd.rc:332
+#: cmd.rc:366
 msgid "Target to GOTO not found\n"
 msgstr "Mål för GOTO ej funnet\n"
 
-#: cmd.rc:333
+#: cmd.rc:367
 msgid "Current Date is %1\n"
 msgstr "Dagens datum är %1\n"
 
-#: cmd.rc:334
+#: cmd.rc:368
 msgid "Current Time is %1\n"
 msgstr "Tiden är %1\n"
 
-#: cmd.rc:335
+#: cmd.rc:369
 msgid "Enter new date: "
 msgstr "Skriv nytt datum: "
 
-#: cmd.rc:336
+#: cmd.rc:370
 msgid "Enter new time: "
 msgstr "Skriv in den nya tiden: "
 
-#: cmd.rc:337
+#: cmd.rc:371
 msgid "Environment variable %1 not defined\n"
 msgstr "Miljövariabeln %1 ej definierad\n"
 
-#: cmd.rc:338 xcopy.rc:41
+#: cmd.rc:372 xcopy.rc:41
 msgid "Failed to open '%1'\n"
 msgstr "Misslyckades med att öppna '%1'\n"
 
-#: cmd.rc:339
+#: cmd.rc:373
 msgid "Cannot call batch label outside of a batch script\n"
 msgstr "Går ej att anropa en batchetikett utanför ett batchskript\n"
 
-#: cmd.rc:340 xcopy.rc:45
+#: cmd.rc:374 xcopy.rc:45
 msgctxt "All key"
 msgid "A"
 msgstr "A"
 
-#: cmd.rc:341
+#: cmd.rc:375
 msgid "Delete %1?"
 msgstr "Ta bort %1?"
 
-#: cmd.rc:342
+#: cmd.rc:376
 msgid "Echo is %1\n"
 msgstr "Ekot är %1\n"
 
-#: cmd.rc:343
+#: cmd.rc:377
 msgid "Verify is %1\n"
 msgstr "Verifiera är %1\n"
 
-#: cmd.rc:344
+#: cmd.rc:378
 msgid "Verify must be ON or OFF\n"
 msgstr "Verifiera måste vara ON (på) eller OFF (av)\n"
 
-#: cmd.rc:345
+#: cmd.rc:379
 msgid "Parameter error\n"
 msgstr "Parameterfel\n"
 
-#: cmd.rc:346
+#: cmd.rc:380
 msgid ""
 "Volume Serial Number is %1!04x!-%2!04x!\n"
 "\n"
@@ -10247,72 +10182,72 @@ msgstr ""
 "Diskvolymens serienummer är %1!04x!-%2!04x!\n"
 "\n"
 
-#: cmd.rc:347
+#: cmd.rc:381
 msgid "Volume label (11 characters, <Enter> for none)?"
 msgstr "Diskvolymens namn (11 tecken, tryck <Enter> för inget)?"
 
-#: cmd.rc:348
+#: cmd.rc:382
 msgid "PATH not found\n"
 msgstr "Sökväg ej funnen\n"
 
-#: cmd.rc:349
+#: cmd.rc:383
 msgid "Press any key to continue... "
 msgstr "Tryck på en tangent för att fortsätta... "
 
-#: cmd.rc:350
+#: cmd.rc:384
 msgid "Wine Command Prompt"
 msgstr "Wine kommandoprompt"
 
-#: cmd.rc:351
+#: cmd.rc:385
 msgid "Microsoft Windows %1!S!\n"
-msgstr ""
+msgstr "Microsoft Windows %1!S!\n"
 
-#: cmd.rc:352
+#: cmd.rc:386
 msgid "More? "
 msgstr "Mer? "
 
-#: cmd.rc:353
+#: cmd.rc:387
 msgid "The input line is too long.\n"
 msgstr "Inmatningen är för lång.\n"
 
-#: cmd.rc:354
+#: cmd.rc:388
 msgid "Volume in drive %1!c! is %2\n"
 msgstr ""
 
-#: cmd.rc:355
+#: cmd.rc:389
 msgid "Volume in drive %1!c! has no label.\n"
 msgstr ""
 
-#: cmd.rc:356
+#: cmd.rc:390
 msgid " (Yes|No)"
 msgstr " (Ja|Nej)"
 
-#: cmd.rc:357
+#: cmd.rc:391
 msgid " (Yes|No|All)"
 msgstr " (Ja|Nej|Alla)"
 
-#: cmd.rc:358
+#: cmd.rc:392
 msgid ""
 "Can't recognize '%1' as an internal or external command, or batch script.\n"
 msgstr ""
 
-#: cmd.rc:359
+#: cmd.rc:393
 msgid "Division by zero error.\n"
 msgstr ""
 
-#: cmd.rc:360
+#: cmd.rc:394
 msgid "Expected an operand.\n"
 msgstr ""
 
-#: cmd.rc:361
+#: cmd.rc:395
 msgid "Expected an operator.\n"
 msgstr "Operator förväntades.\n"
 
-#: cmd.rc:362
+#: cmd.rc:396
 msgid "Mismatch in parentheses.\n"
 msgstr ""
 
-#: cmd.rc:363
+#: cmd.rc:397
 msgid ""
 "Badly formed number - must be one of decimal (12),\n"
 " hexadecimal (0x34) or octal (056).\n"
@@ -10331,10 +10266,8 @@ msgid "Wine Explorer"
 msgstr "Wine Explorer"
 
 #: explorer.rc:33
-#, fuzzy
-#| msgid "Start Menu"
 msgid "Start"
-msgstr "Start-meny"
+msgstr ""
 
 #: explorer.rc:34 winefile.rc:36
 msgid "&Run..."
@@ -11491,10 +11424,8 @@ msgid "Error: Invalid command line parameters\n"
 msgstr "Fel: Ogiltiga kommandoradsparametrar\n"
 
 #: reg.rc:37
-#, fuzzy
-#| msgid "Error: Unable to add keys to remote machine\n"
 msgid "Error: Unable to access remote machine\n"
-msgstr "Fel: Kan inte lägga till nycklar till fjärrmaskin\n"
+msgstr "Fel: Kan inte få tillgång till fjärrmaskin\n"
 
 #: reg.rc:38
 msgid ""
@@ -11503,10 +11434,8 @@ msgstr ""
 "Fel: Systemet kunde inte hitta angiven nyckel eller värde i registret\n"
 
 #: reg.rc:39
-#, fuzzy
-#| msgid "Unsupported type.\n"
 msgid "Error: Unsupported type\n"
-msgstr "Ej stödd typ.\n"
+msgstr "Error: Ej stödd typ\n"
 
 #: regedit.rc:34
 msgid "&Registry"
@@ -11883,13 +11812,11 @@ msgid ""
 msgstr ""
 
 #: regsvr32.rc:42
-#, fuzzy
-#| msgid "Failed to open '%1'\n"
 msgid "regsvr32: Failed to load DLL '%1'\n"
-msgstr "Misslyckades med att öppna '%1'\n"
+msgstr ""
 
 #: regsvr32.rc:43
-msgid "regsvr32: %1 not implemented in DLL '%2'\n"
+msgid "regsvr32: '%1!S!' not implemented in DLL '%2'\n"
 msgstr ""
 
 #: regsvr32.rc:44
@@ -11924,7 +11851,7 @@ msgstr ""
 msgid "regsvr32: Successfully uninstalled DLL '%1'\n"
 msgstr ""
 
-#: start.rc:55
+#: start.rc:58
 msgid ""
 "Application could not be started, or no application associated with the "
 "specified file.\n"
@@ -11934,7 +11861,7 @@ msgstr ""
 "angivna filen.\n"
 "'ShellExecuteEx' misslyckades"
 
-#: start.rc:57
+#: start.rc:60
 msgid "Could not translate the specified Unix filename to a DOS filename."
 msgstr "Kunde inte konvertera Unix-filnamnet till ett DOS-filnamn."
 
@@ -12803,6 +12730,43 @@ msgid ""
 "Do you want to remove the uninstall entry from the registry?"
 msgstr ""
 
+#: uninstaller.rc:31
+msgid "uninstaller: The application with GUID '%1' was not found\n"
+msgstr ""
+
+#: uninstaller.rc:32
+msgid ""
+"uninstaller: The option '--remove' must be followed by an application GUID\n"
+msgstr ""
+
+#: uninstaller.rc:33
+#, fuzzy
+#| msgid "Error: Invalid option '%c'.\n"
+msgid "uninstaller: Invalid option [%1]\n"
+msgstr "Fel: Flaggan '%c' är ogiltig.\n"
+
+#: uninstaller.rc:35
+msgid ""
+"Wine Application Uninstaller\n"
+"\n"
+"Uninstall applications from the current Wine prefix.\n"
+"\n"
+msgstr ""
+
+#: uninstaller.rc:43
+msgid ""
+"Usage:\n"
+"  uninstaller [options]\n"
+"\n"
+"Options:\n"
+"  --help\t    Display this information.\n"
+"  --list\t    List all applications installed in this Wine prefix.\n"
+"  --remove {GUID}   Uninstall the specified application.\n"
+"\t\t    Use '--list' to determine the application GUID.\n"
+"  [no option]       Launch the graphical version of this program.\n"
+"\n"
+msgstr ""
+
 #: view.rc:36
 msgid "&Pan"
 msgstr "&Panorera"
@@ -13069,14 +13033,12 @@ msgid "&Test Sound"
 msgstr "&Testa ljud"
 
 #: winecfg.rc:277 winecfg.rc:90
-#, fuzzy
-#| msgid "Wine configuration"
 msgid "Speaker configuration"
-msgstr "Konfiguration av Wine"
+msgstr "Högtalarkonfiguration"
 
 #: winecfg.rc:280
 msgid "Speakers:"
-msgstr ""
+msgstr "Högtalare:"
 
 #: winecfg.rc:288
 msgid "Appearance"
@@ -13184,21 +13146,19 @@ msgstr "(Systemstandard)"
 
 #: winecfg.rc:91
 msgid "5.1 Surround"
-msgstr ""
+msgstr "5.1 surround"
 
 #: winecfg.rc:92
-#, fuzzy
-#| msgid "graphic"
 msgid "Quadraphonic"
-msgstr "grafik"
+msgstr "4-kanalsstereo"
 
 #: winecfg.rc:93
 msgid "Stereo"
-msgstr ""
+msgstr "Stereo"
 
 #: winecfg.rc:94
 msgid "Mono"
-msgstr ""
+msgstr "Mono"
 
 #: winecfg.rc:54
 msgid ""
@@ -13454,98 +13414,98 @@ msgid "&Large"
 msgstr "&Stor"
 
 #: wineconsole.rc:68
-msgid "Control"
-msgstr "Control"
-
-#: wineconsole.rc:69
-msgid "Popup menu"
-msgstr ""
-
-#: wineconsole.rc:70
-msgid "&Control"
-msgstr ""
-
-#: wineconsole.rc:71
-msgid "S&hift"
-msgstr "S&hift"
-
-#: wineconsole.rc:72
-msgid "Quick edit"
-msgstr ""
-
-#: wineconsole.rc:73
-msgid "&enable"
-msgstr ""
-
-#: wineconsole.rc:75
 msgid "Command history"
 msgstr "Kommandohistorik"
 
-#: wineconsole.rc:76
-msgid "&Number of recalled commands:"
+#: wineconsole.rc:69
+msgid "&Buffer size:"
 msgstr ""
+
+#: wineconsole.rc:72
+msgid "&Remove duplicates"
+msgstr "&Ta bort upprepade"
+
+#: wineconsole.rc:74
+msgid "Popup menu"
+msgstr ""
+
+#: wineconsole.rc:75
+msgid "&Control"
+msgstr ""
+
+#: wineconsole.rc:76
+msgid "S&hift"
+msgstr "S&hift"
+
+#: wineconsole.rc:78
+msgid "Console"
+msgstr "Konsoll"
 
 #: wineconsole.rc:79
-msgid "&Remove doubles"
+msgid "&Quick Edit mode"
 msgstr ""
 
-#: wineconsole.rc:87
+#: wineconsole.rc:80
+msgid "&Insert mode"
+msgstr ""
+
+#: wineconsole.rc:88
 msgid "&Font"
 msgstr "&Typsnitt"
 
-#: wineconsole.rc:89
+#: wineconsole.rc:90
 msgid "&Color"
 msgstr "&Färg"
 
-#: wineconsole.rc:100
+#: wineconsole.rc:101
 msgid "Configuration"
 msgstr "Konfiguration"
 
-#: wineconsole.rc:103
+#: wineconsole.rc:104
 msgid "Buffer zone"
 msgstr ""
 
-#: wineconsole.rc:104
+#: wineconsole.rc:105
 msgid "&Width:"
 msgstr "&Bredd:"
 
-#: wineconsole.rc:107
+#: wineconsole.rc:108
 msgid "&Height:"
 msgstr "&Höjd:"
 
-#: wineconsole.rc:111
+#: wineconsole.rc:112
 msgid "Window size"
 msgstr "Fönsterstorlek"
 
-#: wineconsole.rc:112
+#: wineconsole.rc:113
 msgid "W&idth:"
 msgstr "B&redd:"
 
-#: wineconsole.rc:115
+#: wineconsole.rc:116
 msgid "H&eight:"
 msgstr "H&öjd:"
 
-#: wineconsole.rc:119
+#: wineconsole.rc:120
 msgid "End of program"
 msgstr ""
 
-#: wineconsole.rc:120
+#: wineconsole.rc:121
 msgid "&Close console"
 msgstr "&Stäng konsoll"
 
-#: wineconsole.rc:122
+#: wineconsole.rc:123
 msgid "Edition"
 msgstr "Edition"
 
-#: wineconsole.rc:128
+#: wineconsole.rc:129
 msgid "Console parameters"
 msgstr "Konsollparametrar"
 
-#: wineconsole.rc:131
+#: wineconsole.rc:132
 msgid "Retain these settings for later sessions"
 msgstr "Spara dessa inställningar för följande sessioner"
 
-#: wineconsole.rc:132
+#: wineconsole.rc:133
 msgid "Modify only current session"
 msgstr "Ändra enbart den aktuella sessionen"
 
@@ -14051,29 +14011,29 @@ msgstr "&Bokmärke"
 msgid "&Define..."
 msgstr "&Definiera..."
 
-#: winhlp32.rc:49 winhlp32.rc:70
+#: winhlp32.rc:48
+msgid "Always on &top"
+msgstr "Alltid &överst"
+
+#: winhlp32.rc:50 winhlp32.rc:70
 msgid "Fonts"
 msgstr "Typsnitt"
 
-#: winhlp32.rc:51 winhlp32.rc:72
+#: winhlp32.rc:52 winhlp32.rc:72
 msgid "Small"
 msgstr "Litet"
 
-#: winhlp32.rc:52 winhlp32.rc:73
+#: winhlp32.rc:53 winhlp32.rc:73
 msgid "Normal"
 msgstr "Normalt"
 
-#: winhlp32.rc:53 winhlp32.rc:74
+#: winhlp32.rc:54 winhlp32.rc:74
 msgid "Large"
 msgstr "Stort"
 
-#: winhlp32.rc:57
+#: winhlp32.rc:58
 msgid "&Help on help\tF1"
 msgstr "&Hjälp om hjälp\tF1"
-
-#: winhlp32.rc:58
-msgid "Always on &top"
-msgstr "Alltid &överst"
 
 #: winhlp32.rc:59
 msgid "&About Wine Help"

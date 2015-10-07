@@ -517,7 +517,7 @@ static void set_additional_environment(void)
     OBJECT_ATTRIBUTES attr;
     UNICODE_STRING nameW;
     WCHAR *profile_dir = NULL, *all_users_dir = NULL;
-    WCHAR buf[MAX_COMPUTERNAME_LENGTH];
+    WCHAR buf[MAX_COMPUTERNAME_LENGTH+1];
     HANDLE hkey;
     DWORD len;
 
@@ -3954,6 +3954,27 @@ BOOL WINAPI GetNumaAvailableMemoryNode(UCHAR node, PULONGLONG available_bytes)
 {
     FIXME("(%c %p): stub\n", node, available_bytes);
     SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
+    return FALSE;
+}
+
+/***********************************************************************
+ *           GetNumaProcessorNode (KERNEL32.@)
+ */
+BOOL WINAPI GetNumaProcessorNode(UCHAR processor, PUCHAR node)
+{
+    SYSTEM_INFO si;
+
+    TRACE("(%d, %p)\n", processor, node);
+
+    GetSystemInfo( &si );
+    if (processor < si.dwNumberOfProcessors)
+    {
+        *node = 0;
+        return TRUE;
+    }
+
+    *node = 0xFF;
+    SetLastError(ERROR_INVALID_PARAMETER);
     return FALSE;
 }
 

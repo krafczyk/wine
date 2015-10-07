@@ -29,8 +29,8 @@ WINE_DECLARE_DEBUG_CHANNEL(winediag);
 
 static HRESULT wined3d_texture_init(struct wined3d_texture *texture, const struct wined3d_texture_ops *texture_ops,
         UINT layer_count, UINT level_count, const struct wined3d_resource_desc *desc, DWORD surface_flags,
-        enum wined3d_gl_resource_type gl_type, struct wined3d_device *device, void *parent,
-        const struct wined3d_parent_ops *parent_ops, const struct wined3d_resource_ops *resource_ops)
+        struct wined3d_device *device, void *parent, const struct wined3d_parent_ops *parent_ops,
+        const struct wined3d_resource_ops *resource_ops)
 {
     const struct wined3d_format *format = wined3d_get_format(&device->adapter->gl_info, desc->format);
     HRESULT hr;
@@ -43,16 +43,7 @@ static HRESULT wined3d_texture_init(struct wined3d_texture *texture, const struc
             debug_d3dusage(desc->usage), debug_d3dpool(desc->pool), desc->width, desc->height, desc->depth,
             surface_flags, device, parent, parent_ops, resource_ops);
 
-    if ((format->flags[gl_type] & (WINED3DFMT_FLAG_BLOCKS | WINED3DFMT_FLAG_BLOCKS_NO_VERIFY))
-            == WINED3DFMT_FLAG_BLOCKS)
-    {
-        UINT width_mask = format->block_width - 1;
-        UINT height_mask = format->block_height - 1;
-        if (desc->width & width_mask || desc->height & height_mask)
-            return WINED3DERR_INVALIDCALL;
-    }
-
-    if (FAILED(hr = resource_init(&texture->resource, device, desc->resource_type, gl_type, format,
+    if (FAILED(hr = resource_init(&texture->resource, device, desc->resource_type, format,
             desc->multisample_type, desc->multisample_quality, desc->usage, desc->pool,
             desc->width, desc->height, desc->depth, 0, parent, parent_ops, resource_ops)))
     {
@@ -61,8 +52,8 @@ static HRESULT wined3d_texture_init(struct wined3d_texture *texture, const struc
         /* DXTn 3D textures are not supported. Do not write the ERR for them. */
         if ((desc->format == WINED3DFMT_DXT1 || desc->format == WINED3DFMT_DXT2 || desc->format == WINED3DFMT_DXT3
                 || desc->format == WINED3DFMT_DXT4 || desc->format == WINED3DFMT_DXT5)
-                && !(format->flags[gl_type] & WINED3DFMT_FLAG_TEXTURE) && gl_type != WINED3D_GL_RES_TYPE_TEX_3D
-                && !once++)
+                && !(format->flags[WINED3D_GL_RES_TYPE_TEX_2D] & WINED3DFMT_FLAG_TEXTURE)
+                && desc->resource_type != WINED3D_RTYPE_VOLUME_TEXTURE && !once++)
             ERR_(winediag)("The application tried to create a DXTn texture, but the driver does not support them.\n");
 
         WARN("Failed to initialize resource, returning %#x\n", hr);
@@ -282,6 +273,9 @@ void wined3d_texture_bind_and_dirtify(struct wined3d_texture *texture,
     active_sampler = context->rev_tex_unit_map[context->active_texture];
     if (active_sampler != WINED3D_UNMAPPED_STAGE)
         context_invalidate_state(context, STATE_SAMPLER(active_sampler));
+    /* FIXME: Ideally we'd only do this when touching a binding that's used by
+     * a shader. */
+    context_invalidate_state(context, STATE_SHADER_RESOURCE_BINDING);
 
     wined3d_texture_bind(texture, context, srgb);
 }
@@ -449,7 +443,7 @@ void wined3d_texture_load(struct wined3d_texture *texture,
     DWORD flag;
     UINT i;
 
-    TRACE("texture %p, srgb %#x.\n", texture, srgb);
+    TRACE("texture %p, context %p, srgb %#x.\n", texture, context, srgb);
 
     if (gl_info->supported[EXT_TEXTURE_SRGB_DECODE])
         srgb = FALSE;
@@ -576,20 +570,14 @@ HRESULT CDECL wined3d_texture_set_color_key(struct wined3d_texture *texture,
         DWORD flags, const struct wined3d_color_key *color_key)
 {
     struct wined3d_device *device = texture->resource.device;
-    static const DWORD all_flags = WINED3D_CKEY_COLORSPACE | WINED3D_CKEY_DST_BLT
-            | WINED3D_CKEY_DST_OVERLAY | WINED3D_CKEY_SRC_BLT | WINED3D_CKEY_SRC_OVERLAY;
+    static const DWORD all_flags = WINED3D_CKEY_DST_BLT | WINED3D_CKEY_DST_OVERLAY
+            | WINED3D_CKEY_SRC_BLT | WINED3D_CKEY_SRC_OVERLAY;
 
     TRACE("texture %p, flags %#x, color_key %p.\n", texture, flags, color_key);
 
     if (flags & ~all_flags)
     {
         WARN("Invalid flags passed, returning WINED3DERR_INVALIDCALL.\n");
-        return WINED3DERR_INVALIDCALL;
-    }
-
-    if (flags & WINED3D_CKEY_COLORSPACE)
-    {
-        FIXME("Unhandled flags %#x.\n", flags);
         return WINED3DERR_INVALIDCALL;
     }
 
@@ -736,11 +724,21 @@ HRESULT CDECL wined3d_texture_add_dirty_region(struct wined3d_texture *texture,
     return WINED3D_OK;
 }
 
-static void wined3d_texture_upload_data(struct wined3d_texture *texture, const struct wined3d_sub_resource_data *data)
+static HRESULT wined3d_texture_upload_data(struct wined3d_texture *texture,
+        const struct wined3d_sub_resource_data *data)
 {
     unsigned int sub_count = texture->level_count * texture->layer_count;
     struct wined3d_context *context;
     unsigned int i;
+
+    for (i = 0; i < sub_count; ++i)
+    {
+        if (!data[i].data)
+        {
+            WARN("Invalid sub-resource data specified for sub-resource %u.\n", i);
+            return E_INVALIDARG;
+        }
+    }
 
     context = context_acquire(texture->resource.device, NULL);
 
@@ -757,6 +755,8 @@ static void wined3d_texture_upload_data(struct wined3d_texture *texture, const s
     }
 
     context_release(context);
+
+    return WINED3D_OK;
 }
 
 static void texture2d_sub_resource_load(struct wined3d_resource *sub_resource,
@@ -826,7 +826,7 @@ static void texture2d_prepare_texture(struct wined3d_texture *texture, struct wi
     GLenum internal;
     UINT i;
 
-    TRACE("texture %p, format %s.\n", texture, debug_d3dformat(format->id));
+    TRACE("texture %p, context %p, format %s.\n", texture, context, debug_d3dformat(format->id));
 
     if (format->convert)
     {
@@ -915,6 +915,17 @@ static void texture2d_prepare_texture(struct wined3d_texture *texture, struct wi
     }
 }
 
+static HRESULT texture2d_sub_resource_map(struct wined3d_resource *sub_resource,
+        struct wined3d_map_desc *map_desc, const struct wined3d_box *box, DWORD flags)
+{
+    return wined3d_surface_map(surface_from_resource(sub_resource), map_desc, box, flags);
+}
+
+static HRESULT texture2d_sub_resource_unmap(struct wined3d_resource *sub_resource)
+{
+    return wined3d_surface_unmap(surface_from_resource(sub_resource));
+}
+
 static const struct wined3d_texture_ops texture2d_ops =
 {
     texture2d_sub_resource_load,
@@ -923,6 +934,8 @@ static const struct wined3d_texture_ops texture2d_ops =
     texture2d_sub_resource_invalidate_location,
     texture2d_sub_resource_validate_location,
     texture2d_sub_resource_upload_data,
+    texture2d_sub_resource_map,
+    texture2d_sub_resource_unmap,
     texture2d_prepare_texture,
 };
 
@@ -1017,7 +1030,7 @@ static HRESULT cubetexture_init(struct wined3d_texture *texture, const struct wi
     }
 
     if (FAILED(hr = wined3d_texture_init(texture, &texture2d_ops, 6, levels, desc,
-            surface_flags, WINED3D_GL_RES_TYPE_TEX_CUBE, device, parent, parent_ops, &texture_resource_ops)))
+            surface_flags, device, parent, parent_ops, &texture_resource_ops)))
     {
         WARN("Failed to initialize texture, returning %#x\n", hr);
         return hr;
@@ -1076,9 +1089,6 @@ static HRESULT texture_init(struct wined3d_texture *texture, const struct wined3
     UINT pow2_width, pow2_height;
     unsigned int i;
     HRESULT hr;
-    enum wined3d_gl_resource_type gl_type;
-    unsigned int required_flags = 0, ds_flags = WINED3DFMT_FLAG_DEPTH | WINED3DFMT_FLAG_STENCIL;
-    const struct wined3d_format *format;
 
     /* TODO: It should only be possible to create textures for formats
      * that are reported as supported. */
@@ -1087,7 +1097,6 @@ static HRESULT texture_init(struct wined3d_texture *texture, const struct wined3
         WARN("(%p) : Texture cannot be created with a format of WINED3DFMT_UNKNOWN.\n", texture);
         return WINED3DERR_INVALIDCALL;
     }
-    format = wined3d_get_format(gl_info, desc->format);
 
     /* Non-power2 support. */
     if (gl_info->supported[ARB_TEXTURE_NON_POWER_OF_TWO])
@@ -1138,32 +1147,15 @@ static HRESULT texture_init(struct wined3d_texture *texture, const struct wined3
         }
     }
 
-    if (desc->usage & WINED3DUSAGE_TEXTURE)
-        required_flags |= WINED3DFMT_FLAG_TEXTURE;
-    if (desc->usage & WINED3DUSAGE_RENDERTARGET)
-        required_flags |= WINED3DFMT_FLAG_RENDERTARGET;
-    /* WINED3DUSAGE_DEPTHSTENCIL needs WINED3DFMT_FLAG_DEPTH or WINED3DFMT_FLAG_STENCIL, not both. */
-
-    if ((format->flags[WINED3D_GL_RES_TYPE_TEX_2D] & required_flags) == required_flags
-            && (!(desc->usage & WINED3DUSAGE_DEPTHSTENCIL) || (format->flags[WINED3D_GL_RES_TYPE_TEX_2D] & ds_flags))
-            && (gl_info->supported[WINED3D_GL_NORMALIZED_TEXRECT]
-            || (desc->width == pow2_width && desc->height == pow2_height)))
-        gl_type = WINED3D_GL_RES_TYPE_TEX_2D;
-    else if ((format->flags[WINED3D_GL_RES_TYPE_TEX_RECT] & required_flags) == required_flags
-            && (!(desc->usage & WINED3DUSAGE_DEPTHSTENCIL) || (format->flags[WINED3D_GL_RES_TYPE_TEX_RECT] & ds_flags)))
-        gl_type = WINED3D_GL_RES_TYPE_TEX_RECT;
-    else
-        gl_type = WINED3D_GL_RES_TYPE_TEX_2D; /* No error, may be SCRATCH pool or emulated conditional np2. */
-
     if (FAILED(hr = wined3d_texture_init(texture, &texture2d_ops, 1, levels, desc,
-            surface_flags, WINED3D_GL_RES_TYPE_TEX_2D, device, parent, parent_ops, &texture_resource_ops)))
+            surface_flags, device, parent, parent_ops, &texture_resource_ops)))
     {
         WARN("Failed to initialize texture, returning %#x.\n", hr);
         return hr;
     }
 
     /* Precalculated scaling for 'faked' non power of two texture coords. */
-    if (gl_type == WINED3D_GL_RES_TYPE_TEX_RECT)
+    if (texture->resource.gl_type == WINED3D_GL_RES_TYPE_TEX_RECT)
     {
         texture->pow2_matrix[0] = (float)desc->width;
         texture->pow2_matrix[5] = (float)desc->height;
@@ -1311,6 +1303,17 @@ static void texture3d_prepare_texture(struct wined3d_texture *texture, struct wi
     }
 }
 
+static HRESULT texture3d_sub_resource_map(struct wined3d_resource *sub_resource,
+        struct wined3d_map_desc *map_desc, const struct wined3d_box *box, DWORD flags)
+{
+    return wined3d_volume_map(volume_from_resource(sub_resource), map_desc, box, flags);
+}
+
+static HRESULT texture3d_sub_resource_unmap(struct wined3d_resource *sub_resource)
+{
+     return wined3d_volume_unmap(volume_from_resource(sub_resource));
+}
+
 static const struct wined3d_texture_ops texture3d_ops =
 {
     texture3d_sub_resource_load,
@@ -1319,6 +1322,8 @@ static const struct wined3d_texture_ops texture3d_ops =
     texture3d_sub_resource_invalidate_location,
     texture3d_sub_resource_validate_location,
     texture3d_sub_resource_upload_data,
+    texture3d_sub_resource_map,
+    texture3d_sub_resource_unmap,
     texture3d_prepare_texture,
 };
 
@@ -1389,7 +1394,7 @@ static HRESULT volumetexture_init(struct wined3d_texture *texture, const struct 
     }
 
     if (FAILED(hr = wined3d_texture_init(texture, &texture3d_ops, 1, levels, desc,
-            0, WINED3D_GL_RES_TYPE_TEX_3D, device, parent, parent_ops, &texture_resource_ops)))
+            0, device, parent, parent_ops, &texture_resource_ops)))
     {
         WARN("Failed to initialize texture, returning %#x.\n", hr);
         return hr;
@@ -1474,11 +1479,36 @@ HRESULT CDECL wined3d_texture_create(struct wined3d_device *device, const struct
 
     /* FIXME: We'd like to avoid ever allocating system memory for the texture
      * in this case. */
-    if (data)
-        wined3d_texture_upload_data(object, data);
+    if (data && FAILED(hr = wined3d_texture_upload_data(object, data)))
+    {
+        wined3d_texture_cleanup(object);
+        HeapFree(GetProcessHeap(), 0, object);
+        return hr;
+    }
 
     TRACE("Created texture %p.\n", object);
     *texture = object;
 
     return WINED3D_OK;
+}
+
+HRESULT CDECL wined3d_texture_map(struct wined3d_texture *texture, unsigned int sub_resource_idx,
+        struct wined3d_map_desc *map_desc, const struct wined3d_box *box, DWORD flags)
+{
+    struct wined3d_resource *sub_resource = wined3d_texture_get_sub_resource(texture, sub_resource_idx);
+
+    if (!sub_resource)
+        return WINED3DERR_INVALIDCALL;
+
+    return texture->texture_ops->texture_sub_resource_map(sub_resource, map_desc, box, flags);
+}
+
+HRESULT CDECL wined3d_texture_unmap(struct wined3d_texture *texture, unsigned int sub_resource_idx)
+{
+    struct wined3d_resource *sub_resource = wined3d_texture_get_sub_resource(texture, sub_resource_idx);
+
+    if (!sub_resource)
+        return WINED3DERR_INVALIDCALL;
+
+    return texture->texture_ops->texture_sub_resource_unmap(sub_resource);
 }

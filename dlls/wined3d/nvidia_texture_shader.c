@@ -41,9 +41,11 @@ static void nvts_activate_dimensions(const struct wined3d_state *state, DWORD st
             || state->texture_states[stage - 1][WINED3D_TSS_COLOR_OP] == WINED3D_TOP_BUMPENVMAP))
     {
         bumpmap = TRUE;
-        context->texShaderBumpMap |= (1 << stage);
-    } else {
-        context->texShaderBumpMap &= ~(1 << stage);
+        context->texShaderBumpMap |= (1u << stage);
+    }
+    else
+    {
+        context->texShaderBumpMap &= ~(1u << stage);
     }
 
     if (state->textures[stage])
@@ -477,7 +479,7 @@ void set_tex_op_nvrc(const struct wined3d_gl_info *gl_info, const struct wined3d
 static void nvrc_colorop(struct wined3d_context *context, const struct wined3d_state *state, DWORD state_id)
 {
     DWORD stage = (state_id - STATE_TEXTURESTAGE(0, 0)) / (WINED3D_HIGHEST_TEXTURE_STATE + 1);
-    BOOL tex_used = context->fixed_function_usage_map & (1 << stage);
+    BOOL tex_used = context->fixed_function_usage_map & (1u << stage);
     DWORD mapped_stage = context->tex_unit_map[stage];
     const struct wined3d_gl_info *gl_info = context->gl_info;
 
@@ -570,7 +572,7 @@ static void nvrc_colorop(struct wined3d_context *context, const struct wined3d_s
     {
         BOOL usesBump = (state->texture_states[stage][WINED3D_TSS_COLOR_OP] == WINED3D_TOP_BUMPENVMAP_LUMINANCE
                 || state->texture_states[stage][WINED3D_TSS_COLOR_OP] == WINED3D_TOP_BUMPENVMAP);
-        BOOL usedBump = !!(context->texShaderBumpMap & 1 << (stage + 1));
+        BOOL usedBump = !!(context->texShaderBumpMap & 1u << (stage + 1));
         if (usesBump != usedBump)
         {
             context_active_texture(context, gl_info, mapped_stage + 1);
@@ -736,6 +738,11 @@ static void nvrc_fragment_get_caps(const struct wined3d_gl_info *gl_info, struct
 
     caps->MaxTextureBlendStages = min(MAX_TEXTURES, gl_info->limits.general_combiners);
     caps->MaxSimultaneousTextures = gl_info->limits.textures;
+}
+
+static DWORD nvrc_fragment_get_emul_mask(const struct wined3d_gl_info *gl_info)
+{
+    return GL_EXT_EMUL_ARB_MULTITEXTURE | GL_EXT_EMUL_EXT_FOG_COORD;
 }
 
 static void *nvrc_fragment_alloc(const struct wined3d_shader_backend_ops *shader_backend, void *shader_priv)
@@ -924,6 +931,7 @@ static void nvrc_context_free(struct wined3d_context *context)
 const struct fragment_pipeline nvts_fragment_pipeline = {
     nvts_enable,
     nvrc_fragment_get_caps,
+    nvrc_fragment_get_emul_mask,
     nvrc_fragment_alloc,
     nvrc_fragment_free,
     nvrc_context_alloc,
@@ -935,6 +943,7 @@ const struct fragment_pipeline nvts_fragment_pipeline = {
 const struct fragment_pipeline nvrc_fragment_pipeline = {
     nvrc_enable,
     nvrc_fragment_get_caps,
+    nvrc_fragment_get_emul_mask,
     nvrc_fragment_alloc,
     nvrc_fragment_free,
     nvrc_context_alloc,

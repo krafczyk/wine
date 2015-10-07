@@ -9,6 +9,7 @@ C_SRCS = \
 	editor.c \
 	hlink.c \
 	htmlanchor.c \
+	htmlarea.c \
 	htmlattr.c \
 	htmlbody.c \
 	htmlcomment.c \
@@ -73,7 +74,8 @@ C_SRCS = \
 	service.c \
 	task.c \
 	txtrange.c \
-	view.c
+	view.c \
+	xmlhttprequest.c
 
 RC_SRCS = mshtml.rc
 

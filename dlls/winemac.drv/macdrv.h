@@ -175,6 +175,7 @@ extern void macdrv_window_resize_ended(HWND hwnd) DECLSPEC_HIDDEN;
 extern void macdrv_window_restore_requested(HWND hwnd, const macdrv_event *event) DECLSPEC_HIDDEN;
 extern void macdrv_window_drag_begin(HWND hwnd) DECLSPEC_HIDDEN;
 extern void macdrv_window_drag_end(HWND hwnd) DECLSPEC_HIDDEN;
+extern void macdrv_reassert_window_position(HWND hwnd) DECLSPEC_HIDDEN;
 extern BOOL query_resize_size(HWND hwnd, macdrv_query *query) DECLSPEC_HIDDEN;
 extern BOOL query_resize_start(HWND hwnd) DECLSPEC_HIDDEN;
 extern BOOL query_min_max_info(HWND hwnd) DECLSPEC_HIDDEN;
@@ -197,7 +198,7 @@ extern void macdrv_clipboard_process_attach(void) DECLSPEC_HIDDEN;
 extern BOOL query_pasteboard_data(HWND hwnd, CFStringRef type) DECLSPEC_HIDDEN;
 extern const char *debugstr_format(UINT id) DECLSPEC_HIDDEN;
 extern HANDLE macdrv_get_pasteboard_data(CFTypeRef pasteboard, UINT desired_format) DECLSPEC_HIDDEN;
-extern BOOL CDECL macdrv_pasteboard_has_format(CFTypeRef pasteboard, UINT desired_format) DECLSPEC_HIDDEN;
+extern BOOL macdrv_pasteboard_has_format(CFTypeRef pasteboard, UINT desired_format) DECLSPEC_HIDDEN;
 extern CFArrayRef macdrv_copy_pasteboard_formats(CFTypeRef pasteboard) DECLSPEC_HIDDEN;
 
 extern BOOL query_drag_operation(macdrv_query* query) DECLSPEC_HIDDEN;

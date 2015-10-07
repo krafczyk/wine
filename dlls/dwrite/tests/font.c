@@ -19,9 +19,13 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
+#include <math.h>
+#include <limits.h>
+
 #define COBJMACROS
 
 #include "windows.h"
+#include "winternl.h"
 #include "dwrite_2.h"
 #include "initguid.h"
 #include "d2d1.h"
@@ -33,9 +37,41 @@
                     ((DWORD)(BYTE)(ch2) << 16) | ((DWORD)(BYTE)(ch3) << 24))
 
 #define MS_CMAP_TAG MS_MAKE_TAG('c','m','a','p')
+#define MS_VDMX_TAG MS_MAKE_TAG('V','D','M','X')
+#define MS_GASP_TAG MS_MAKE_TAG('g','a','s','p')
+#define MS_CPAL_TAG MS_MAKE_TAG('C','P','A','L')
 
 #define EXPECT_HR(hr,hr_exp) \
     ok(hr == hr_exp, "got 0x%08x, expected 0x%08x\n", hr, hr_exp)
+
+#define DEFINE_EXPECT(func) \
+    static BOOL expect_ ## func = FALSE, called_ ## func = FALSE
+
+#define SET_EXPECT(func) \
+    do { called_ ## func = FALSE; expect_ ## func = TRUE; } while(0)
+
+#define CHECK_EXPECT2(func) \
+    do { \
+        ok(expect_ ##func, "unexpected call " #func "\n"); \
+        called_ ## func = TRUE; \
+    }while(0)
+
+#define CHECK_EXPECT(func) \
+    do { \
+        CHECK_EXPECT2(func); \
+        expect_ ## func = FALSE; \
+    }while(0)
+
+#define CHECK_CALLED(func) \
+    do { \
+        ok(called_ ## func, "expected " #func "\n"); \
+        expect_ ## func = called_ ## func = FALSE; \
+    }while(0)
+
+#define CLEAR_CALLED(func) \
+    expect_ ## func = called_ ## func = FALSE
+
+DEFINE_EXPECT(setfillmode);
 
 #define EXPECT_REF(obj,ref) _expect_ref((IUnknown*)obj, ref, __LINE__)
 static void _expect_ref(IUnknown* obj, ULONG ref, int line)
@@ -58,9 +94,11 @@ static inline BOOL heap_free(void *mem)
 
 static const WCHAR test_fontfile[] = {'w','i','n','e','_','t','e','s','t','_','f','o','n','t','.','t','t','f',0};
 static const WCHAR tahomaW[] = {'T','a','h','o','m','a',0};
+static const WCHAR arialW[] = {'A','r','i','a','l',0};
 static const WCHAR tahomaUppercaseW[] = {'T','A','H','O','M','A',0};
 static const WCHAR tahomaStrangecaseW[] = {'t','A','h','O','m','A',0};
 static const WCHAR blahW[]  = {'B','l','a','h','!',0};
+static const WCHAR emojiW[] = {'S','e','g','o','e',' ','U','I',' ','E','m','o','j','i',0};
 
 static IDWriteFactory *create_factory(void)
 {
@@ -457,6 +495,7 @@ static ULONG WINAPI test_geometrysink_Release(ID2D1SimplifiedGeometrySink *iface
 
 static void WINAPI test_geometrysink_SetFillMode(ID2D1SimplifiedGeometrySink *iface, D2D1_FILL_MODE mode)
 {
+    CHECK_EXPECT(setfillmode);
     ok(mode == D2D1_FILL_MODE_WINDING, "fill mode %d\n", mode);
 }
 
@@ -469,7 +508,9 @@ static void WINAPI test_geometrysink_BeginFigure(ID2D1SimplifiedGeometrySink *if
     D2D1_POINT_2F startPoint, D2D1_FIGURE_BEGIN figureBegin)
 {
     ok(figureBegin == D2D1_FIGURE_BEGIN_FILLED, "begin figure %d\n", figureBegin);
-    g_startpoints[g_startpoint_count++] = startPoint;
+    if (g_startpoint_count < sizeof(g_startpoints)/sizeof(g_startpoints[0]))
+        g_startpoints[g_startpoint_count] = startPoint;
+    g_startpoint_count++;
 }
 
 static void WINAPI test_geometrysink_AddLines(ID2D1SimplifiedGeometrySink *iface,
@@ -506,7 +547,44 @@ static const ID2D1SimplifiedGeometrySinkVtbl test_geometrysink_vtbl = {
     test_geometrysink_Close
 };
 
+static void WINAPI test_geometrysink2_BeginFigure(ID2D1SimplifiedGeometrySink *iface,
+    D2D1_POINT_2F startPoint, D2D1_FIGURE_BEGIN figureBegin)
+{
+    ok(0, "unexpected call\n");
+}
+
+static void WINAPI test_geometrysink2_AddLines(ID2D1SimplifiedGeometrySink *iface,
+    const D2D1_POINT_2F *points, UINT32 count)
+{
+    ok(0, "unexpected call\n");
+}
+
+static void WINAPI test_geometrysink2_AddBeziers(ID2D1SimplifiedGeometrySink *iface,
+    const D2D1_BEZIER_SEGMENT *beziers, UINT32 count)
+{
+    ok(0, "unexpected call\n");
+}
+
+static void WINAPI test_geometrysink2_EndFigure(ID2D1SimplifiedGeometrySink *iface, D2D1_FIGURE_END figureEnd)
+{
+    ok(0, "unexpected call\n");
+}
+
+static const ID2D1SimplifiedGeometrySinkVtbl test_geometrysink2_vtbl = {
+    test_geometrysink_QueryInterface,
+    test_geometrysink_AddRef,
+    test_geometrysink_Release,
+    test_geometrysink_SetFillMode,
+    test_geometrysink_SetSegmentFlags,
+    test_geometrysink2_BeginFigure,
+    test_geometrysink2_AddLines,
+    test_geometrysink2_AddBeziers,
+    test_geometrysink2_EndFigure,
+    test_geometrysink_Close
+};
+
 static ID2D1SimplifiedGeometrySink test_geomsink = { &test_geometrysink_vtbl };
+static ID2D1SimplifiedGeometrySink test_geomsink2 = { &test_geometrysink2_vtbl };
 
 static void test_CreateFontFromLOGFONT(void)
 {
@@ -628,7 +706,7 @@ todo_wine
     ok(hr == S_OK, "got 0x%08x\n", hr);
 
     weight = IDWriteFont_GetWeight(font);
-    ok(weight == DWRITE_FONT_WEIGHT_NORMAL || broken(weight == DWRITE_FONT_WEIGHT_BOLD) /* win7 w/o SP */,
+    ok(weight == DWRITE_FONT_WEIGHT_NORMAL || weight == DWRITE_FONT_WEIGHT_BOLD,
         "got %d\n", weight);
     IDWriteFont_Release(font);
 
@@ -680,6 +758,7 @@ static void test_CreateBitmapRenderTarget(void)
     HBITMAP hbm, hbm2;
     DWRITE_MATRIX m;
     DIBSECTION ds;
+    XFORM xform;
     COLORREF c;
     HRESULT hr;
     FLOAT pdip;
@@ -713,6 +792,10 @@ if (0) /* crashes on native */
 
     hdc = IDWriteBitmapRenderTarget_GetMemoryDC(target);
     ok(hdc != NULL, "got %p\n", hdc);
+
+    /* test mode */
+    ret = GetGraphicsMode(hdc);
+    ok(ret == GM_ADVANCED, "got %d\n", ret);
 
     hbm = GetCurrentObject(hdc, OBJ_BITMAP);
     ok(hbm != NULL, "got %p\n", hbm);
@@ -775,17 +858,35 @@ if (0) /* crashes on native */
     hr = IDWriteBitmapRenderTarget_Resize(target, 5, 5);
     ok(hr == S_OK, "got 0x%08x\n", hr);
 
+    size.cx = size.cy = -1;
+    hr = IDWriteBitmapRenderTarget_GetSize(target, &size);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    ok(size.cx == 5, "got %d\n", size.cx);
+    ok(size.cy == 5, "got %d\n", size.cy);
+
     hbm2 = GetCurrentObject(hdc, OBJ_BITMAP);
     ok(hbm2 != hbm, "got %p, %p\n", hbm2, hbm);
 
     hr = IDWriteBitmapRenderTarget_Resize(target, 20, 5);
     ok(hr == S_OK, "got 0x%08x\n", hr);
 
+    size.cx = size.cy = -1;
+    hr = IDWriteBitmapRenderTarget_GetSize(target, &size);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    ok(size.cx == 20, "got %d\n", size.cx);
+    ok(size.cy == 5, "got %d\n", size.cy);
+
     hbm2 = GetCurrentObject(hdc, OBJ_BITMAP);
     ok(hbm2 != hbm, "got %p, %p\n", hbm2, hbm);
 
     hr = IDWriteBitmapRenderTarget_Resize(target, 1, 5);
     ok(hr == S_OK, "got 0x%08x\n", hr);
+
+    size.cx = size.cy = -1;
+    hr = IDWriteBitmapRenderTarget_GetSize(target, &size);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    ok(size.cx == 1, "got %d\n", size.cx);
+    ok(size.cy == 5, "got %d\n", size.cy);
 
     hbm2 = GetCurrentObject(hdc, OBJ_BITMAP);
     ok(hbm2 != hbm, "got %p, %p\n", hbm2, hbm);
@@ -802,6 +903,12 @@ if (0) /* crashes on native */
     hr = IDWriteBitmapRenderTarget_Resize(target, 0, 5);
     ok(hr == S_OK, "got 0x%08x\n", hr);
 
+    size.cx = size.cy = -1;
+    hr = IDWriteBitmapRenderTarget_GetSize(target, &size);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    ok(size.cx == 0, "got %d\n", size.cx);
+    ok(size.cy == 5, "got %d\n", size.cy);
+
     hbm2 = GetCurrentObject(hdc, OBJ_BITMAP);
     ok(hbm2 != hbm, "got %p, %p\n", hbm2, hbm);
 
@@ -813,7 +920,7 @@ if (0) /* crashes on native */
     ok(ds.dsBm.bmBitsPixel == 1, "got %d\n", ds.dsBm.bmBitsPixel);
     ok(!ds.dsBm.bmBits, "got %p\n", ds.dsBm.bmBits);
 
-    /* transform tests */
+    /* transform tests, current hdc transform is not immediately affected */
 if (0) /* crashes on native */
     hr = IDWriteBitmapRenderTarget_GetCurrentTransform(target, NULL);
 
@@ -822,6 +929,10 @@ if (0) /* crashes on native */
     ok(hr == S_OK, "got 0x%08x\n", hr);
     ok(m.m11 == 1.0 && m.m22 == 1.0 && m.m12 == 0.0 && m.m21 == 0.0, "got %.1f,%.1f,%.1f,%.1f\n", m.m11, m.m22, m.m12, m.m21);
     ok(m.dx == 0.0 && m.dy == 0.0, "got %.1f,%.1f\n", m.dx, m.dy);
+    ret = GetWorldTransform(hdc, &xform);
+    ok(ret, "got %d\n", ret);
+    ok(xform.eM11 == 1.0 && xform.eM22 == 1.0 && xform.eM12 == 0.0 && xform.eM21 == 0.0, "got wrong transform\n");
+    ok(xform.eDx == 0.0 && xform.eDy == 0.0, "got %.1f,%.1f\n", xform.eDx, xform.eDy);
 
     memset(&m, 0, sizeof(m));
     hr = IDWriteBitmapRenderTarget_SetCurrentTransform(target, &m);
@@ -832,6 +943,19 @@ if (0) /* crashes on native */
     ok(hr == S_OK, "got 0x%08x\n", hr);
     ok(m.m11 == 0.0 && m.m22 == 0.0 && m.m12 == 0.0 && m.m21 == 0.0, "got %.1f,%.1f,%.1f,%.1f\n", m.m11, m.m22, m.m12, m.m21);
     ok(m.dx == 0.0 && m.dy == 0.0, "got %.1f,%.1f\n", m.dx, m.dy);
+    ret = GetWorldTransform(hdc, &xform);
+    ok(ret, "got %d\n", ret);
+    ok(xform.eM11 == 1.0 && xform.eM22 == 1.0 && xform.eM12 == 0.0 && xform.eM21 == 0.0, "got wrong transform\n");
+    ok(xform.eDx == 0.0 && xform.eDy == 0.0, "got %.1f,%.1f\n", xform.eDx, xform.eDy);
+
+    memset(&m, 0, sizeof(m));
+    m.m11 = 2.0; m.m22 = 1.0;
+    hr = IDWriteBitmapRenderTarget_SetCurrentTransform(target, &m);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    ret = GetWorldTransform(hdc, &xform);
+    ok(ret, "got %d\n", ret);
+    ok(xform.eM11 == 1.0 && xform.eM22 == 1.0 && xform.eM12 == 0.0 && xform.eM21 == 0.0, "got wrong transform\n");
+    ok(xform.eDx == 0.0 && xform.eDy == 0.0, "got %.1f,%.1f\n", xform.eDx, xform.eDy);
 
     hr = IDWriteBitmapRenderTarget_SetCurrentTransform(target, NULL);
     ok(hr == S_OK, "got 0x%08x\n", hr);
@@ -1184,12 +1308,11 @@ if (0) /* crashes on native */
 
     /* try mismatching face type, the one that's not supported */
     hr = IDWriteFactory_CreateFontFace(factory, DWRITE_FONT_FACE_TYPE_CFF, 1, &file, 0, DWRITE_FONT_SIMULATIONS_NONE, &fontface);
-todo_wine
     ok(hr == DWRITE_E_FILEFORMAT, "got 0x%08x\n", hr);
 
     hr = IDWriteFactory_CreateFontFace(factory, DWRITE_FONT_FACE_TYPE_TRUETYPE_COLLECTION, 1, &file, 0,
         DWRITE_FONT_SIMULATIONS_NONE, &fontface);
-    ok(hr == E_FAIL, "got 0x%08x\n", hr);
+    ok(hr == DWRITE_E_FILEFORMAT || broken(hr == E_FAIL) /* < win10 */, "got 0x%08x\n", hr);
 
     hr = IDWriteFactory_CreateFontFace(factory, DWRITE_FONT_FACE_TYPE_RAW_CFF, 1, &file, 0, DWRITE_FONT_SIMULATIONS_NONE, &fontface);
 todo_wine
@@ -1205,7 +1328,14 @@ todo_wine
     ok(hr == E_INVALIDARG, "got 0x%08x\n", hr);
 
     hr = IDWriteFactory_CreateFontFace(factory, DWRITE_FONT_FACE_TYPE_UNKNOWN, 1, &file, 0, DWRITE_FONT_SIMULATIONS_NONE, &fontface);
-    ok(hr == E_INVALIDARG, "got 0x%08x\n", hr);
+todo_wine
+    ok(hr == S_OK || broken(hr == E_INVALIDARG) /* < win10 */, "got 0x%08x\n", hr);
+    if (hr == S_OK) {
+        ok(fontface != NULL, "got %p\n", fontface);
+        face_type = IDWriteFontFace_GetType(fontface);
+        ok(face_type == DWRITE_FONT_FACE_TYPE_TRUETYPE, "got %d\n", face_type);
+        IDWriteFontFace_Release(fontface);
+    }
 
     IDWriteFontFile_Release(file);
     IDWriteFactory_Release(factory);
@@ -1831,8 +1961,10 @@ static void test_CreateCustomFontFileReference(void)
     factory = create_factory();
     factory2 = create_factory();
 
+if (0) { /* crashes on win10 */
     hr = IDWriteFactory_RegisterFontFileLoader(factory, NULL);
     ok(hr == E_INVALIDARG, "got 0x%08x\n", hr);
+}
     hr = IDWriteFactory_RegisterFontFileLoader(factory, &floader);
     ok(hr == S_OK, "got 0x%08x\n", hr);
     hr = IDWriteFactory_RegisterFontFileLoader(factory, &floader2);
@@ -2186,11 +2318,11 @@ static void test_GetFontFromFontFace(void)
     DELETE_FONTFILE(path);
 }
 
-static IDWriteFont *get_tahoma_instance(IDWriteFactory *factory, DWRITE_FONT_STYLE style)
+static IDWriteFont *get_font(IDWriteFactory *factory, const WCHAR *name, DWRITE_FONT_STYLE style)
 {
     IDWriteFontCollection *collection;
     IDWriteFontFamily *family;
-    IDWriteFont *font;
+    IDWriteFont *font = NULL;
     UINT32 index;
     BOOL exists;
     HRESULT hr;
@@ -2200,9 +2332,9 @@ static IDWriteFont *get_tahoma_instance(IDWriteFactory *factory, DWRITE_FONT_STY
 
     index = ~0;
     exists = FALSE;
-    hr = IDWriteFontCollection_FindFamilyName(collection, tahomaW, &index, &exists);
+    hr = IDWriteFontCollection_FindFamilyName(collection, name, &index, &exists);
     ok(hr == S_OK, "got 0x%08x\n", hr);
-    ok(exists, "got %d\n", exists);
+    if (!exists) goto not_found;
 
     hr = IDWriteFontCollection_GetFontFamily(collection, index, &family);
     ok(hr == S_OK, "got 0x%08x\n", hr);
@@ -2212,7 +2344,15 @@ static IDWriteFont *get_tahoma_instance(IDWriteFactory *factory, DWRITE_FONT_STY
     ok(hr == S_OK, "got 0x%08x\n", hr);
 
     IDWriteFontFamily_Release(family);
+not_found:
     IDWriteFontCollection_Release(collection);
+    return font;
+}
+
+static IDWriteFont *get_tahoma_instance(IDWriteFactory *factory, DWRITE_FONT_STYLE style)
+{
+    IDWriteFont *font = get_font(factory, tahomaW, style);
+    ok(font != NULL, "failed to get Tahoma\n");
     return font;
 }
 
@@ -2623,16 +2763,48 @@ if (0) { /* crashes on native */
     IDWriteGdiInterop_ConvertFontToLOGFONT(interop, NULL, &logfont, NULL);
     IDWriteGdiInterop_ConvertFontToLOGFONT(interop, font, NULL, &system);
 }
+
+    memset(&logfont, 0xcc, sizeof(logfont));
     system = TRUE;
     hr = IDWriteGdiInterop_ConvertFontToLOGFONT(interop, NULL, &logfont, &system);
     ok(hr == E_INVALIDARG, "got 0x%08x\n", hr);
     ok(!system, "got %d\n", system);
+    ok(logfont.lfFaceName[0] == 0, "got face name %s\n", wine_dbgstr_w(logfont.lfFaceName));
 
     system = FALSE;
-    memset(&logfont, 0, sizeof(logfont));
+
+    logfont.lfHeight = 10;
+    logfont.lfWidth = 11;
+    logfont.lfEscapement = 10;
+    logfont.lfOrientation = 10;
+    logfont.lfWeight = 0;
+    logfont.lfItalic = 1;
+    logfont.lfUnderline = 1;
+    logfont.lfStrikeOut = 1;
+    logfont.lfCharSet = 0;
+    logfont.lfOutPrecision = 0;
+    logfont.lfClipPrecision = 0;
+    logfont.lfQuality = 0;
+    logfont.lfPitchAndFamily = 0;
+    logfont.lfFaceName[0] = 0;
+
     hr = IDWriteGdiInterop_ConvertFontToLOGFONT(interop, font, &logfont, &system);
     ok(hr == S_OK, "got 0x%08x\n", hr);
     ok(system, "got %d\n", system);
+
+    ok(logfont.lfHeight == 0, "got %d\n", logfont.lfHeight);
+    ok(logfont.lfWidth == 0, "got %d\n", logfont.lfWidth);
+    ok(logfont.lfEscapement == 0, "got %d\n", logfont.lfEscapement);
+    ok(logfont.lfOrientation == 0, "got %d\n", logfont.lfOrientation);
+    ok(logfont.lfWeight > 0, "got %d\n", logfont.lfWeight);
+    ok(logfont.lfItalic == 0, "got %d\n", logfont.lfItalic);
+    ok(logfont.lfUnderline == 0, "got %d\n", logfont.lfUnderline);
+    ok(logfont.lfStrikeOut == 0, "got %d\n", logfont.lfStrikeOut);
+    ok(logfont.lfCharSet == DEFAULT_CHARSET, "got %d\n", logfont.lfCharSet);
+    ok(logfont.lfOutPrecision == OUT_OUTLINE_PRECIS, "got %d\n", logfont.lfOutPrecision);
+    ok(logfont.lfClipPrecision == 0, "got %d\n", logfont.lfClipPrecision);
+    ok(logfont.lfQuality == 0, "got %d\n", logfont.lfQuality);
+    ok(logfont.lfPitchAndFamily == 0, "got %d\n", logfont.lfPitchAndFamily);
     ok(logfont.lfFaceName[0] != 0, "got face name %s\n", wine_dbgstr_w(logfont.lfFaceName));
 
     IDWriteFactory_Release(factory2);
@@ -2931,6 +3103,7 @@ static void test_GetDesignGlyphAdvances(void)
         advance = 0;
         hr = IDWriteFontFace1_GetDesignGlyphAdvances(fontface1, 1, &index, &advance, TRUE);
         ok(hr == S_OK, "got 0x%08x\n", hr);
+    todo_wine
         ok(advance == 2048, "got %i\n", advance);
 
         IDWriteFontFace1_Release(fontface1);
@@ -2989,6 +3162,7 @@ static void test_GetGlyphRunOutline(void)
     /* default advances, no offsets */
     memset(g_startpoints, 0, sizeof(g_startpoints));
     g_startpoint_count = 0;
+    SET_EXPECT(setfillmode);
     hr = IDWriteFontFace_GetGlyphRunOutline(face, 1024.0, glyphs, NULL, NULL, 2, FALSE, FALSE, &test_geomsink);
     ok(hr == S_OK, "got 0x%08x\n", hr);
     ok(g_startpoint_count == 2, "got %d\n", g_startpoint_count);
@@ -2997,10 +3171,12 @@ static void test_GetGlyphRunOutline(void)
         ok(g_startpoints[0].x == 229.5 && g_startpoints[0].y == -629.0, "0: got (%.2f,%.2f)\n", g_startpoints[0].x, g_startpoints[0].y);
         ok(g_startpoints[1].x == 729.5 && g_startpoints[1].y == -629.0, "1: got (%.2f,%.2f)\n", g_startpoints[1].x, g_startpoints[1].y);
     }
+    CHECK_CALLED(setfillmode);
 
     /* default advances, no offsets, RTL */
     memset(g_startpoints, 0, sizeof(g_startpoints));
     g_startpoint_count = 0;
+    SET_EXPECT(setfillmode);
     hr = IDWriteFontFace_GetGlyphRunOutline(face, 1024.0, glyphs, NULL, NULL, 2, FALSE, TRUE, &test_geomsink);
     ok(hr == S_OK, "got 0x%08x\n", hr);
     ok(g_startpoint_count == 2, "got %d\n", g_startpoint_count);
@@ -3009,10 +3185,12 @@ static void test_GetGlyphRunOutline(void)
         ok(g_startpoints[0].x == -270.5 && g_startpoints[0].y == -629.0, "0: got (%.2f,%.2f)\n", g_startpoints[0].x, g_startpoints[0].y);
         ok(g_startpoints[1].x == -770.5 && g_startpoints[1].y == -629.0, "1: got (%.2f,%.2f)\n", g_startpoints[1].x, g_startpoints[1].y);
     }
+    CHECK_CALLED(setfillmode);
 
     /* default advances, additional offsets */
     memset(g_startpoints, 0, sizeof(g_startpoints));
     g_startpoint_count = 0;
+    SET_EXPECT(setfillmode);
     hr = IDWriteFontFace_GetGlyphRunOutline(face, 1024.0, glyphs, NULL, offsets, 2, FALSE, FALSE, &test_geomsink);
     ok(hr == S_OK, "got 0x%08x\n", hr);
     ok(g_startpoint_count == 2, "got %d\n", g_startpoint_count);
@@ -3021,10 +3199,12 @@ static void test_GetGlyphRunOutline(void)
         ok(g_startpoints[0].x == 230.5 && g_startpoints[0].y == -630.0, "0: got (%.2f,%.2f)\n", g_startpoints[0].x, g_startpoints[0].y);
         ok(g_startpoints[1].x == 729.5 && g_startpoints[1].y == -629.0, "1: got (%.2f,%.2f)\n", g_startpoints[1].x, g_startpoints[1].y);
     }
+    CHECK_CALLED(setfillmode);
 
     /* default advances, additional offsets, RTL */
     memset(g_startpoints, 0, sizeof(g_startpoints));
     g_startpoint_count = 0;
+    SET_EXPECT(setfillmode);
     hr = IDWriteFontFace_GetGlyphRunOutline(face, 1024.0, glyphs, NULL, offsets, 2, FALSE, TRUE, &test_geomsink);
     ok(hr == S_OK, "got 0x%08x\n", hr);
     ok(g_startpoint_count == 2, "got %d\n", g_startpoint_count);
@@ -3032,10 +3212,12 @@ static void test_GetGlyphRunOutline(void)
         ok(g_startpoints[0].x == -271.5 && g_startpoints[0].y == -630.0, "0: got (%.2f,%.2f)\n", g_startpoints[0].x, g_startpoints[0].y);
         ok(g_startpoints[1].x == -770.5 && g_startpoints[1].y == -629.0, "1: got (%.2f,%.2f)\n", g_startpoints[1].x, g_startpoints[1].y);
     }
+    CHECK_CALLED(setfillmode);
 
     /* custom advances and offsets, offset turns total advance value to zero */
     memset(g_startpoints, 0, sizeof(g_startpoints));
     g_startpoint_count = 0;
+    SET_EXPECT(setfillmode);
     hr = IDWriteFontFace_GetGlyphRunOutline(face, 1024.0, glyphs, advances, offsets, 2, FALSE, FALSE, &test_geomsink);
     ok(hr == S_OK, "got 0x%08x\n", hr);
     ok(g_startpoint_count == 2, "got %d\n", g_startpoint_count);
@@ -3043,11 +3225,33 @@ static void test_GetGlyphRunOutline(void)
         ok(g_startpoints[0].x == 230.5 && g_startpoints[0].y == -630.0, "0: got (%.2f,%.2f)\n", g_startpoints[0].x, g_startpoints[0].y);
         ok(g_startpoints[1].x == 230.5 && g_startpoints[1].y == -629.0, "1: got (%.2f,%.2f)\n", g_startpoints[1].x, g_startpoints[1].y);
     }
+    CHECK_CALLED(setfillmode);
 
-    IDWriteFontFace_Release(face);
+    /* 0 glyph count */
+    hr = IDWriteFontFace_GetGlyphRunOutline(face, 1024.0, glyphs, NULL, NULL, 0, FALSE, FALSE, &test_geomsink2);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+
     IDWriteFactory_Release(factory);
-
+    IDWriteFontFace_Release(face);
     DELETE_FONTFILE(path);
+
+    /* space glyph */
+    factory = create_factory();
+    face = create_fontface(factory);
+
+    codepoint = ' ';
+    glyphs[0] = 0;
+    hr = IDWriteFontFace_GetGlyphIndices(face, &codepoint, 1, glyphs);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    ok(glyphs[0] > 0, "got %u\n", glyphs[0]);
+
+    SET_EXPECT(setfillmode);
+    hr = IDWriteFontFace_GetGlyphRunOutline(face, 1024.0, glyphs, NULL, NULL, 1, FALSE, FALSE, &test_geomsink2);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    CHECK_CALLED(setfillmode);
+
+    IDWriteFactory_Release(factory);
+    IDWriteFontFace_Release(face);
 }
 
 static void test_GetEudcFontCollection(void)
@@ -3231,6 +3435,7 @@ static void test_CreateRenderingParams(void)
     IDWriteRenderingParams2 *params2;
     IDWriteRenderingParams1 *params1;
     IDWriteRenderingParams *params;
+    DWRITE_RENDERING_MODE mode;
     IDWriteFactory *factory;
     HRESULT hr;
 
@@ -3266,33 +3471,63 @@ static void test_CreateRenderingParams(void)
         win_skip("IDWriteRenderingParams1 not supported.\n");
 
     IDWriteRenderingParams_Release(params);
+
+    hr = IDWriteFactory_CreateRenderingParams(factory, &params);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+
+    mode = IDWriteRenderingParams_GetRenderingMode(params);
+    ok(mode == DWRITE_RENDERING_MODE_DEFAULT, "got %d\n", mode);
+    IDWriteRenderingParams_Release(params);
+
     IDWriteFactory_Release(factory);
 }
 
 static void test_CreateGlyphRunAnalysis(void)
 {
+    static const DWRITE_RENDERING_MODE rendermodes[] = {
+        DWRITE_RENDERING_MODE_ALIASED,
+        DWRITE_RENDERING_MODE_GDI_CLASSIC,
+        DWRITE_RENDERING_MODE_GDI_NATURAL,
+        DWRITE_RENDERING_MODE_NATURAL,
+        DWRITE_RENDERING_MODE_NATURAL_SYMMETRIC,
+    };
+
     IDWriteGlyphRunAnalysis *analysis;
     IDWriteFactory *factory;
     DWRITE_GLYPH_RUN run;
     IDWriteFontFace *face;
-    UINT16 index;
+    UINT16 glyph, glyphs[10];
     FLOAT advance;
     HRESULT hr;
     UINT32 ch;
+    RECT rect, rect2;
+    DWRITE_GLYPH_OFFSET offset;
+    DWRITE_GLYPH_METRICS metrics;
+    DWRITE_FONT_METRICS fm;
+    int i;
 
     factory = create_factory();
     face = create_fontface(factory);
 
     ch = 'A';
-    hr = IDWriteFontFace_GetGlyphIndices(face, &ch, 1, &index);
+    glyph = 0;
+    hr = IDWriteFontFace_GetGlyphIndices(face, &ch, 1, &glyph);
     ok(hr == S_OK, "got 0x%08x\n", hr);
+    ok(glyph > 0, "got %u\n", glyph);
+
+    hr = IDWriteFontFace_GetDesignGlyphMetrics(face, &glyph, 1, &metrics, FALSE);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    advance = metrics.advanceWidth;
+
+    offset.advanceOffset = 0.0;
+    offset.ascenderOffset = 0.0;
 
     run.fontFace = face;
     run.fontEmSize = 24.0;
     run.glyphCount = 1;
-    run.glyphIndices = &index;
+    run.glyphIndices = &glyph;
     run.glyphAdvances = &advance;
-    run.glyphOffsets = NULL;
+    run.glyphOffsets = &offset;
     run.isSideways = FALSE;
     run.bidiLevel = 0;
 
@@ -3309,13 +3544,1461 @@ static void test_CreateGlyphRunAnalysis(void)
     ok(hr == E_INVALIDARG, "got 0x%08x\n", hr);
 
     hr = IDWriteFactory_CreateGlyphRunAnalysis(factory, &run, 1.0, NULL,
-        DWRITE_RENDERING_MODE_GDI_CLASSIC, DWRITE_MEASURING_MODE_NATURAL,
+        DWRITE_RENDERING_MODE_ALIASED, DWRITE_MEASURING_MODE_NATURAL,
         0.0, 0.0, &analysis);
     ok(hr == S_OK, "got 0x%08x\n", hr);
+
+    /* invalid texture type */
+    memset(&rect, 0xcc, sizeof(rect));
+    hr = IDWriteGlyphRunAnalysis_GetAlphaTextureBounds(analysis, DWRITE_TEXTURE_CLEARTYPE_3x1+1, &rect);
+    ok(hr == E_INVALIDARG, "got 0x%08x\n", hr);
+    ok(rect.left == 0 && rect.right == 0 &&
+       rect.top == 0 && rect.bottom == 0, "unexpected rect\n");
+
+    /* check how origin affects bounds */
+    memset(&rect, 0, sizeof(rect));
+    hr = IDWriteGlyphRunAnalysis_GetAlphaTextureBounds(analysis, DWRITE_TEXTURE_ALIASED_1x1, &rect);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    ok(!IsRectEmpty(&rect), "got empty rect\n");
+    IDWriteGlyphRunAnalysis_Release(analysis);
+
+    hr = IDWriteFactory_CreateGlyphRunAnalysis(factory, &run, 1.0, NULL,
+        DWRITE_RENDERING_MODE_ALIASED, DWRITE_MEASURING_MODE_NATURAL,
+        10.0, -5.0, &analysis);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+
+    memset(&rect2, 0, sizeof(rect2));
+    hr = IDWriteGlyphRunAnalysis_GetAlphaTextureBounds(analysis, DWRITE_TEXTURE_ALIASED_1x1, &rect2);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    ok(!IsRectEmpty(&rect2), "got empty rect\n");
+    IDWriteGlyphRunAnalysis_Release(analysis);
+
+    ok(!EqualRect(&rect, &rect2), "got equal bounds\n");
+    OffsetRect(&rect, 10, -5);
+    ok(EqualRect(&rect, &rect2), "got different bounds\n");
+
+    for (i = 0; i < sizeof(rendermodes)/sizeof(rendermodes[0]); i++) {
+        hr = IDWriteFactory_CreateGlyphRunAnalysis(factory, &run, 1.0, NULL,
+            rendermodes[i], DWRITE_MEASURING_MODE_NATURAL,
+            0.0, 0.0, &analysis);
+        ok(hr == S_OK, "got 0x%08x\n", hr);
+
+        if (rendermodes[i] == DWRITE_RENDERING_MODE_ALIASED) {
+            memset(&rect, 0, sizeof(rect));
+            hr = IDWriteGlyphRunAnalysis_GetAlphaTextureBounds(analysis, DWRITE_TEXTURE_ALIASED_1x1, &rect);
+            ok(hr == S_OK, "got 0x%08x\n", hr);
+            ok(!IsRectEmpty(&rect), "got empty rect\n");
+
+            rect.left = rect.top = 0;
+            rect.bottom = rect.right = 1;
+            hr = IDWriteGlyphRunAnalysis_GetAlphaTextureBounds(analysis, DWRITE_TEXTURE_CLEARTYPE_3x1, &rect);
+            ok(hr == S_OK, "got 0x%08x\n", hr);
+            ok(IsRectEmpty(&rect), "unexpected empty rect\n");
+        }
+        else {
+            rect.left = rect.top = 0;
+            rect.bottom = rect.right = 1;
+            hr = IDWriteGlyphRunAnalysis_GetAlphaTextureBounds(analysis, DWRITE_TEXTURE_ALIASED_1x1, &rect);
+            ok(hr == S_OK, "got 0x%08x\n", hr);
+            ok(IsRectEmpty(&rect), "got empty rect\n");
+
+            memset(&rect, 0, sizeof(rect));
+            hr = IDWriteGlyphRunAnalysis_GetAlphaTextureBounds(analysis, DWRITE_TEXTURE_CLEARTYPE_3x1, &rect);
+            ok(hr == S_OK, "got 0x%08x\n", hr);
+            ok(!IsRectEmpty(&rect), "got empty rect\n");
+        }
+
+        IDWriteGlyphRunAnalysis_Release(analysis);
+    }
+
+    IDWriteFontFace_GetMetrics(run.fontFace, &fm);
+
+    /* check bbox for a single glyph run */
+    for (run.fontEmSize = 1.0; run.fontEmSize <= 100.0; run.fontEmSize += 1.0) {
+        DWRITE_GLYPH_METRICS gm;
+        LONG bboxX, bboxY;
+
+        hr = IDWriteFactory_CreateGlyphRunAnalysis(factory, &run, 1.0, NULL,
+            DWRITE_RENDERING_MODE_ALIASED, DWRITE_MEASURING_MODE_GDI_CLASSIC,
+            0.0, 0.0, &analysis);
+        ok(hr == S_OK, "got 0x%08x\n", hr);
+
+        memset(&rect, 0, sizeof(rect));
+        hr = IDWriteGlyphRunAnalysis_GetAlphaTextureBounds(analysis, DWRITE_TEXTURE_ALIASED_1x1, &rect);
+        ok(hr == S_OK, "got 0x%08x\n", hr);
+
+        hr = IDWriteFontFace_GetGdiCompatibleGlyphMetrics(run.fontFace, run.fontEmSize, 1.0, NULL,
+             DWRITE_MEASURING_MODE_GDI_CLASSIC, run.glyphIndices, 1, &gm, run.isSideways);
+        ok(hr == S_OK, "got 0x%08x\n", hr);
+
+        /* metrics are in design units */
+        bboxX = (int)floorf((gm.advanceWidth - gm.leftSideBearing - gm.rightSideBearing) * run.fontEmSize / fm.designUnitsPerEm + 0.5f);
+        bboxY = (int)floorf((gm.advanceHeight - gm.topSideBearing - gm.bottomSideBearing) * run.fontEmSize / fm.designUnitsPerEm + 0.5f);
+
+        rect.right -= rect.left;
+        rect.bottom -= rect.top;
+        ok(abs(bboxX - rect.right) <= 2, "%.0f: bbox width %d, from metrics %d\n", run.fontEmSize, rect.right, bboxX);
+        ok(abs(bboxY - rect.bottom) <= 2, "%.0f: bbox height %d, from metrics %d\n", run.fontEmSize, rect.bottom, bboxY);
+
+        IDWriteGlyphRunAnalysis_Release(analysis);
+    }
+
+    /* without offsets */
+    run.fontFace = face;
+    run.fontEmSize = 24.0;
+    run.glyphCount = 1;
+    run.glyphIndices = &glyph;
+    run.glyphAdvances = &advance;
+    run.glyphOffsets = NULL;
+    run.isSideways = FALSE;
+    run.bidiLevel = 0;
+
+    hr = IDWriteFactory_CreateGlyphRunAnalysis(factory, &run, 1.0, NULL,
+        DWRITE_RENDERING_MODE_ALIASED, DWRITE_MEASURING_MODE_NATURAL,
+        0.0, 0.0, &analysis);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+
+    SetRectEmpty(&rect);
+    hr = IDWriteGlyphRunAnalysis_GetAlphaTextureBounds(analysis, DWRITE_TEXTURE_ALIASED_1x1, &rect);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    ok(!IsRectEmpty(&rect), "got empty bounds\n");
+
+    IDWriteGlyphRunAnalysis_Release(analysis);
+
+    /* without explicit advances */
+    run.fontFace = face;
+    run.fontEmSize = 24.0;
+    run.glyphCount = 1;
+    run.glyphIndices = &glyph;
+    run.glyphAdvances = NULL;
+    run.glyphOffsets = NULL;
+    run.isSideways = FALSE;
+    run.bidiLevel = 0;
+
+    hr = IDWriteFactory_CreateGlyphRunAnalysis(factory, &run, 1.0, NULL,
+        DWRITE_RENDERING_MODE_ALIASED, DWRITE_MEASURING_MODE_NATURAL,
+        0.0, 0.0, &analysis);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+
+    SetRectEmpty(&rect);
+    hr = IDWriteGlyphRunAnalysis_GetAlphaTextureBounds(analysis, DWRITE_TEXTURE_ALIASED_1x1, &rect);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    ok(!IsRectEmpty(&rect), "got empty bounds\n");
+
+    IDWriteGlyphRunAnalysis_Release(analysis);
+
+    glyphs[0] = glyphs[1] = glyph;
+    run.fontFace = face;
+    run.fontEmSize = 24.0;
+    run.glyphCount = 2;
+    run.glyphIndices = glyphs;
+    run.glyphAdvances = NULL;
+    run.glyphOffsets = NULL;
+    run.isSideways = FALSE;
+    run.bidiLevel = 0;
+
+    hr = IDWriteFactory_CreateGlyphRunAnalysis(factory, &run, 1.0, NULL,
+        DWRITE_RENDERING_MODE_ALIASED, DWRITE_MEASURING_MODE_NATURAL,
+        0.0, 0.0, &analysis);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+
+    SetRectEmpty(&rect2);
+    hr = IDWriteGlyphRunAnalysis_GetAlphaTextureBounds(analysis, DWRITE_TEXTURE_ALIASED_1x1, &rect2);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    ok(!IsRectEmpty(&rect2), "got empty bounds\n");
+    ok(!EqualRect(&rect, &rect2), "got wrong rect2\n");
+
     IDWriteGlyphRunAnalysis_Release(analysis);
 
     IDWriteFontFace_Release(face);
     IDWriteFactory_Release(factory);
+}
+
+#define round(x) ((int)floor((x) + 0.5))
+
+struct VDMX_Header
+{
+    WORD version;
+    WORD numRecs;
+    WORD numRatios;
+};
+
+struct VDMX_Ratio
+{
+    BYTE bCharSet;
+    BYTE xRatio;
+    BYTE yStartRatio;
+    BYTE yEndRatio;
+};
+
+struct VDMX_group
+{
+    WORD recs;
+    BYTE startsz;
+    BYTE endsz;
+};
+
+struct VDMX_vTable
+{
+    WORD yPelHeight;
+    SHORT yMax;
+    SHORT yMin;
+};
+
+#ifdef WORDS_BIGENDIAN
+#define GET_BE_WORD(x) (x)
+#else
+#define GET_BE_WORD(x) RtlUshortByteSwap(x)
+#endif
+
+static const struct VDMX_group *find_vdmx_group(const struct VDMX_Header *hdr)
+{
+    WORD num_ratios, i, group_offset = 0;
+    struct VDMX_Ratio *ratios = (struct VDMX_Ratio*)(hdr + 1);
+    BYTE dev_x_ratio = 1, dev_y_ratio = 1;
+
+    num_ratios = GET_BE_WORD(hdr->numRatios);
+
+    for (i = 0; i < num_ratios; i++)
+    {
+        if (!ratios[i].bCharSet) continue;
+
+        if ((ratios[i].xRatio == 0 && ratios[i].yStartRatio == 0 &&
+             ratios[i].yEndRatio == 0) ||
+	   (ratios[i].xRatio == dev_x_ratio && ratios[i].yStartRatio <= dev_y_ratio &&
+            ratios[i].yEndRatio >= dev_y_ratio))
+        {
+            group_offset = GET_BE_WORD(*((WORD *)(ratios + num_ratios) + i));
+            break;
+        }
+    }
+    if (group_offset)
+        return (const struct VDMX_group *)((BYTE *)hdr + group_offset);
+    return NULL;
+}
+
+static BOOL get_vdmx_size(const struct VDMX_group *group, int emsize, int *a, int *d)
+{
+    WORD recs, i;
+    const struct VDMX_vTable *tables;
+
+    if (!group) return FALSE;
+
+    recs = GET_BE_WORD(group->recs);
+    if (emsize < group->startsz || emsize >= group->endsz) return FALSE;
+
+    tables = (const struct VDMX_vTable *)(group + 1);
+    for (i = 0; i < recs; i++)
+    {
+        WORD ppem = GET_BE_WORD(tables[i].yPelHeight);
+        if (ppem > emsize)
+        {
+            /* FIXME: Supposed to interpolate */
+            trace("FIXME interpolate %d\n", emsize);
+            return FALSE;
+        }
+
+        if (ppem == emsize)
+        {
+            *a = (SHORT)GET_BE_WORD(tables[i].yMax);
+            *d = -(SHORT)GET_BE_WORD(tables[i].yMin);
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+static void test_metrics_cmp(FLOAT emsize, const DWRITE_FONT_METRICS *metrics, const DWRITE_FONT_METRICS1 *expected)
+{
+    ok(metrics->designUnitsPerEm == expected->designUnitsPerEm, "%.2f: emsize: got %u expect %u\n",
+           emsize, metrics->designUnitsPerEm, expected->designUnitsPerEm);
+    ok(metrics->ascent == expected->ascent, "%.2f a: got %u expect %u\n",
+           emsize, metrics->ascent, expected->ascent);
+    ok(metrics->descent == expected->descent, "%.2f d: got %u expect %u\n",
+           emsize, metrics->descent, expected->descent);
+    ok(metrics->lineGap == expected->lineGap, "%.2f lg: got %d expect %d\n",
+           emsize, metrics->lineGap, expected->lineGap);
+    ok(metrics->capHeight == expected->capHeight, "%.2f capH: got %u expect %u\n",
+           emsize, metrics->capHeight, expected->capHeight);
+    ok(metrics->xHeight == expected->xHeight, "%.2f xH: got %u expect %u\n",
+           emsize, metrics->xHeight, expected->xHeight);
+    ok(metrics->underlinePosition == expected->underlinePosition, "%.2f ulP: got %d expect %d\n",
+            emsize, metrics->underlinePosition, expected->underlinePosition);
+    ok(metrics->underlineThickness == expected->underlineThickness, "%.2f ulTh: got %u expect %u\n",
+           emsize, metrics->underlineThickness, expected->underlineThickness);
+    ok(metrics->strikethroughPosition == expected->strikethroughPosition, "%.2f stP: got %d expect %d\n",
+           emsize, metrics->strikethroughPosition, expected->strikethroughPosition);
+    ok(metrics->strikethroughThickness == expected->strikethroughThickness, "%.2f stTh: got %u expect %u\n",
+           emsize, metrics->strikethroughThickness, expected->strikethroughThickness);
+}
+
+static void test_metrics1_cmp(FLOAT emsize, const DWRITE_FONT_METRICS1 *metrics, const DWRITE_FONT_METRICS1 *expected)
+{
+    ok(metrics->designUnitsPerEm == expected->designUnitsPerEm, "%.2f: emsize: got %u expect %u\n",
+           emsize, metrics->designUnitsPerEm, expected->designUnitsPerEm);
+    ok(metrics->ascent == expected->ascent, "%.2f a: got %u expect %u\n",
+           emsize, metrics->ascent, expected->ascent);
+    ok(metrics->descent == expected->descent, "%.2f d: got %u expect %u\n",
+           emsize, metrics->descent, expected->descent);
+    ok(metrics->lineGap == expected->lineGap, "%.2f lg: got %d expect %d\n",
+           emsize, metrics->lineGap, expected->lineGap);
+    ok(metrics->capHeight == expected->capHeight, "%.2f capH: got %u expect %u\n",
+           emsize, metrics->capHeight, expected->capHeight);
+    ok(metrics->xHeight == expected->xHeight, "%.2f xH: got %u expect %u\n",
+           emsize, metrics->xHeight, expected->xHeight);
+    ok(metrics->underlinePosition == expected->underlinePosition, "%.2f ulP: got %d expect %d\n",
+            emsize, metrics->underlinePosition, expected->underlinePosition);
+    ok(metrics->underlineThickness == expected->underlineThickness, "%.2f ulTh: got %u expect %u\n",
+           emsize, metrics->underlineThickness, expected->underlineThickness);
+    ok(metrics->strikethroughPosition == expected->strikethroughPosition, "%.2f stP: got %d expect %d\n",
+           emsize, metrics->strikethroughPosition, expected->strikethroughPosition);
+    ok(metrics->strikethroughThickness == expected->strikethroughThickness, "%.2f stTh: got %u expect %u\n",
+           emsize, metrics->strikethroughThickness, expected->strikethroughThickness);
+    ok(metrics->glyphBoxLeft == expected->glyphBoxLeft, "%.2f box left: got %d expect %d\n",
+           emsize, metrics->glyphBoxLeft, expected->glyphBoxLeft);
+if (0) { /* this is not consistent */
+    ok(metrics->glyphBoxTop == expected->glyphBoxTop, "%.2f box top: got %d expect %d\n",
+           emsize, metrics->glyphBoxTop, expected->glyphBoxTop);
+    ok(metrics->glyphBoxRight == expected->glyphBoxRight, "%.2f box right: got %d expect %d\n",
+           emsize, metrics->glyphBoxRight, expected->glyphBoxRight);
+}
+    ok(metrics->glyphBoxBottom == expected->glyphBoxBottom, "%.2f box bottom: got %d expect %d\n",
+           emsize, metrics->glyphBoxBottom, expected->glyphBoxBottom);
+    ok(metrics->subscriptPositionX == expected->subscriptPositionX, "%.2f subX: got %d expect %d\n",
+           emsize, metrics->subscriptPositionX, expected->subscriptPositionX);
+    ok(metrics->subscriptPositionY == expected->subscriptPositionY, "%.2f subY: got %d expect %d\n",
+           emsize, metrics->subscriptPositionY, expected->subscriptPositionY);
+    ok(metrics->subscriptSizeX == expected->subscriptSizeX, "%.2f subsizeX: got %d expect %d\n",
+           emsize, metrics->subscriptSizeX, expected->subscriptSizeX);
+    ok(metrics->subscriptPositionY == expected->subscriptPositionY, "%.2f subsizeY: got %d expect %d\n",
+           emsize, metrics->subscriptSizeY, expected->subscriptSizeY);
+    ok(metrics->superscriptPositionX == expected->superscriptPositionX, "%.2f supX: got %d expect %d\n",
+           emsize, metrics->superscriptPositionX, expected->superscriptPositionX);
+if (0)
+    ok(metrics->superscriptPositionY == expected->superscriptPositionY, "%.2f supY: got %d expect %d\n",
+           emsize, metrics->superscriptPositionY, expected->superscriptPositionY);
+    ok(metrics->superscriptSizeX == expected->superscriptSizeX, "%.2f supsizeX: got %d expect %d\n",
+           emsize, metrics->superscriptSizeX, expected->superscriptSizeX);
+    ok(metrics->superscriptSizeY == expected->superscriptSizeY, "%.2f supsizeY: got %d expect %d\n",
+           emsize, metrics->superscriptSizeY, expected->superscriptSizeY);
+    ok(metrics->hasTypographicMetrics == expected->hasTypographicMetrics, "%.2f hastypo: got %d expect %d\n",
+           emsize, metrics->hasTypographicMetrics, expected->hasTypographicMetrics);
+}
+
+struct compatmetrics_test {
+    DWRITE_MATRIX m;
+    FLOAT ppdip;
+    FLOAT emsize;
+};
+
+static struct compatmetrics_test compatmetrics_tests[] = {
+    { { 0.0, 0.0, 0.0,  1.0, 0.0, 0.0 }, 1.0, 5.0 },
+    { { 0.0, 0.0, 0.0, -1.0, 0.0, 0.0 }, 1.0, 5.0 },
+    { { 0.0, 0.0, 0.0, -1.0, 0.0, 0.0 }, 2.0, 5.0 },
+    { { 0.0, 0.0, 0.0,  3.0, 0.0, 0.0 }, 2.0, 5.0 },
+    { { 0.0, 0.0, 0.0, -3.0, 0.0, 0.0 }, 2.0, 5.0 },
+    { { 1.0, 0.0, 0.0,  1.0, 0.0, 0.0 }, 2.0, 5.0 },
+    { { 1.0, 0.0, 0.0,  1.0, 5.0, 0.0 }, 2.0, 5.0 },
+    { { 1.0, 0.0, 0.0,  1.0, 0.0, 5.0 }, 2.0, 5.0 },
+};
+
+static void get_expected_metrics(IDWriteFontFace *fontface, struct compatmetrics_test *ptr,
+    DWRITE_FONT_METRICS *expected)
+{
+    HRESULT hr;
+
+    memset(expected, 0, sizeof(*expected));
+    hr = IDWriteFontFace_GetGdiCompatibleMetrics(fontface, ptr->ppdip * fabsf(ptr->m.m22) * ptr->emsize, 1.0, NULL, expected);
+    ok(hr == S_OK, "got %08x\n", hr);
+}
+
+static void test_GetGdiCompatibleMetrics_face(IDWriteFontFace *face)
+{
+    IDWriteFontFace1 *fontface1 = NULL;
+    HRESULT hr;
+    DWRITE_FONT_METRICS design_metrics, comp_metrics;
+    DWRITE_FONT_METRICS1 design_metrics1, expected;
+    FLOAT emsize, scale;
+    int ascent, descent;
+    const struct VDMX_Header *vdmx;
+    UINT32 vdmx_len;
+    void *vdmx_ctx;
+    BOOL exists;
+    const struct VDMX_group *vdmx_group = NULL;
+    int i;
+
+    hr = IDWriteFontFace_QueryInterface(face, &IID_IDWriteFontFace1, (void**)&fontface1);
+    if (hr != S_OK)
+        win_skip("gdi compatible DWRITE_FONT_METRICS1 are not supported.\n");
+
+    if (fontface1) {
+        IDWriteFontFace1_GetMetrics(fontface1, &design_metrics1);
+        memcpy(&design_metrics, &design_metrics1, sizeof(design_metrics));
+    }
+    else
+        IDWriteFontFace_GetMetrics(face, &design_metrics);
+
+    hr = IDWriteFontFace_TryGetFontTable(face, MS_VDMX_TAG, (const void **)&vdmx,
+                                         &vdmx_len, &vdmx_ctx, &exists);
+    if (hr != S_OK || !exists)
+        vdmx = NULL;
+    else
+        vdmx_group = find_vdmx_group(vdmx);
+
+    /* negative emsize */
+    memset(&comp_metrics, 0xcc, sizeof(comp_metrics));
+    memset(&expected, 0, sizeof(expected));
+    hr = IDWriteFontFace_GetGdiCompatibleMetrics(face, -10.0, 1.0, NULL, &comp_metrics);
+    ok(hr == E_INVALIDARG, "got %08x\n", hr);
+    test_metrics_cmp(0.0, &comp_metrics, &expected);
+
+    /* zero emsize */
+    memset(&comp_metrics, 0xcc, sizeof(comp_metrics));
+    memset(&expected, 0, sizeof(expected));
+    hr = IDWriteFontFace_GetGdiCompatibleMetrics(face, 0.0, 1.0, NULL, &comp_metrics);
+    ok(hr == E_INVALIDARG, "got %08x\n", hr);
+    test_metrics_cmp(0.0, &comp_metrics, &expected);
+
+    /* zero pixels per dip */
+    memset(&comp_metrics, 0xcc, sizeof(comp_metrics));
+    memset(&expected, 0, sizeof(expected));
+    hr = IDWriteFontFace_GetGdiCompatibleMetrics(face, 5.0, 0.0, NULL, &comp_metrics);
+    ok(hr == E_INVALIDARG, "got %08x\n", hr);
+    test_metrics_cmp(5.0, &comp_metrics, &expected);
+
+    memset(&comp_metrics, 0xcc, sizeof(comp_metrics));
+    hr = IDWriteFontFace_GetGdiCompatibleMetrics(face, 5.0, -1.0, NULL, &comp_metrics);
+    ok(hr == E_INVALIDARG, "got %08x\n", hr);
+    test_metrics_cmp(5.0, &comp_metrics, &expected);
+
+    for (i = 0; i < sizeof(compatmetrics_tests)/sizeof(compatmetrics_tests[0]); i++) {
+        struct compatmetrics_test *ptr = &compatmetrics_tests[i];
+
+        get_expected_metrics(face, ptr, (DWRITE_FONT_METRICS*)&expected);
+        hr = IDWriteFontFace_GetGdiCompatibleMetrics(face, ptr->emsize, ptr->ppdip, &ptr->m, &comp_metrics);
+        ok(hr == S_OK, "got %08x\n", hr);
+        test_metrics_cmp(ptr->emsize, &comp_metrics, &expected);
+    }
+
+    for (emsize = 5; emsize <= design_metrics.designUnitsPerEm; emsize++)
+    {
+        DWRITE_FONT_METRICS1 comp_metrics1, expected;
+
+        if (fontface1) {
+            hr = IDWriteFontFace1_GetGdiCompatibleMetrics(fontface1, emsize, 1.0, NULL, &comp_metrics1);
+            ok(hr == S_OK, "got %08x\n", hr);
+        }
+        else {
+            hr = IDWriteFontFace_GetGdiCompatibleMetrics(face, emsize, 1.0, NULL, &comp_metrics);
+            ok(hr == S_OK, "got %08x\n", hr);
+        }
+
+        scale = emsize / design_metrics.designUnitsPerEm;
+        if (!get_vdmx_size(vdmx_group, emsize, &ascent, &descent))
+        {
+            ascent = round(design_metrics.ascent * scale);
+            descent = round(design_metrics.descent * scale);
+        }
+
+        expected.designUnitsPerEm = design_metrics.designUnitsPerEm;
+        expected.ascent = round(ascent / scale );
+        expected.descent = round(descent / scale );
+        expected.lineGap = round(round(design_metrics.lineGap * scale) / scale);
+        expected.capHeight = round(round(design_metrics.capHeight * scale) / scale);
+        expected.xHeight = round(round(design_metrics.xHeight * scale) / scale);
+        expected.underlinePosition = round(round(design_metrics.underlinePosition * scale) / scale);
+        expected.underlineThickness = round(round(design_metrics.underlineThickness * scale) / scale);
+        expected.strikethroughPosition = round(round(design_metrics.strikethroughPosition * scale) / scale);
+        expected.strikethroughThickness = round(round(design_metrics.strikethroughThickness * scale) / scale);
+
+        if (fontface1) {
+            expected.glyphBoxLeft = round(round(design_metrics1.glyphBoxLeft * scale) / scale);
+
+        if (0) { /* those two fail on Tahoma and Win7 */
+            expected.glyphBoxTop = round(round(design_metrics1.glyphBoxTop * scale) / scale);
+            expected.glyphBoxRight = round(round(design_metrics1.glyphBoxRight * scale) / scale);
+        }
+            expected.glyphBoxBottom = round(round(design_metrics1.glyphBoxBottom * scale) / scale);
+            expected.subscriptPositionX = round(round(design_metrics1.subscriptPositionX * scale) / scale);
+            expected.subscriptPositionY = round(round(design_metrics1.subscriptPositionY * scale) / scale);
+            expected.subscriptSizeX = round(round(design_metrics1.subscriptSizeX * scale) / scale);
+            expected.subscriptSizeY = round(round(design_metrics1.subscriptSizeY * scale) / scale);
+            expected.superscriptPositionX = round(round(design_metrics1.superscriptPositionX * scale) / scale);
+        if (0) /* this fails for 3 emsizes, Tahoma from [5, 2048] range */
+            expected.superscriptPositionY = round(round(design_metrics1.superscriptPositionY * scale) / scale);
+            expected.superscriptSizeX = round(round(design_metrics1.superscriptSizeX * scale) / scale);
+            expected.superscriptSizeY = round(round(design_metrics1.superscriptSizeY * scale) / scale);
+            expected.hasTypographicMetrics = design_metrics1.hasTypographicMetrics;
+
+            test_metrics1_cmp(emsize, &comp_metrics1, &expected);
+        }
+        else
+            test_metrics_cmp(emsize, &comp_metrics, &expected);
+
+    }
+
+    if (fontface1)
+        IDWriteFontFace1_Release(fontface1);
+    if (vdmx) IDWriteFontFace_ReleaseFontTable(face, vdmx_ctx);
+}
+
+static void test_GetGdiCompatibleMetrics(void)
+{
+    IDWriteFactory *factory;
+    IDWriteFont *font;
+    IDWriteFontFace *fontface;
+    HRESULT hr;
+
+    factory = create_factory();
+
+    font = get_font(factory, tahomaW, DWRITE_FONT_STYLE_NORMAL);
+    hr = IDWriteFont_CreateFontFace(font, &fontface);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    IDWriteFont_Release(font);
+    test_GetGdiCompatibleMetrics_face(fontface);
+    IDWriteFontFace_Release(fontface);
+
+    font = get_font(factory, arialW, DWRITE_FONT_STYLE_NORMAL);
+    if (!font)
+        skip("Skipping tests with Arial\n");
+    else
+    {
+        hr = IDWriteFont_CreateFontFace(font, &fontface);
+        ok(hr == S_OK, "got 0x%08x\n", hr);
+        IDWriteFont_Release(font);
+
+        test_GetGdiCompatibleMetrics_face(fontface);
+        IDWriteFontFace_Release(fontface);
+    }
+
+    IDWriteFactory_Release(factory);
+}
+
+static void test_GetPanose(void)
+{
+    IDWriteFactory *factory;
+    IDWriteFont1 *font1;
+    IDWriteFont *font;
+    HRESULT hr;
+
+    factory = create_factory();
+    font = get_tahoma_instance(factory, DWRITE_FONT_STYLE_NORMAL);
+
+    hr = IDWriteFont_QueryInterface(font, &IID_IDWriteFont1, (void**)&font1);
+    IDWriteFont_Release(font);
+    if (hr == S_OK) {
+        DWRITE_PANOSE panose;
+
+    if (0) /* crashes on native */
+        IDWriteFont1_GetPanose(font1, NULL);
+
+        memset(&panose, 0, sizeof(panose));
+        IDWriteFont1_GetPanose(font1, &panose);
+        ok(panose.familyKind == DWRITE_PANOSE_FAMILY_TEXT_DISPLAY,
+            "got %u\n", panose.familyKind);
+        ok(panose.text.serifStyle == DWRITE_PANOSE_SERIF_STYLE_NORMAL_SANS,
+            "got %u\n", panose.text.serifStyle);
+        ok(panose.text.weight == DWRITE_PANOSE_WEIGHT_MEDIUM,
+            "got %u\n", panose.text.weight);
+        ok(panose.text.proportion == DWRITE_PANOSE_PROPORTION_EVEN_WIDTH,
+            "got %u\n", panose.text.proportion);
+        ok(panose.text.contrast == DWRITE_PANOSE_CONTRAST_VERY_LOW,
+            "got %u\n", panose.text.contrast);
+        ok(panose.text.strokeVariation == DWRITE_PANOSE_STROKE_VARIATION_GRADUAL_VERTICAL,
+            "got %u\n", panose.text.strokeVariation);
+        ok(panose.text.armStyle == DWRITE_PANOSE_ARM_STYLE_STRAIGHT_ARMS_VERTICAL,
+            "got %u\n", panose.text.armStyle);
+        ok(panose.text.letterform == DWRITE_PANOSE_LETTERFORM_NORMAL_BOXED,
+            "got %u\n", panose.text.letterform);
+        ok(panose.text.midline == DWRITE_PANOSE_MIDLINE_STANDARD_TRIMMED,
+            "got %u\n", panose.text.midline);
+        ok(panose.text.xHeight == DWRITE_PANOSE_XHEIGHT_CONSTANT_LARGE,
+            "got %u\n", panose.text.xHeight);
+
+        IDWriteFont1_Release(font1);
+    }
+    else
+        win_skip("GetPanose() is not supported.\n");
+
+    IDWriteFactory_Release(factory);
+}
+
+static INT32 get_gdi_font_advance(HDC hdc, FLOAT emsize)
+{
+    LOGFONTW logfont;
+    HFONT hfont;
+    BOOL ret;
+    ABC abc;
+
+    memset(&logfont, 0, sizeof(logfont));
+    logfont.lfHeight = (LONG)-emsize;
+    logfont.lfWeight = FW_NORMAL;
+    logfont.lfQuality = CLEARTYPE_QUALITY;
+    lstrcpyW(logfont.lfFaceName, tahomaW);
+
+    hfont = CreateFontIndirectW(&logfont);
+    SelectObject(hdc, hfont);
+
+    ret = GetCharABCWidthsW(hdc, 'A', 'A', &abc);
+    ok(ret, "got %d\n", ret);
+
+    DeleteObject(hfont);
+
+    return abc.abcA + abc.abcB + abc.abcC;
+}
+
+static void test_GetGdiCompatibleGlyphAdvances(void)
+{
+    IDWriteFontFace1 *fontface1;
+    IDWriteFontFace *fontface;
+    IDWriteFactory *factory;
+    IDWriteFont *font;
+    HRESULT hr;
+    HDC hdc;
+    UINT32 codepoint;
+    UINT16 glyph;
+    FLOAT emsize;
+    DWRITE_FONT_METRICS1 fm;
+    INT32 advance;
+
+    factory = create_factory();
+    font = get_tahoma_instance(factory, DWRITE_FONT_STYLE_NORMAL);
+
+    hr = IDWriteFont_CreateFontFace(font, &fontface);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    IDWriteFont_Release(font);
+
+    hr = IDWriteFontFace_QueryInterface(fontface, &IID_IDWriteFontFace1, (void**)&fontface1);
+    IDWriteFontFace_Release(fontface);
+
+    if (hr != S_OK) {
+        IDWriteFactory_Release(factory);
+        win_skip("GetGdiCompatibleGlyphAdvances() is not supported\n");
+        return;
+    }
+
+    codepoint = 'A';
+    glyph = 0;
+    hr = IDWriteFontFace1_GetGlyphIndices(fontface1, &codepoint, 1, &glyph);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    ok(glyph > 0, "got %u\n", glyph);
+
+    /* zero emsize */
+    advance = 1;
+    hr = IDWriteFontFace1_GetGdiCompatibleGlyphAdvances(fontface1, 0.0,
+        1.0, NULL, FALSE, FALSE, 1, &glyph, &advance);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    ok(advance == 0, "got %d\n", advance);
+
+    /* negative emsize */
+    advance = 1;
+    hr = IDWriteFontFace1_GetGdiCompatibleGlyphAdvances(fontface1, -1.0,
+        1.0, NULL, FALSE, FALSE, 1, &glyph, &advance);
+    ok(hr == E_INVALIDARG, "got 0x%08x\n", hr);
+    ok(advance == 0, "got %d\n", advance);
+
+    /* zero ppdip */
+    advance = 1;
+    hr = IDWriteFontFace1_GetGdiCompatibleGlyphAdvances(fontface1, 1.0,
+        0.0, NULL, FALSE, FALSE, 1, &glyph, &advance);
+    ok(hr == E_INVALIDARG, "got 0x%08x\n", hr);
+    ok(advance == 0, "got %d\n", advance);
+
+    /* negative ppdip */
+    advance = 1;
+    hr = IDWriteFontFace1_GetGdiCompatibleGlyphAdvances(fontface1, 1.0,
+        -1.0, NULL, FALSE, FALSE, 1, &glyph, &advance);
+    ok(hr == E_INVALIDARG, "got 0x%08x\n", hr);
+    ok(advance == 0, "got %d\n", advance);
+
+    IDWriteFontFace1_GetMetrics(fontface1, &fm);
+
+    hdc = CreateCompatibleDC(0);
+
+    for (emsize = 1.0; emsize <= fm.designUnitsPerEm; emsize += 1.0) {
+        INT32 gdi_advance;
+
+        gdi_advance = get_gdi_font_advance(hdc, emsize);
+        hr = IDWriteFontFace1_GetGdiCompatibleGlyphAdvances(fontface1, emsize,
+            1.0, NULL, FALSE, FALSE, 1, &glyph, &advance);
+        ok(hr == S_OK, "got 0x%08x\n", hr);
+
+        /* advance is in design units */
+        advance = (int)floorf(emsize * advance / fm.designUnitsPerEm + 0.5f);
+        ok((advance - gdi_advance) <= 2, "%.0f: got advance %d, expected %d\n", emsize, advance, gdi_advance);
+    }
+
+    DeleteObject(hdc);
+
+    IDWriteFactory_Release(factory);
+}
+
+static WORD get_gasp_flags(IDWriteFontFace *fontface, FLOAT emsize)
+{
+    WORD num_recs, version;
+    const WORD *ptr;
+    WORD flags = 0;
+    UINT32 size;
+    BOOL exists;
+    void *ctxt;
+    HRESULT hr;
+
+    exists = FALSE;
+    hr = IDWriteFontFace_TryGetFontTable(fontface, MS_GASP_TAG,
+        (const void**)&ptr, &size, &ctxt, &exists);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+
+    if (!exists)
+        goto done;
+
+    version  = GET_BE_WORD( *ptr++ );
+    num_recs = GET_BE_WORD( *ptr++ );
+    if (version > 1 || size < (num_recs * 2 + 2) * sizeof(WORD)) {
+        ok(0, "unsupported gasp table: ver %d size %d recs %d\n", version, size, num_recs);
+        goto done;
+    }
+
+    while (num_recs--)
+    {
+        flags = GET_BE_WORD( *(ptr + 1) );
+        if (emsize <= GET_BE_WORD( *ptr )) break;
+        ptr += 2;
+    }
+
+done:
+    IDWriteFontFace_ReleaseFontTable(fontface, ctxt);
+    return flags;
+}
+
+#define GASP_GRIDFIT             0x0001
+#define GASP_DOGRAY              0x0002
+#define GASP_SYMMETRIC_GRIDFIT   0x0004
+#define GASP_SYMMETRIC_SMOOTHING 0x0008
+
+static BOOL g_is_vista;
+static DWRITE_RENDERING_MODE get_expected_rendering_mode(FLOAT emsize, WORD gasp, DWRITE_MEASURING_MODE mode,
+    DWRITE_OUTLINE_THRESHOLD threshold)
+{
+    static const FLOAT aa_threshold = 100.0f;
+    static const FLOAT a_threshold = 350.0f;
+    static const FLOAT naturalemsize = 20.0f;
+    FLOAT v;
+
+    /* outline threshold */
+    if (g_is_vista)
+        v = mode == DWRITE_MEASURING_MODE_NATURAL ? aa_threshold : a_threshold;
+    else
+        v = threshold == DWRITE_OUTLINE_THRESHOLD_ANTIALIASED ? aa_threshold : a_threshold;
+
+    if (emsize >= v)
+        return DWRITE_RENDERING_MODE_OUTLINE;
+
+    switch (mode)
+    {
+    case DWRITE_MEASURING_MODE_NATURAL:
+        if (!(gasp & GASP_SYMMETRIC_SMOOTHING) && (emsize <= naturalemsize))
+            return DWRITE_RENDERING_MODE_NATURAL;
+        else
+            return DWRITE_RENDERING_MODE_NATURAL_SYMMETRIC;
+    case DWRITE_MEASURING_MODE_GDI_CLASSIC:
+        return DWRITE_RENDERING_MODE_GDI_CLASSIC;
+    case DWRITE_MEASURING_MODE_GDI_NATURAL:
+        return DWRITE_RENDERING_MODE_GDI_NATURAL;
+    default:
+        ;
+    }
+
+    /* should be unreachable */
+    return DWRITE_RENDERING_MODE_DEFAULT;
+}
+
+static DWRITE_GRID_FIT_MODE get_expected_gridfit_mode(FLOAT emsize, WORD gasp, DWRITE_MEASURING_MODE mode,
+    DWRITE_OUTLINE_THRESHOLD threshold)
+{
+    static const FLOAT aa_threshold = 100.0f;
+    static const FLOAT a_threshold = 350.0f;
+    FLOAT v;
+
+    v = threshold == DWRITE_OUTLINE_THRESHOLD_ANTIALIASED ? aa_threshold : a_threshold;
+    if (emsize >= v)
+        return DWRITE_GRID_FIT_MODE_DISABLED;
+
+    if (mode == DWRITE_MEASURING_MODE_GDI_CLASSIC || mode == DWRITE_MEASURING_MODE_GDI_NATURAL)
+        return DWRITE_GRID_FIT_MODE_ENABLED;
+
+    return (gasp & (GASP_GRIDFIT|GASP_SYMMETRIC_GRIDFIT)) ? DWRITE_GRID_FIT_MODE_ENABLED : DWRITE_GRID_FIT_MODE_DISABLED;
+}
+
+struct recommendedmode_test
+{
+    DWRITE_MEASURING_MODE measuring;
+    DWRITE_OUTLINE_THRESHOLD threshold;
+};
+
+static const struct recommendedmode_test recmode_tests[] = {
+    { DWRITE_MEASURING_MODE_NATURAL,     DWRITE_OUTLINE_THRESHOLD_ANTIALIASED },
+    { DWRITE_MEASURING_MODE_GDI_CLASSIC, DWRITE_OUTLINE_THRESHOLD_ANTIALIASED },
+    { DWRITE_MEASURING_MODE_GDI_NATURAL, DWRITE_OUTLINE_THRESHOLD_ANTIALIASED },
+};
+
+static const struct recommendedmode_test recmode_tests1[] = {
+    { DWRITE_MEASURING_MODE_NATURAL,     DWRITE_OUTLINE_THRESHOLD_ANTIALIASED },
+    { DWRITE_MEASURING_MODE_GDI_CLASSIC, DWRITE_OUTLINE_THRESHOLD_ANTIALIASED },
+    { DWRITE_MEASURING_MODE_GDI_NATURAL, DWRITE_OUTLINE_THRESHOLD_ANTIALIASED },
+    { DWRITE_MEASURING_MODE_NATURAL,     DWRITE_OUTLINE_THRESHOLD_ALIASED },
+    { DWRITE_MEASURING_MODE_GDI_CLASSIC, DWRITE_OUTLINE_THRESHOLD_ALIASED },
+    { DWRITE_MEASURING_MODE_GDI_NATURAL, DWRITE_OUTLINE_THRESHOLD_ALIASED },
+};
+
+static void test_GetRecommendedRenderingMode(void)
+{
+    IDWriteRenderingParams *params;
+    IDWriteFontFace2 *fontface2;
+    IDWriteFontFace1 *fontface1;
+    IDWriteFontFace  *fontface;
+    DWRITE_RENDERING_MODE mode;
+    IDWriteFactory *factory;
+    FLOAT emsize;
+    HRESULT hr;
+
+    factory = create_factory();
+    fontface = create_fontface(factory);
+
+    fontface1 = NULL;
+    hr = IDWriteFontFace_QueryInterface(fontface, &IID_IDWriteFontFace1, (void**)&fontface1);
+    if (hr != S_OK)
+        win_skip("IDWriteFontFace1::GetRecommendedRenderingMode() is not supported.\n");
+
+    fontface2 = NULL;
+    hr = IDWriteFontFace_QueryInterface(fontface, &IID_IDWriteFontFace2, (void**)&fontface2);
+    if (hr != S_OK)
+        win_skip("IDWriteFontFace2::GetRecommendedRenderingMode() is not supported.\n");
+
+if (0) /* crashes on native */
+    hr = IDWriteFontFace_GetRecommendedRenderingMode(fontface, 3.0, 1.0,
+        DWRITE_MEASURING_MODE_GDI_CLASSIC, NULL, NULL);
+
+    mode = 10;
+    hr = IDWriteFontFace_GetRecommendedRenderingMode(fontface, 3.0, 1.0,
+        DWRITE_MEASURING_MODE_GDI_CLASSIC, NULL, &mode);
+    ok(hr == E_INVALIDARG, "got 0x%08x\n", hr);
+    ok(mode == DWRITE_RENDERING_MODE_DEFAULT, "got %d\n", mode);
+
+    hr = IDWriteFactory_CreateRenderingParams(factory, &params);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+
+    /* detect old dwrite version, that is using higher threshold value */
+    g_is_vista = fontface1 == NULL;
+
+    for (emsize = 1.0; emsize < 500.0; emsize += 1.0) {
+        WORD gasp = get_gasp_flags(fontface, emsize);
+        DWRITE_RENDERING_MODE expected;
+        int i;
+
+        for (i = 0; i < sizeof(recmode_tests)/sizeof(recmode_tests[0]); i++) {
+            mode = 10;
+            expected = get_expected_rendering_mode(emsize, gasp, recmode_tests[i].measuring, recmode_tests[i].threshold);
+            hr = IDWriteFontFace_GetRecommendedRenderingMode(fontface, emsize, 1.0, recmode_tests[i].measuring, params, &mode);
+            ok(hr == S_OK, "got 0x%08x\n", hr);
+            ok(mode == expected, "%.2f/%d: got %d, flags 0x%04x, expected %d\n", emsize, i, mode, gasp, expected);
+        }
+
+        /* IDWriteFontFace1 offers another variant of this method */
+        if (fontface1) {
+            for (i = 0; i < sizeof(recmode_tests1)/sizeof(recmode_tests1[0]); i++) {
+                mode = 10;
+                expected = get_expected_rendering_mode(emsize, gasp, recmode_tests1[i].measuring, recmode_tests1[i].threshold);
+                hr = IDWriteFontFace1_GetRecommendedRenderingMode(fontface1, emsize, 96.0, 96.0,
+                    NULL, FALSE, recmode_tests1[i].threshold, recmode_tests1[i].measuring, &mode);
+                ok(hr == S_OK, "got 0x%08x\n", hr);
+                ok(mode == expected, "%.2f/%d: got %d, flags 0x%04x, expected %d\n", emsize, i, mode, gasp, expected);
+            }
+        }
+
+        /* IDWriteFontFace2 - another one */
+        if (fontface2) {
+            DWRITE_GRID_FIT_MODE gridfit, expected_gridfit;
+
+            for (i = 0; i < sizeof(recmode_tests1)/sizeof(recmode_tests1[0]); i++) {
+                mode = 10;
+                expected = get_expected_rendering_mode(emsize, gasp, recmode_tests1[0].measuring, recmode_tests1[0].threshold);
+                expected_gridfit = get_expected_gridfit_mode(emsize, gasp, recmode_tests1[0].measuring, DWRITE_OUTLINE_THRESHOLD_ANTIALIASED);
+                hr = IDWriteFontFace2_GetRecommendedRenderingMode(fontface2, emsize, 96.0, 96.0,
+                    NULL, FALSE, recmode_tests1[0].threshold, recmode_tests1[0].measuring, params, &mode, &gridfit);
+                ok(hr == S_OK, "got 0x%08x\n", hr);
+                ok(mode == expected, "%.2f: got %d, flags 0x%04x, expected %d\n", emsize, mode, gasp, expected);
+                ok(gridfit == expected_gridfit, "%.2f/%d: gridfit: got %d, flags 0x%04x, expected %d\n", emsize, i, gridfit,
+                    gasp, expected_gridfit);
+            }
+        }
+    }
+
+    IDWriteRenderingParams_Release(params);
+
+    /* test how parameters override returned modes */
+    hr = IDWriteFactory_CreateCustomRenderingParams(factory, 1.0, 0.0, 0.0, DWRITE_PIXEL_GEOMETRY_FLAT,
+        DWRITE_RENDERING_MODE_GDI_CLASSIC, &params);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+
+    mode = 10;
+    hr = IDWriteFontFace_GetRecommendedRenderingMode(fontface, 500.0, 1.0, DWRITE_MEASURING_MODE_NATURAL, params, &mode);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    ok(mode == DWRITE_RENDERING_MODE_GDI_CLASSIC, "got %d\n", mode);
+
+    IDWriteRenderingParams_Release(params);
+
+    if (fontface2) {
+        IDWriteRenderingParams2 *params2;
+        IDWriteFactory2 *factory2;
+        DWRITE_GRID_FIT_MODE gridfit;
+
+        hr = IDWriteFactory_QueryInterface(factory, &IID_IDWriteFactory2, (void**)&factory2);
+        ok(hr == S_OK, "got 0x%08x\n", hr);
+
+        hr = IDWriteFactory2_CreateCustomRenderingParams(factory2, 1.0, 0.0, 0.0, 0.5, DWRITE_PIXEL_GEOMETRY_FLAT,
+            DWRITE_RENDERING_MODE_OUTLINE, DWRITE_GRID_FIT_MODE_ENABLED, &params2);
+        ok(hr == S_OK, "got 0x%08x\n", hr);
+
+        mode = 10;
+        gridfit = 10;
+        hr = IDWriteFontFace2_GetRecommendedRenderingMode(fontface2, 5.0, 96.0, 96.0,
+            NULL, FALSE, DWRITE_OUTLINE_THRESHOLD_ANTIALIASED, DWRITE_MEASURING_MODE_GDI_CLASSIC,
+            NULL, &mode, &gridfit);
+        ok(hr == S_OK, "got 0x%08x\n", hr);
+        ok(mode == DWRITE_RENDERING_MODE_GDI_CLASSIC, "got %d\n", mode);
+        ok(gridfit == DWRITE_GRID_FIT_MODE_ENABLED, "got %d\n", gridfit);
+
+        mode = 10;
+        gridfit = 10;
+        hr = IDWriteFontFace2_GetRecommendedRenderingMode(fontface2, 5.0, 96.0, 96.0,
+            NULL, FALSE, DWRITE_OUTLINE_THRESHOLD_ANTIALIASED, DWRITE_MEASURING_MODE_GDI_CLASSIC,
+            (IDWriteRenderingParams*)params2, &mode, &gridfit);
+        ok(hr == S_OK, "got 0x%08x\n", hr);
+        ok(mode == DWRITE_RENDERING_MODE_OUTLINE, "got %d\n", mode);
+        ok(gridfit == DWRITE_GRID_FIT_MODE_ENABLED, "got %d\n", gridfit);
+
+        IDWriteRenderingParams2_Release(params2);
+        IDWriteFactory2_Release(factory2);
+    }
+
+    if (fontface2)
+        IDWriteFontFace2_Release(fontface2);
+    if (fontface1)
+        IDWriteFontFace1_Release(fontface1);
+    IDWriteFontFace_Release(fontface);
+    IDWriteFactory_Release(factory);
+}
+
+static inline BOOL float_eq(FLOAT left, FLOAT right)
+{
+    int x = *(int *)&left;
+    int y = *(int *)&right;
+
+    if (x < 0)
+        x = INT_MIN - x;
+    if (y < 0)
+        y = INT_MIN - y;
+
+    return abs(x - y) <= 8;
+}
+
+static void test_GetAlphaBlendParams(void)
+{
+    static const DWRITE_RENDERING_MODE rendermodes[] = {
+        DWRITE_RENDERING_MODE_ALIASED,
+        DWRITE_RENDERING_MODE_GDI_CLASSIC,
+        DWRITE_RENDERING_MODE_GDI_NATURAL,
+        DWRITE_RENDERING_MODE_NATURAL,
+        DWRITE_RENDERING_MODE_NATURAL_SYMMETRIC,
+    };
+
+    IDWriteGlyphRunAnalysis *analysis;
+    FLOAT gamma, contrast, ctlevel;
+    IDWriteRenderingParams *params;
+    DWRITE_GLYPH_METRICS metrics;
+    DWRITE_GLYPH_OFFSET offset;
+    IDWriteFontFace *fontface;
+    IDWriteFactory *factory;
+    DWRITE_GLYPH_RUN run;
+    FLOAT advance, expected_gdi_gamma;
+    UINT value = 0;
+    UINT16 glyph;
+    UINT32 ch, i;
+    HRESULT hr;
+    BOOL ret;
+
+    factory = create_factory();
+    fontface = create_fontface(factory);
+
+    ch = 'A';
+    glyph = 0;
+    hr = IDWriteFontFace_GetGlyphIndices(fontface, &ch, 1, &glyph);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    ok(glyph > 0, "got %u\n", glyph);
+
+    hr = IDWriteFontFace_GetDesignGlyphMetrics(fontface, &glyph, 1, &metrics, FALSE);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    advance = metrics.advanceWidth;
+
+    offset.advanceOffset = 0.0;
+    offset.ascenderOffset = 0.0;
+
+    run.fontFace = fontface;
+    run.fontEmSize = 24.0;
+    run.glyphCount = 1;
+    run.glyphIndices = &glyph;
+    run.glyphAdvances = &advance;
+    run.glyphOffsets = &offset;
+    run.isSideways = FALSE;
+    run.bidiLevel = 0;
+
+    hr = IDWriteFactory_CreateCustomRenderingParams(factory, 0.9, 0.3, 0.1, DWRITE_PIXEL_GEOMETRY_RGB,
+        DWRITE_RENDERING_MODE_DEFAULT, &params);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+
+    value = 0;
+    ret = SystemParametersInfoW(SPI_GETFONTSMOOTHINGCONTRAST, 0, &value, 0);
+    ok(ret, "got %d\n", ret);
+    expected_gdi_gamma = (FLOAT)(value / 1000.0);
+
+    for (i = 0; i < sizeof(rendermodes)/sizeof(rendermodes[0]); i++) {
+        hr = IDWriteFactory_CreateGlyphRunAnalysis(factory, &run, 1.0, NULL,
+            rendermodes[i], DWRITE_MEASURING_MODE_NATURAL,
+            0.0, 0.0, &analysis);
+        ok(hr == S_OK, "got 0x%08x\n", hr);
+
+        gamma = contrast = ctlevel = -1.0;
+        hr = IDWriteGlyphRunAnalysis_GetAlphaBlendParams(analysis, NULL, &gamma, &contrast, &ctlevel);
+        ok(hr == E_INVALIDARG, "got 0x%08x\n", hr);
+        ok(gamma == -1.0, "got %.2f\n", gamma);
+        ok(contrast == -1.0, "got %.2f\n", contrast);
+        ok(ctlevel == -1.0, "got %.2f\n", ctlevel);
+
+        gamma = contrast = ctlevel = -1.0;
+        hr = IDWriteGlyphRunAnalysis_GetAlphaBlendParams(analysis, params, &gamma, &contrast, &ctlevel);
+        ok(hr == S_OK, "got 0x%08x\n", hr);
+
+        if (rendermodes[i] == DWRITE_RENDERING_MODE_GDI_CLASSIC || rendermodes[i] == DWRITE_RENDERING_MODE_GDI_NATURAL) {
+            ok(float_eq(gamma, expected_gdi_gamma), "got %.2f, expected %.2f\n", gamma, expected_gdi_gamma);
+            ok(contrast == 0.0f, "got %.2f\n", contrast);
+            ok(ctlevel == 1.0f, "got %.2f\n", ctlevel);
+        }
+        else {
+            ok(gamma == 0.9f, "got %.2f\n", gamma);
+            ok(contrast == 0.3f, "got %.2f\n", contrast);
+            ok(ctlevel == 0.1f, "got %.2f\n", ctlevel);
+        }
+
+        IDWriteGlyphRunAnalysis_Release(analysis);
+    }
+
+    IDWriteRenderingParams_Release(params);
+    IDWriteFontFace_Release(fontface);
+    IDWriteFactory_Release(factory);
+}
+
+static void test_CreateAlphaTexture(void)
+{
+    IDWriteGlyphRunAnalysis *analysis;
+    DWRITE_GLYPH_METRICS metrics;
+    DWRITE_GLYPH_OFFSET offset;
+    IDWriteFontFace *fontface;
+    IDWriteFactory *factory;
+    DWRITE_GLYPH_RUN run;
+    UINT32 ch, size;
+    BYTE buff[1024];
+    RECT bounds, r;
+    FLOAT advance;
+    UINT16 glyph;
+    HRESULT hr;
+
+    factory = create_factory();
+    fontface = create_fontface(factory);
+
+    ch = 'A';
+    glyph = 0;
+    hr = IDWriteFontFace_GetGlyphIndices(fontface, &ch, 1, &glyph);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    ok(glyph > 0, "got %u\n", glyph);
+
+    hr = IDWriteFontFace_GetDesignGlyphMetrics(fontface, &glyph, 1, &metrics, FALSE);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    advance = metrics.advanceWidth;
+
+    offset.advanceOffset = 0.0;
+    offset.ascenderOffset = 0.0;
+
+    run.fontFace = fontface;
+    run.fontEmSize = 24.0;
+    run.glyphCount = 1;
+    run.glyphIndices = &glyph;
+    run.glyphAdvances = &advance;
+    run.glyphOffsets = &offset;
+    run.isSideways = FALSE;
+    run.bidiLevel = 0;
+
+    hr = IDWriteFactory_CreateGlyphRunAnalysis(factory, &run, 1.0, NULL,
+        DWRITE_RENDERING_MODE_NATURAL, DWRITE_MEASURING_MODE_NATURAL,
+        0.0, 0.0, &analysis);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+
+    SetRectEmpty(&bounds);
+    hr = IDWriteGlyphRunAnalysis_GetAlphaTextureBounds(analysis, DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    ok(!IsRectEmpty(&bounds), "got empty rect\n");
+    size = (bounds.right - bounds.left)*(bounds.bottom - bounds.top)*3;
+    ok(sizeof(buff) >= size, "required %u\n", size);
+
+    /* invalid type value */
+    memset(buff, 0xcf, sizeof(buff));
+    hr = IDWriteGlyphRunAnalysis_CreateAlphaTexture(analysis, DWRITE_TEXTURE_CLEARTYPE_3x1+1, &bounds, buff, sizeof(buff));
+    ok(hr == E_INVALIDARG, "got 0x%08x\n", hr);
+    ok(buff[0] == 0xcf, "got %1x\n", buff[0]);
+
+    memset(buff, 0xcf, sizeof(buff));
+    hr = IDWriteGlyphRunAnalysis_CreateAlphaTexture(analysis, DWRITE_TEXTURE_ALIASED_1x1, &bounds, buff, 2);
+    ok(hr == E_NOT_SUFFICIENT_BUFFER, "got 0x%08x\n", hr);
+    ok(buff[0] == 0xcf, "got %1x\n", buff[0]);
+
+    /* vista version allows texture type mismatch, mark it broken for now */
+    memset(buff, 0xcf, sizeof(buff));
+    hr = IDWriteGlyphRunAnalysis_CreateAlphaTexture(analysis, DWRITE_TEXTURE_ALIASED_1x1, &bounds, buff, sizeof(buff));
+    ok(hr == DWRITE_E_UNSUPPORTEDOPERATION || broken(hr == S_OK), "got 0x%08x\n", hr);
+    ok(buff[0] == 0xcf || broken(buff[0] == 0), "got %1x\n", buff[0]);
+
+    memset(buff, 0xcf, sizeof(buff));
+    hr = IDWriteGlyphRunAnalysis_CreateAlphaTexture(analysis, DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds, buff, size-1);
+    ok(hr == E_NOT_SUFFICIENT_BUFFER, "got 0x%08x\n", hr);
+    ok(buff[0] == 0xcf, "got %1x\n", buff[0]);
+
+    IDWriteGlyphRunAnalysis_Release(analysis);
+
+    hr = IDWriteFactory_CreateGlyphRunAnalysis(factory, &run, 1.0, NULL,
+        DWRITE_RENDERING_MODE_ALIASED, DWRITE_MEASURING_MODE_GDI_CLASSIC,
+        0.0, 0.0, &analysis);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+
+    SetRectEmpty(&bounds);
+    hr = IDWriteGlyphRunAnalysis_GetAlphaTextureBounds(analysis, DWRITE_TEXTURE_ALIASED_1x1, &bounds);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    ok(!IsRectEmpty(&bounds), "got empty rect\n");
+    size = (bounds.right - bounds.left)*(bounds.bottom - bounds.top);
+    ok(sizeof(buff) >= size, "required %u\n", size);
+
+    memset(buff, 0xcf, sizeof(buff));
+    hr = IDWriteGlyphRunAnalysis_CreateAlphaTexture(analysis, DWRITE_TEXTURE_ALIASED_1x1, NULL, buff, sizeof(buff));
+    ok(hr == E_INVALIDARG, "got 0x%08x\n", hr);
+    ok(buff[0] == 0xcf, "got %1x\n", buff[0]);
+
+    hr = IDWriteGlyphRunAnalysis_CreateAlphaTexture(analysis, DWRITE_TEXTURE_ALIASED_1x1, NULL, NULL, sizeof(buff));
+    ok(hr == E_INVALIDARG, "got 0x%08x\n", hr);
+
+    memset(buff, 0xcf, sizeof(buff));
+    hr = IDWriteGlyphRunAnalysis_CreateAlphaTexture(analysis, DWRITE_TEXTURE_ALIASED_1x1, NULL, buff, 0);
+    ok(hr == E_INVALIDARG, "got 0x%08x\n", hr);
+    ok(buff[0] == 0xcf, "got %1x\n", buff[0]);
+
+    /* buffer size is not enough */
+    memset(buff, 0xcf, sizeof(buff));
+    hr = IDWriteGlyphRunAnalysis_CreateAlphaTexture(analysis, DWRITE_TEXTURE_ALIASED_1x1, &bounds, buff, size-1);
+    ok(hr == E_NOT_SUFFICIENT_BUFFER, "got 0x%08x\n", hr);
+    ok(buff[0] == 0xcf, "got %1x\n", buff[0]);
+
+    /* request texture for rectangle that doesn't intersect */
+    memset(buff, 0xcf, sizeof(buff));
+    r = bounds;
+    OffsetRect(&r, (bounds.right - bounds.left)*2, 0);
+    hr = IDWriteGlyphRunAnalysis_CreateAlphaTexture(analysis, DWRITE_TEXTURE_ALIASED_1x1, &r, buff, sizeof(buff));
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    ok(buff[0] == 0, "got %1x\n", buff[0]);
+
+    memset(buff, 0xcf, sizeof(buff));
+    r = bounds;
+    OffsetRect(&r, (bounds.right - bounds.left)*2, 0);
+    hr = IDWriteGlyphRunAnalysis_CreateAlphaTexture(analysis, DWRITE_TEXTURE_ALIASED_1x1, &r, buff, sizeof(buff));
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    ok(buff[0] == 0, "got %1x\n", buff[0]);
+
+    /* request texture for rectangle that doesn't intersect, small buffer */
+    memset(buff, 0xcf, sizeof(buff));
+    r = bounds;
+    OffsetRect(&r, (bounds.right - bounds.left)*2, 0);
+    hr = IDWriteGlyphRunAnalysis_CreateAlphaTexture(analysis, DWRITE_TEXTURE_ALIASED_1x1, &r, buff, size-1);
+    ok(hr == E_NOT_SUFFICIENT_BUFFER, "got 0x%08x\n", hr);
+    ok(buff[0] == 0xcf, "got %1x\n", buff[0]);
+
+    /* vista version allows texture type mismatch, mark it broken for now */
+    memset(buff, 0xcf, sizeof(buff));
+    hr = IDWriteGlyphRunAnalysis_CreateAlphaTexture(analysis, DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds, buff, sizeof(buff));
+    ok(hr == DWRITE_E_UNSUPPORTEDOPERATION || broken(hr == S_OK), "got 0x%08x\n", hr);
+    ok(buff[0] == 0xcf || broken(buff[0] == 0), "got %1x\n", buff[0]);
+
+    IDWriteGlyphRunAnalysis_Release(analysis);
+    IDWriteFontFace_Release(fontface);
+    IDWriteFactory_Release(factory);
+}
+
+static void test_IsSymbolFont(void)
+{
+    static const WCHAR symbolW[] = {'S','y','m','b','o','l',0};
+    IDWriteFontCollection *collection;
+    IDWriteFontFace *fontface;
+    IDWriteFactory *factory;
+    IDWriteFont *font;
+    HRESULT hr;
+    BOOL ret;
+
+    factory = create_factory();
+
+    /* Tahoma */
+    fontface = create_fontface(factory);
+    ret = IDWriteFontFace_IsSymbolFont(fontface);
+    ok(!ret, "got %d\n", ret);
+
+    hr = IDWriteFactory_GetSystemFontCollection(factory, &collection, FALSE);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+
+    hr = IDWriteFontCollection_GetFontFromFontFace(collection, fontface, &font);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+
+    ret = IDWriteFont_IsSymbolFont(font);
+    ok(!ret, "got %d\n", ret);
+
+    IDWriteFontCollection_Release(collection);
+    IDWriteFont_Release(font);
+    IDWriteFontFace_Release(fontface);
+
+    /* Symbol */
+    font = get_font(factory, symbolW, DWRITE_FONT_STYLE_NORMAL);
+    ret = IDWriteFont_IsSymbolFont(font);
+    ok(ret, "got %d\n", ret);
+
+    hr = IDWriteFont_CreateFontFace(font, &fontface);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    ret = IDWriteFontFace_IsSymbolFont(fontface);
+    ok(ret, "got %d\n", ret);
+    IDWriteFont_Release(font);
+
+    IDWriteFactory_Release(factory);
+}
+
+struct CPAL_Header_0
+{
+    USHORT version;
+    USHORT numPaletteEntries;
+    USHORT numPalette;
+    USHORT numColorRecords;
+    ULONG  offsetFirstColorRecord;
+    USHORT colorRecordIndices[1];
+};
+
+static void test_GetPaletteEntries(void)
+{
+    IDWriteFontFace2 *fontface2;
+    IDWriteFontFace *fontface;
+    IDWriteFactory *factory;
+    IDWriteFont *font;
+    DWRITE_COLOR_F color;
+    UINT32 palettecount, entrycount, size, colorrecords;
+    void *ctxt;
+    const struct CPAL_Header_0 *cpal_header;
+    HRESULT hr;
+    BOOL exists;
+
+    factory = create_factory();
+
+    /* Tahoma, no color support */
+    fontface = create_fontface(factory);
+    hr = IDWriteFontFace_QueryInterface(fontface, &IID_IDWriteFontFace2, (void**)&fontface2);
+    IDWriteFontFace_Release(fontface);
+    if (hr != S_OK) {
+        IDWriteFactory_Release(factory);
+        win_skip("GetPaletteEntries() is not supported.\n");
+        return;
+    }
+
+    hr = IDWriteFontFace2_GetPaletteEntries(fontface2, 0, 0, 1, &color);
+    ok(hr == DWRITE_E_NOCOLOR, "got 0x%08x\n", hr);
+    IDWriteFontFace2_Release(fontface2);
+
+    /* Segoe UI Emoji, with color support */
+    font = get_font(factory, emojiW, DWRITE_FONT_STYLE_NORMAL);
+    if (!font) {
+        IDWriteFactory_Release(factory);
+        skip("Segoe UI Emoji font not found.\n");
+        return;
+    }
+
+    hr = IDWriteFont_CreateFontFace(font, &fontface);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    IDWriteFont_Release(font);
+
+    hr = IDWriteFontFace_QueryInterface(fontface, &IID_IDWriteFontFace2, (void**)&fontface2);
+    IDWriteFontFace_Release(fontface);
+
+    palettecount = IDWriteFontFace2_GetColorPaletteCount(fontface2);
+    ok(palettecount >= 1, "got %u\n", palettecount);
+
+    entrycount = IDWriteFontFace2_GetPaletteEntryCount(fontface2);
+    ok(entrycount >= 1, "got %u\n", entrycount);
+
+    exists = FALSE;
+    hr = IDWriteFontFace2_TryGetFontTable(fontface2, MS_CPAL_TAG, (const void**)&cpal_header, &size, &ctxt, &exists);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    ok(exists, "got %d\n", exists);
+    colorrecords = GET_BE_WORD(cpal_header->numColorRecords);
+    ok(colorrecords >= 1, "got %u\n", colorrecords);
+
+    /* invalid palette index */
+    color.r = color.g = color.b = color.a = 123.0;
+    hr = IDWriteFontFace2_GetPaletteEntries(fontface2, palettecount, 0, 1, &color);
+    ok(hr == DWRITE_E_NOCOLOR, "got 0x%08x\n", hr);
+    ok(color.r == 123.0 && color.g == 123.0 && color.b == 123.0 && color.a == 123.0,
+        "got wrong color %.2fx%.2fx%.2fx%.2f\n", color.r, color.g, color.b, color.a);
+
+    /* invalid entry index */
+    color.r = color.g = color.b = color.a = 123.0;
+    hr = IDWriteFontFace2_GetPaletteEntries(fontface2, 0, entrycount, 1, &color);
+    ok(hr == E_INVALIDARG, "got 0x%08x\n", hr);
+    ok(color.r == 123.0 && color.g == 123.0 && color.b == 123.0 && color.a == 123.0,
+        "got wrong color %.2fx%.2fx%.2fx%.2f\n", color.r, color.g, color.b, color.a);
+
+    color.r = color.g = color.b = color.a = 123.0;
+    hr = IDWriteFontFace2_GetPaletteEntries(fontface2, 0, entrycount - 1, 1, &color);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    ok(color.r != 123.0 && color.g != 123.0 && color.b != 123.0 && color.a != 123.0,
+        "got wrong color %.2fx%.2fx%.2fx%.2f\n", color.r, color.g, color.b, color.a);
+
+    /* zero return length */
+    color.r = color.g = color.b = color.a = 123.0;
+    hr = IDWriteFontFace2_GetPaletteEntries(fontface2, 0, 0, 0, &color);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    ok(color.r == 123.0 && color.g == 123.0 && color.b == 123.0 && color.a == 123.0,
+        "got wrong color %.2fx%.2fx%.2fx%.2f\n", color.r, color.g, color.b, color.a);
+
+    IDWriteFontFace2_Release(fontface2);
+    IDWriteFactory_Release(factory);
+}
+
+static void test_TranslateColorGlyphRun(void)
+{
+    IDWriteColorGlyphRunEnumerator *layers;
+    const DWRITE_COLOR_GLYPH_RUN *colorrun;
+    IDWriteFontFace *fontface;
+    IDWriteFactory2 *factory2;
+    IDWriteFactory *factory;
+    DWRITE_GLYPH_RUN run;
+    UINT32 codepoints[2];
+    IDWriteFont *font;
+    UINT16 glyphs[2];
+    BOOL hasrun;
+    HRESULT hr;
+
+    factory = create_factory();
+
+    hr = IDWriteFactory_QueryInterface(factory, &IID_IDWriteFactory2, (void**)&factory2);
+    IDWriteFactory_Release(factory);
+    if (hr != S_OK) {
+        win_skip("TranslateColorGlyphRun() is not supported.\n");
+        return;
+    }
+
+    /* Tahoma, no color support */
+    fontface = create_fontface((IDWriteFactory*)factory2);
+
+    codepoints[0] = 'A';
+    hr = IDWriteFontFace_GetGlyphIndices(fontface, codepoints, 1, glyphs);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+
+    run.fontFace = fontface;
+    run.fontEmSize = 20.0f;
+    run.glyphCount = 1;
+    run.glyphIndices = glyphs;
+    run.glyphAdvances = NULL;
+    run.glyphOffsets = NULL;
+    run.isSideways = FALSE;
+    run.bidiLevel = 0;
+
+    layers = (void*)0xdeadbeef;
+    hr = IDWriteFactory2_TranslateColorGlyphRun(factory2, 0.0, 0.0, &run, NULL,
+        DWRITE_MEASURING_MODE_NATURAL, NULL, 0, &layers);
+todo_wine {
+    ok(hr == DWRITE_E_NOCOLOR, "got 0x%08x\n", hr);
+    ok(layers == NULL, "got %p\n", layers);
+}
+    IDWriteFontFace_Release(fontface);
+
+    /* Segoe UI Emoji, with color support */
+    font = get_font((IDWriteFactory*)factory2, emojiW, DWRITE_FONT_STYLE_NORMAL);
+    if (!font) {
+        IDWriteFactory2_Release(factory2);
+        skip("Segoe UI Emoji font not found.\n");
+        return;
+    }
+
+    hr = IDWriteFont_CreateFontFace(font, &fontface);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    IDWriteFont_Release(font);
+
+    codepoints[0] = 0x26c4;
+    hr = IDWriteFontFace_GetGlyphIndices(fontface, codepoints, 1, glyphs);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+
+    run.fontFace = fontface;
+
+    layers = NULL;
+    hr = IDWriteFactory2_TranslateColorGlyphRun(factory2, 0.0, 0.0, &run, NULL,
+        DWRITE_MEASURING_MODE_NATURAL, NULL, 0, &layers);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    ok(layers != NULL, "got %p\n", layers);
+
+    while (1) {
+        hasrun = FALSE;
+        hr = IDWriteColorGlyphRunEnumerator_MoveNext(layers, &hasrun);
+    todo_wine
+        ok(hr == S_OK, "got 0x%08x\n", hr);
+
+        if (!hasrun)
+            break;
+    }
+
+    /* iterated all way through */
+    hr = IDWriteColorGlyphRunEnumerator_GetCurrentRun(layers, &colorrun);
+todo_wine
+    ok(hr == E_NOT_VALID_STATE, "got 0x%08x\n", hr);
+
+    IDWriteColorGlyphRunEnumerator_Release(layers);
+
+    /* color font, glyph without color info */
+    codepoints[0] = 'A';
+    hr = IDWriteFontFace_GetGlyphIndices(fontface, codepoints, 1, glyphs);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+
+    layers = (void*)0xdeadbeef;
+    hr = IDWriteFactory2_TranslateColorGlyphRun(factory2, 0.0, 0.0, &run, NULL,
+        DWRITE_MEASURING_MODE_NATURAL, NULL, 0, &layers);
+todo_wine {
+    ok(hr == DWRITE_E_NOCOLOR, "got 0x%08x\n", hr);
+    ok(layers == NULL, "got %p\n", layers);
+}
+    /* one glyph with, one without */
+    codepoints[0] = 'A';
+    codepoints[1] = 0x26c4;
+
+    hr = IDWriteFontFace_GetGlyphIndices(fontface, codepoints, 2, glyphs);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+
+    run.glyphCount = 2;
+
+    layers = NULL;
+    hr = IDWriteFactory2_TranslateColorGlyphRun(factory2, 0.0, 0.0, &run, NULL,
+        DWRITE_MEASURING_MODE_NATURAL, NULL, 0, &layers);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    ok(layers != NULL, "got %p\n", layers);
+    IDWriteColorGlyphRunEnumerator_Release(layers);
+
+    IDWriteFontFace_Release(fontface);
+    IDWriteFactory2_Release(factory2);
 }
 
 START_TEST(font)
@@ -3361,6 +5044,15 @@ START_TEST(font)
     test_GetKerningPairAdjustments();
     test_CreateRenderingParams();
     test_CreateGlyphRunAnalysis();
+    test_GetGdiCompatibleMetrics();
+    test_GetPanose();
+    test_GetGdiCompatibleGlyphAdvances();
+    test_GetRecommendedRenderingMode();
+    test_GetAlphaBlendParams();
+    test_CreateAlphaTexture();
+    test_IsSymbolFont();
+    test_GetPaletteEntries();
+    test_TranslateColorGlyphRun();
 
     IDWriteFactory_Release(factory);
 }

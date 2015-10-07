@@ -67,7 +67,8 @@ static int   (WINAPI *pgetaddrinfo)(LPCSTR,LPCSTR,const struct addrinfo *,struct
 static void  (WINAPI *pFreeAddrInfoW)(PADDRINFOW);
 static int   (WINAPI *pGetAddrInfoW)(LPCWSTR,LPCWSTR,const ADDRINFOW *,PADDRINFOW *);
 static PCSTR (WINAPI *pInetNtop)(INT,LPVOID,LPSTR,ULONG);
-static int   (WINAPI *pInetPton)(INT,LPSTR,LPVOID);
+static int   (WINAPI *pInetPtonA)(INT,LPCSTR,LPVOID);
+static int   (WINAPI *pInetPtonW)(INT,LPWSTR,LPVOID);
 static int   (WINAPI *pWSALookupServiceBeginW)(LPWSAQUERYSETW,DWORD,LPHANDLE);
 static int   (WINAPI *pWSALookupServiceEnd)(HANDLE);
 static int   (WINAPI *pWSALookupServiceNextW)(HANDLE,DWORD,LPDWORD,LPWSAQUERYSETW);
@@ -1159,7 +1160,8 @@ static void Init (void)
     pFreeAddrInfoW = (void *)GetProcAddress(hws2_32, "FreeAddrInfoW");
     pGetAddrInfoW = (void *)GetProcAddress(hws2_32, "GetAddrInfoW");
     pInetNtop = (void *)GetProcAddress(hws2_32, "inet_ntop");
-    pInetPton = (void *)GetProcAddress(hws2_32, "inet_pton");
+    pInetPtonA = (void *)GetProcAddress(hws2_32, "inet_pton");
+    pInetPtonW = (void *)GetProcAddress(hws2_32, "InetPtonW");
     pWSALookupServiceBeginW = (void *)GetProcAddress(hws2_32, "WSALookupServiceBeginW");
     pWSALookupServiceEnd = (void *)GetProcAddress(hws2_32, "WSALookupServiceEnd");
     pWSALookupServiceNextW = (void *)GetProcAddress(hws2_32, "WSALookupServiceNextW");
@@ -3523,30 +3525,46 @@ static void test_select(void)
     struct sockaddr_in address;
     select_thread_params thread_params;
     HANDLE thread_handle;
-    DWORD id;
+    DWORD ticks, id;
 
     fdRead = socket(AF_INET, SOCK_STREAM, 0);
     ok( (fdRead != INVALID_SOCKET), "socket failed unexpectedly: %d\n", WSAGetLastError() );
     fdWrite = socket(AF_INET, SOCK_STREAM, 0);
     ok( (fdWrite != INVALID_SOCKET), "socket failed unexpectedly: %d\n", WSAGetLastError() );
 
+    maxfd = fdRead;
+    if (fdWrite > maxfd)
+        maxfd = fdWrite;
+
+    FD_ZERO_ALL();
+    FD_SET_ALL(fdRead);
+    FD_SET_ALL(fdWrite);
+    select_timeout.tv_sec=0;
+    select_timeout.tv_usec=0;
+
+    ticks = GetTickCount();
+    ret = select(maxfd+1, &readfds, &writefds, &exceptfds, &select_timeout);
+    ticks = GetTickCount() - ticks;
+    ok(ret == 0, "select should not return any socket handles\n");
+    ok(ticks < 10, "select was blocking for %u ms, expected < 10 ms\n", ticks);
+    ok(!FD_ISSET(fdRead, &readfds), "FD should not be set\n");
+    ok(!FD_ISSET(fdWrite, &writefds), "FD should not be set\n");
+    ok(!FD_ISSET(fdRead, &exceptfds), "FD should not be set\n");
+    ok(!FD_ISSET(fdWrite, &exceptfds), "FD should not be set\n");
+ 
     FD_ZERO_ALL();
     FD_SET_ALL(fdRead);
     FD_SET_ALL(fdWrite);
     select_timeout.tv_sec=0;
     select_timeout.tv_usec=500;
 
-    maxfd = fdRead;
-    if (fdWrite > maxfd)
-        maxfd = fdWrite;
-       
     ret = select(maxfd+1, &readfds, &writefds, &exceptfds, &select_timeout);
-    ok ( (ret == 0), "select should not return any socket handles\n");
-    ok ( !FD_ISSET(fdRead, &readfds), "FD should not be set\n");
-    ok ( !FD_ISSET(fdWrite, &writefds), "FD should not be set\n");
-    ok ( !FD_ISSET(fdRead, &exceptfds), "FD should not be set\n");
-    ok ( !FD_ISSET(fdWrite, &exceptfds), "FD should not be set\n");
- 
+    ok(ret == 0, "select should not return any socket handles\n");
+    ok(!FD_ISSET(fdRead, &readfds), "FD should not be set\n");
+    ok(!FD_ISSET(fdWrite, &writefds), "FD should not be set\n");
+    ok(!FD_ISSET(fdRead, &exceptfds), "FD should not be set\n");
+    ok(!FD_ISSET(fdWrite, &exceptfds), "FD should not be set\n");
+
     ok ((listen(fdWrite, SOMAXCONN) == SOCKET_ERROR), "listen did not fail\n");
     ret = closesocket(fdWrite);
     ok ( (ret == 0), "closesocket failed unexpectedly: %d\n", ret);
@@ -3721,7 +3739,8 @@ static void test_select(void)
     ok(FD_ISSET(fdRead, &writefds), "fdRead socket is not in the set\n");
     len = sizeof(id);
     id = 0xdeadbeef;
-    ok(!getsockopt(fdWrite, SOL_SOCKET, SO_ERROR, (char*)&id, &len), "getsockopt failed with %d\n",WSAGetLastError());
+    ret = getsockopt(fdWrite, SOL_SOCKET, SO_ERROR, (char*)&id, &len);
+    ok(!ret, "getsockopt failed with %d\n", WSAGetLastError());
     ok(id == 0, "expected 0, got %d\n", id);
 
     /* When data is received the receiver gets the read descriptor */
@@ -3805,7 +3824,8 @@ static void test_select(void)
     ok(ret == 1, "expected 1, got %d\n", ret);
     len = sizeof(id);
     id = 0xdeadbeef;
-    ok(!getsockopt(fdWrite, SOL_SOCKET, SO_ERROR, (char*)&id, &len), "getsockopt failed with %d\n",WSAGetLastError());
+    ret = getsockopt(fdWrite, SOL_SOCKET, SO_ERROR, (char*)&id, &len);
+    ok(!ret, "getsockopt failed with %d\n", WSAGetLastError());
     ok(id == WSAECONNREFUSED, "expected 10061, got %d\n", id);
     ok(FD_ISSET(fdWrite, &exceptfds), "fdWrite socket is not in the set\n");
     ok(select_timeout.tv_usec == 250000, "select timeout should not have changed\n");
@@ -3852,6 +3872,18 @@ todo_wine
     ok(GetLastError() == WSAENOTSOCK, "expected 10038, got %d\n", GetLastError());
     WaitForSingleObject (thread_handle, 1000);
     closesocket(fdRead);
+
+    /* test UDP behavior of unbound sockets */
+    select_timeout.tv_sec = 0;
+    select_timeout.tv_usec = 250000;
+    fdWrite = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    ok(fdWrite != INVALID_SOCKET, "socket call failed\n");
+    FD_ZERO_ALL();
+    FD_SET_ALL(fdWrite);
+    ret = select(0, &readfds, &writefds, &exceptfds, &select_timeout);
+    ok(ret == 1, "expected 1, got %d\n", ret);
+    ok(FD_ISSET(fdWrite, &writefds), "fdWrite socket is not in the set\n");
+    closesocket(fdWrite);
 }
 #undef FD_SET_ALL
 #undef FD_ZERO_ALL
@@ -4395,7 +4427,6 @@ static void test_gethostbyname_hack(void)
         return;
     }
 
-    he = NULL;
     he = gethostbyname(name);
     ok(he != NULL, "gethostbyname(\"%s\") failed: %d\n", name, h_errno);
     if(he)
@@ -4669,10 +4700,11 @@ static void test_inet_pton(void)
     int i, ret;
     DWORD err;
     char buffer[64],str[64];
+    WCHAR printableW[64];
     const char *ptr;
 
     /* InetNtop and InetPton became available in Vista and Win2008 */
-    if (!pInetNtop || !pInetPton)
+    if (!pInetNtop || !pInetPtonA || !pInetPtonW)
     {
         win_skip("InetNtop and/or InetPton not present, not executing tests\n");
         return;
@@ -4681,7 +4713,7 @@ static void test_inet_pton(void)
     for (i = 0; i < sizeof(tests) / sizeof(tests[0]); i++)
     {
         WSASetLastError(0xdeadbeef);
-        ret = pInetPton(tests[i].family, (char *)tests[i].printable, buffer);
+        ret = pInetPtonA(tests[i].family, tests[i].printable, buffer);
         ok (ret == tests[i].ret, "Test [%d]: Expected %d, got %d\n", i, tests[i].ret, ret);
         if (tests[i].ret == -1)
         {
@@ -4701,6 +4733,25 @@ static void test_inet_pton(void)
         if (!ptr) continue;
         ok (strcmp(ptr, tests[i].collapsed) == 0, "Test [%d]: Expected '%s', got '%s'\n",
             i, tests[i].collapsed, ptr);
+    }
+
+    for (i = 0; i < sizeof(tests) / sizeof(tests[0]); i++)
+    {
+        if (tests[i].printable)
+            MultiByteToWideChar(CP_ACP, 0, tests[i].printable, -1, printableW,
+                                sizeof(printableW) / sizeof(printableW[0]));
+        WSASetLastError(0xdeadbeef);
+        ret = pInetPtonW(tests[i].family, tests[i].printable ? printableW : NULL, buffer);
+        ok(ret == tests[i].ret, "Test [%d]: Expected %d, got %d\n", i, tests[i].ret, ret);
+        if (tests[i].ret == -1)
+        {
+            err = WSAGetLastError();
+            ok(tests[i].err == err, "Test [%d]: Expected 0x%x, got 0x%x\n", i, tests[i].err, err);
+        }
+        if (tests[i].ret != 1) continue;
+        ok(memcmp(buffer, tests[i].raw_data,
+           tests[i].family == AF_INET ? sizeof(struct in_addr) : sizeof(struct in6_addr)) == 0,
+           "Test [%d]: Expected binary data differs\n", i);
     }
 }
 
@@ -6285,6 +6336,8 @@ static void test_GetAddrInfoW(void)
     static const WCHAR zero[] = {'0',0};
     int i, ret;
     ADDRINFOW *result, *result2, *p, hint;
+    WCHAR name[256];
+    DWORD size = sizeof(name)/sizeof(WCHAR);
 
     if (!pGetAddrInfoW || !pFreeAddrInfoW)
     {
@@ -6292,6 +6345,8 @@ static void test_GetAddrInfoW(void)
         return;
     }
     memset(&hint, 0, sizeof(ADDRINFOW));
+    name[0] = 0;
+    GetComputerNameExW( ComputerNamePhysicalDnsHostname, name, &size );
 
     result = (ADDRINFOW *)0xdeadbeef;
     WSASetLastError(0xdeadbeef);
@@ -6366,6 +6421,30 @@ static void test_GetAddrInfoW(void)
     ok(!ret, "GetAddrInfoW failed with %d\n", WSAGetLastError());
     ok(WSAGetLastError() == 0, "expected 0, got %d\n", WSAGetLastError());
     pFreeAddrInfoW(result);
+
+    /* try to get information from the computer name, result is the same
+     * as if requesting with an empty host name. */
+    ret = pGetAddrInfoW(name, NULL, NULL, &result);
+    ok(!ret, "GetAddrInfoW failed with %d\n", WSAGetLastError());
+    ok(result != NULL, "GetAddrInfoW failed\n");
+
+    ret = pGetAddrInfoW(empty, NULL, NULL, &result2);
+    ok(!ret, "GetAddrInfoW failed with %d\n", WSAGetLastError());
+    ok(result != NULL, "GetAddrInfoW failed\n");
+    compare_addrinfow(result, result2);
+    pFreeAddrInfoW(result);
+    pFreeAddrInfoW(result2);
+
+    ret = pGetAddrInfoW(name, empty, NULL, &result);
+    ok(!ret, "GetAddrInfoW failed with %d\n", WSAGetLastError());
+    ok(result != NULL, "GetAddrInfoW failed\n");
+
+    ret = pGetAddrInfoW(empty, empty, NULL, &result2);
+    ok(!ret, "GetAddrInfoW failed with %d\n", WSAGetLastError());
+    ok(result != NULL, "GetAddrInfoW failed\n");
+    compare_addrinfow(result, result2);
+    pFreeAddrInfoW(result);
+    pFreeAddrInfoW(result2);
 
     result = (ADDRINFOW *)0xdeadbeef;
     WSASetLastError(0xdeadbeef);
@@ -6447,6 +6526,8 @@ static void test_getaddrinfo(void)
 {
     int i, ret;
     ADDRINFOA *result, *result2, *p, hint;
+    CHAR name[256];
+    DWORD size = sizeof(name);
 
     if (!pgetaddrinfo || !pfreeaddrinfo)
     {
@@ -6454,6 +6535,7 @@ static void test_getaddrinfo(void)
         return;
     }
     memset(&hint, 0, sizeof(ADDRINFOA));
+    GetComputerNameExA( ComputerNamePhysicalDnsHostname, name, &size );
 
     result = (ADDRINFOA *)0xdeadbeef;
     WSASetLastError(0xdeadbeef);
@@ -6529,6 +6611,30 @@ static void test_getaddrinfo(void)
     ok(!ret, "getaddrinfo failed with %d\n", WSAGetLastError());
     ok(WSAGetLastError() == 0, "expected 0, got %d\n", WSAGetLastError());
     pfreeaddrinfo(result);
+
+    /* try to get information from the computer name, result is the same
+     * as if requesting with an empty host name. */
+    ret = pgetaddrinfo(name, NULL, NULL, &result);
+    ok(!ret, "getaddrinfo failed with %d\n", WSAGetLastError());
+    ok(result != NULL, "GetAddrInfoW failed\n");
+
+    ret = pgetaddrinfo("", NULL, NULL, &result2);
+    ok(!ret, "getaddrinfo failed with %d\n", WSAGetLastError());
+    ok(result != NULL, "GetAddrInfoW failed\n");
+    compare_addrinfo(result, result2);
+    pfreeaddrinfo(result);
+    pfreeaddrinfo(result2);
+
+    ret = pgetaddrinfo(name, "", NULL, &result);
+    ok(!ret, "getaddrinfo failed with %d\n", WSAGetLastError());
+    ok(result != NULL, "GetAddrInfoW failed\n");
+
+    ret = pgetaddrinfo("", "", NULL, &result2);
+    ok(!ret, "getaddrinfo failed with %d\n", WSAGetLastError());
+    ok(result != NULL, "GetAddrInfoW failed\n");
+    compare_addrinfo(result, result2);
+    pfreeaddrinfo(result);
+    pfreeaddrinfo(result2);
 
     result = (ADDRINFOA *)0xdeadbeef;
     WSASetLastError(0xdeadbeef);
@@ -7317,6 +7423,108 @@ end:
         closesocket(connector);
     if (connector2 != INVALID_SOCKET)
         closesocket(connector2);
+}
+
+static void test_TransmitFile(void)
+{
+    GUID transmitFileGuid = WSAID_TRANSMITFILE;
+    LPFN_TRANSMITFILE pTransmitFile = NULL;
+    HANDLE file = INVALID_HANDLE_VALUE;
+    char system_ini_path[MAX_PATH];
+    struct sockaddr_in bindAddress;
+    SOCKET client, server, dest;
+    DWORD num_bytes, err;
+    int iret, len;
+    BOOL bret;
+
+    /* Setup sockets for testing TransmitFile */
+    client = socket(AF_INET, SOCK_STREAM, 0);
+    server = socket(AF_INET, SOCK_STREAM, 0);
+    if (client == INVALID_SOCKET || server == INVALID_SOCKET)
+    {
+        skip("could not create acceptor socket, error %d\n", WSAGetLastError());
+        goto cleanup;
+    }
+    iret = WSAIoctl(client, SIO_GET_EXTENSION_FUNCTION_POINTER, &transmitFileGuid, sizeof(transmitFileGuid),
+                    &pTransmitFile, sizeof(pTransmitFile), &num_bytes, NULL, NULL);
+    if (iret)
+    {
+        skip("WSAIoctl failed to get TransmitFile with ret %d + errno %d\n", iret, WSAGetLastError());
+        goto cleanup;
+    }
+    GetSystemWindowsDirectoryA(system_ini_path, MAX_PATH );
+    strcat(system_ini_path, "\\system.ini");
+    file = CreateFileA(system_ini_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_ALWAYS, 0x0, NULL);
+    if (file == INVALID_HANDLE_VALUE)
+    {
+        skip("Unable to open a file to transmit.\n");
+        goto cleanup;
+    }
+
+    /* Test TransmitFile with an invalid socket */
+    bret = pTransmitFile(INVALID_SOCKET, file, 0, 0, NULL, NULL, 0);
+    err = WSAGetLastError();
+    ok(!bret, "TransmitFile succeeded unexpectedly.\n");
+    ok(err == WSAENOTSOCK, "TransmitFile triggered unexpected errno (%d != %d)\n", err, WSAENOTSOCK);
+
+    /* Test a bogus TransmitFile without a connected socket */
+    bret = pTransmitFile(client, NULL, 0, 0, NULL, NULL, TF_REUSE_SOCKET);
+    err = WSAGetLastError();
+    ok(!bret, "TransmitFile succeeded unexpectedly.\n");
+    ok(err == WSAENOTCONN, "TransmitFile triggered unexpected errno (%d != %d)\n", err, WSAENOTCONN);
+
+    /* Setup a properly connected socket for transfers */
+    memset(&bindAddress, 0, sizeof(bindAddress));
+    bindAddress.sin_family = AF_INET;
+    bindAddress.sin_port = htons(9375);
+    bindAddress.sin_addr.s_addr = inet_addr("127.0.0.1");
+    iret = bind(server, (struct sockaddr*)&bindAddress, sizeof(bindAddress));
+    if (iret != 0)
+    {
+        skip("failed to bind(), error %d\n", WSAGetLastError());
+        goto cleanup;
+    }
+    iret = listen(server, 1);
+    if (iret != 0)
+    {
+        skip("failed to listen(), error %d\n", WSAGetLastError());
+        goto cleanup;
+    }
+    iret = connect(client, (struct sockaddr*)&bindAddress, sizeof(bindAddress));
+    if (iret != 0)
+    {
+        skip("failed to connect(), error %d\n", WSAGetLastError());
+        goto cleanup;
+    }
+    len = sizeof(bindAddress);
+    dest = accept(server, (struct sockaddr*)&bindAddress, &len);
+    if (dest == INVALID_SOCKET)
+    {
+        skip("failed to accept(), error %d\n", WSAGetLastError());
+        goto cleanup;
+    }
+    if (set_blocking(dest, FALSE))
+    {
+        skip("couldn't make socket non-blocking, error %d\n", WSAGetLastError());
+        goto cleanup;
+    }
+
+    /* Test TransmitFile with no possible buffer */
+    bret = pTransmitFile(client, NULL, 0, 0, NULL, NULL, 0);
+    todo_wine ok(bret, "TransmitFile failed unexpectedly.\n");
+
+    /* Test TransmitFile with a UDP datagram socket */
+    closesocket(client);
+    client = socket(AF_INET, SOCK_DGRAM, 0);
+    bret = pTransmitFile(client, NULL, 0, 0, NULL, NULL, 0);
+    err = WSAGetLastError();
+    ok(!bret, "TransmitFile succeeded unexpectedly.\n");
+    ok(err == WSAENOTCONN, "TransmitFile triggered unexpected errno (%d != %d)\n", err, WSAENOTCONN);
+
+cleanup:
+    CloseHandle(file);
+    closesocket(client);
+    closesocket(server);
 }
 
 static void test_getpeername(void)
@@ -8687,6 +8895,7 @@ START_TEST( sock )
     test_events(1);
 
     test_ipv6only();
+    test_TransmitFile();
     test_GetAddrInfoW();
     test_getaddrinfo();
     test_AcceptEx();

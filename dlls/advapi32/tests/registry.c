@@ -643,6 +643,32 @@ static void test_enum_value(void)
     ok( !strcmp( value, "Test" ), "value is '%s' instead of Test\n", value );
     ok( !strcmp( data, "foobar" ), "data is '%s' instead of foobar\n", data );
 
+    if (pRegGetValueA) /* avoid a crash on Windows 2000 */
+    {
+        /* no value and no val_count parameter */
+        data_count = 20;
+        type = 1234;
+        strcpy( data, "xxxxxxxxxx" );
+        res = RegEnumValueA( test_key, 0, NULL, NULL, NULL, &type, (BYTE*)data, &data_count );
+        ok( res == ERROR_INVALID_PARAMETER, "expected ERROR_INVALID_PARAMETER, got %d\n", res );
+
+        /* no value parameter */
+        val_count = 20;
+        data_count = 20;
+        type = 1234;
+        strcpy( data, "xxxxxxxxxx" );
+        res = RegEnumValueA( test_key, 0, NULL, &val_count, NULL, &type, (BYTE*)data, &data_count );
+        ok( res == ERROR_INVALID_PARAMETER, "expected ERROR_INVALID_PARAMETER, got %d\n", res );
+
+        /* no val_count parameter */
+        data_count = 20;
+        type = 1234;
+        strcpy( value, "xxxxxxxxxx" );
+        strcpy( data, "xxxxxxxxxx" );
+        res = RegEnumValueA( test_key, 0, value, NULL, NULL, &type, (BYTE*)data, &data_count );
+        ok( res == ERROR_INVALID_PARAMETER, "expected ERROR_INVALID_PARAMETER, got %d\n", res );
+    }
+
     /* Unicode tests */
 
     SetLastError(0xdeadbeef);
@@ -709,6 +735,32 @@ static void test_enum_value(void)
     ok( type == REG_SZ, "type %d is not REG_SZ\n", type );
     ok( !memcmp( valueW, testW, sizeof(testW) ), "value is not 'Test'\n" );
     ok( !memcmp( dataW, foobarW, sizeof(foobarW) ), "data is not 'foobar'\n" );
+
+    if (pRegGetValueA) /* avoid a crash on Windows 2000 */
+    {
+        /* no valueW and no val_count parameter */
+        data_count = 20;
+        type = 1234;
+        memcpy( dataW, xxxW, sizeof(xxxW) );
+        res = RegEnumValueW( test_key, 0, NULL, NULL, NULL, &type, (BYTE*)dataW, &data_count );
+        ok( res == ERROR_INVALID_PARAMETER, "expected ERROR_INVALID_PARAMETER, got %d\n", res );
+
+        /* no valueW parameter */
+        val_count = 20;
+        data_count = 20;
+        type = 1234;
+        memcpy( dataW, xxxW, sizeof(xxxW) );
+        res = RegEnumValueW( test_key, 0, NULL, &val_count, NULL, &type, (BYTE*)dataW, &data_count );
+        ok( res == ERROR_INVALID_PARAMETER, "expected ERROR_INVALID_PARAMETER, got %d\n", res );
+
+        /* no val_count parameter */
+        data_count = 20;
+        type = 1234;
+        memcpy( valueW, xxxW, sizeof(xxxW) );
+        memcpy( dataW, xxxW, sizeof(xxxW) );
+        res = RegEnumValueW( test_key, 0, valueW, NULL, NULL, &type, (BYTE*)dataW, &data_count );
+        ok( res == ERROR_INVALID_PARAMETER, "expected ERROR_INVALID_PARAMETER, got %d\n", res );
+    }
 
 cleanup:
     RegDeleteKeyA(test_key, "");
@@ -1023,7 +1075,6 @@ static void test_reg_open_key(void)
     ok(ret == ERROR_INVALID_HANDLE || ret == ERROR_BADKEY, /* Windows 95 returns BADKEY */
        "expected ERROR_INVALID_HANDLE or ERROR_BADKEY, got %d\n", ret);
     ok(hkResult == hkPreserve, "expected hkResult == hkPreserve\n");
-    RegCloseKey(hkResult);
 
     /* send in NULL hkResult */
     ret = RegOpenKeyA(HKEY_CURRENT_USER, "Software\\Wine\\Test", NULL);
@@ -1048,6 +1099,45 @@ static void test_reg_open_key(void)
        ret == ERROR_BAD_PATHNAME, /* NT */
        "expected ERROR_SUCCESS, ERROR_BAD_PATHNAME or ERROR_FILE_NOT_FOUND, got %d\n", ret);
     RegCloseKey(hkResult);
+
+    /* NULL or empty subkey of special root */
+    hkResult = NULL;
+    ret = RegOpenKeyExA(HKEY_CLASSES_ROOT, NULL, 0, KEY_QUERY_VALUE, &hkResult);
+    ok(ret == ERROR_SUCCESS, "expected ERROR_SUCCESS, got %d\n", ret);
+    ok(hkResult == HKEY_CLASSES_ROOT, "expected hkResult == HKEY_CLASSES_ROOT\n");
+
+    hkResult = NULL;
+    ret = RegOpenKeyExA(HKEY_CLASSES_ROOT, "", 0, KEY_QUERY_VALUE, &hkResult);
+    ok(ret == ERROR_SUCCESS, "expected ERROR_SUCCESS, got %d\n", ret);
+    ok(hkResult == HKEY_CLASSES_ROOT, "expected hkResult == HKEY_CLASSES_ROOT\n");
+
+    hkResult = NULL;
+    ret = RegOpenKeyExA(HKEY_CLASSES_ROOT, "\\", 0, KEY_QUERY_VALUE, &hkResult);
+    ok(ret == ERROR_SUCCESS, "expected ERROR_SUCCESS, got %d\n", ret);
+    ok(hkResult != HKEY_CLASSES_ROOT, "expected hkResult to be a new key\n");
+    ok(!RegCloseKey(hkResult), "got invalid hkey\n");
+
+    /* empty subkey of existing handle */
+    hkResult = hkPreserve;
+    ret = RegOpenKeyExA(hkPreserve, "", 0, KEY_QUERY_VALUE, &hkResult);
+    ok(ret == ERROR_SUCCESS, "expected ERROR_SUCCESS, got %d\n", ret);
+    ok(hkResult != hkPreserve, "expected hkResult != hkPreserve\n");
+    ok(!RegCloseKey(hkResult), "got invalid hkey\n");
+
+    /* NULL subkey of existing handle */
+    hkResult = hkPreserve;
+    ret = RegOpenKeyExA(hkPreserve, NULL, 0, KEY_QUERY_VALUE, &hkResult);
+    ok(ret == ERROR_SUCCESS, "expected ERROR_SUCCESS, got %d\n", ret);
+    ok(hkResult != hkPreserve, "expected hkResult != hkPreserve\n");
+    ok(!RegCloseKey(hkResult), "got invalid hkey\n");
+
+    /* empty subkey of NULL */
+    hkResult = hkPreserve;
+    ret = RegOpenKeyExA(NULL, "", 0, KEY_QUERY_VALUE, &hkResult);
+    ok(ret == ERROR_INVALID_HANDLE, "expected ERROR_INVALID_HANDLE, got %d\n", ret);
+    ok(hkResult == hkPreserve, "expected hkResult == hkPreserve\n");
+
+    RegCloseKey(hkPreserve);
 
     /* WOW64 flags */
     hkResult = NULL;

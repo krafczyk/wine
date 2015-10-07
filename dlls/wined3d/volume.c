@@ -44,7 +44,7 @@ void wined3d_volume_get_pitch(const struct wined3d_volume *volume, UINT *row_pit
 {
     const struct wined3d_format *format = volume->resource.format;
 
-    if (volume->resource.format_flags & WINED3DFMT_FLAG_BLOCKS)
+    if (volume->container->resource.format_flags & WINED3DFMT_FLAG_BLOCKS)
     {
         /* Since compressed formats are block based, pitch means the amount of
          * bytes to the next row of block rather than the next row of pixels. */
@@ -89,7 +89,7 @@ void wined3d_volume_upload_data(struct wined3d_volume *volume, const struct wine
 
         if (data->buffer_object)
             ERR("Loading a converted volume from a PBO.\n");
-        if (volume->resource.format_flags & WINED3DFMT_FLAG_BLOCKS)
+        if (volume->container->resource.format_flags & WINED3DFMT_FLAG_BLOCKS)
             ERR("Converting a block-based format.\n");
 
         dst_row_pitch = width * format->conv_byte_count;
@@ -460,30 +460,18 @@ static void volume_unload(struct wined3d_resource *resource)
     resource_unload(resource);
 }
 
-ULONG CDECL wined3d_volume_incref(struct wined3d_volume *volume)
+static ULONG CDECL wined3d_volume_incref(struct wined3d_volume *volume)
 {
     TRACE("Forwarding to container %p.\n", volume->container);
 
     return wined3d_texture_incref(volume->container);
 }
 
-ULONG CDECL wined3d_volume_decref(struct wined3d_volume *volume)
+static ULONG CDECL wined3d_volume_decref(struct wined3d_volume *volume)
 {
     TRACE("Forwarding to container %p.\n", volume->container);
 
     return wined3d_texture_decref(volume->container);
-}
-
-void * CDECL wined3d_volume_get_parent(const struct wined3d_volume *volume)
-{
-    TRACE("volume %p.\n", volume);
-
-    return volume->resource.parent;
-}
-
-void CDECL wined3d_volume_preload(struct wined3d_volume *volume)
-{
-    FIXME("volume %p stub!\n", volume);
 }
 
 struct wined3d_resource * CDECL wined3d_volume_get_resource(struct wined3d_volume *volume)
@@ -551,7 +539,7 @@ HRESULT CDECL wined3d_volume_map(struct wined3d_volume *volume,
     const struct wined3d_gl_info *gl_info;
     BYTE *base_memory;
     const struct wined3d_format *format = volume->resource.format;
-    const unsigned int fmt_flags = volume->resource.format_flags;
+    const unsigned int fmt_flags = volume->container->resource.format_flags;
 
     TRACE("volume %p, map_desc %p, box %p, flags %#x.\n",
             volume, map_desc, box, flags);
@@ -688,11 +676,6 @@ HRESULT CDECL wined3d_volume_map(struct wined3d_volume *volume,
     return WINED3D_OK;
 }
 
-struct wined3d_volume * CDECL wined3d_volume_from_resource(struct wined3d_resource *resource)
-{
-    return volume_from_resource(resource);
-}
-
 HRESULT CDECL wined3d_volume_unmap(struct wined3d_volume *volume)
 {
     TRACE("volume %p.\n", volume);
@@ -759,8 +742,8 @@ static HRESULT volume_init(struct wined3d_volume *volume, struct wined3d_texture
 
     size = wined3d_format_calculate_size(format, device->surface_alignment, desc->width, desc->height, desc->depth);
 
-    if (FAILED(hr = resource_init(&volume->resource, device, WINED3D_RTYPE_VOLUME, container->resource.gl_type,
-            format, WINED3D_MULTISAMPLE_NONE, 0, desc->usage, desc->pool, desc->width, desc->height, desc->depth,
+    if (FAILED(hr = resource_init(&volume->resource, device, WINED3D_RTYPE_VOLUME, format,
+            WINED3D_MULTISAMPLE_NONE, 0, desc->usage, desc->pool, desc->width, desc->height, desc->depth,
             size, NULL, &wined3d_null_parent_ops, &volume_resource_ops)))
     {
         WARN("Failed to initialize resource, returning %#x.\n", hr);
@@ -808,7 +791,7 @@ HRESULT wined3d_volume_create(struct wined3d_texture *container, const struct wi
     }
 
     if (FAILED(hr = device_parent->ops->volume_created(device_parent,
-            wined3d_texture_get_parent(container), object, &parent, &parent_ops)))
+            container, level, object, &parent, &parent_ops)))
     {
         WARN("Failed to create volume parent, hr %#x.\n", hr);
         wined3d_volume_destroy(object);

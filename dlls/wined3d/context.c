@@ -128,7 +128,7 @@ static void context_attach_depth_stencil_fbo(struct wined3d_context *context,
 
     if (depth_stencil)
     {
-        DWORD format_flags = depth_stencil->resource.format_flags;
+        DWORD format_flags = depth_stencil->container->resource.format_flags;
 
         if (depth_stencil->current_renderbuffer)
         {
@@ -305,12 +305,12 @@ void context_check_fbo_status(const struct wined3d_context *context, GLenum targ
 static inline DWORD context_generate_rt_mask(GLenum buffer)
 {
     /* Should take care of all the GL_FRONT/GL_BACK/GL_AUXi/GL_NONE... cases */
-    return buffer ? (1 << 31) | buffer : 0;
+    return buffer ? (1u << 31) | buffer : 0;
 }
 
 static inline DWORD context_generate_rt_mask_from_surface(const struct wined3d_surface *target)
 {
-    return (1 << 31) | surface_get_gl_buffer(target);
+    return (1u << 31) | surface_get_gl_buffer(target);
 }
 
 static struct fbo_entry *context_create_fbo_entry(const struct wined3d_context *context,
@@ -420,6 +420,7 @@ static void context_apply_fbo_entry(struct wined3d_context *context, GLenum targ
     const struct wined3d_gl_info *gl_info = context->gl_info;
     unsigned int i;
     GLuint read_binding, draw_binding;
+    struct wined3d_surface *depth_stencil = entry->depth_stencil;
 
     if (entry->attached)
     {
@@ -437,10 +438,22 @@ static void context_apply_fbo_entry(struct wined3d_context *context, GLenum targ
         context_attach_surface_fbo(context, target, i, entry->render_targets[i], entry->color_location);
     }
 
-    /* Apply depth targets */
-    if (entry->depth_stencil)
-        surface_set_compatible_renderbuffer(entry->depth_stencil, entry->render_targets[0]);
-    context_attach_depth_stencil_fbo(context, target, entry->depth_stencil, entry->ds_location);
+    if (depth_stencil && entry->render_targets[0]
+            && (depth_stencil->resource.multisample_type
+            != entry->render_targets[0]->resource.multisample_type
+            || depth_stencil->resource.multisample_quality
+            != entry->render_targets[0]->resource.multisample_quality))
+    {
+        WARN("Color multisample type %u and quality %u, depth stencil has %u and %u, disabling ds buffer.\n",
+                entry->render_targets[0]->resource.multisample_quality,
+                entry->render_targets[0]->resource.multisample_type,
+                depth_stencil->resource.multisample_quality, depth_stencil->resource.multisample_type);
+        depth_stencil = NULL;
+    }
+
+    if (depth_stencil)
+        surface_set_compatible_renderbuffer(depth_stencil, entry->render_targets[0]);
+    context_attach_depth_stencil_fbo(context, target, depth_stencil, entry->ds_location);
 
     /* Set valid read and draw buffer bindings to satisfy pedantic pre-ES2_compatibility
      * GL contexts requirements. */
@@ -1215,7 +1228,7 @@ void context_invalidate_state(struct wined3d_context *context, DWORD state)
     context->dirtyArray[context->numDirtyEntries++] = rep;
     idx = rep / (sizeof(*context->isStateDirty) * CHAR_BIT);
     shift = rep & ((sizeof(*context->isStateDirty) * CHAR_BIT) - 1);
-    context->isStateDirty[idx] |= (1 << shift);
+    context->isStateDirty[idx] |= (1u << shift);
 }
 
 /* This function takes care of wined3d pixel format selection. */
@@ -1363,7 +1376,7 @@ static void bind_dummy_textures(const struct wined3d_device *device, const struc
     }
 }
 
-BOOL context_debug_output_enabled(const struct wined3d_gl_info *gl_info)
+static BOOL context_debug_output_enabled(const struct wined3d_gl_info *gl_info)
 {
     return gl_info->supported[ARB_DEBUG_OUTPUT]
             && (ERR_ON(d3d) || FIXME_ON(d3d) || WARN_ON(d3d_perf));
@@ -1392,6 +1405,40 @@ static void WINE_GLAPI wined3d_debug_callback(GLenum source, GLenum type, GLuint
             FIXME("ctx %p, type %#x: %s.\n", ctx, type, debugstr_an(message, length));
             break;
     }
+}
+
+HGLRC context_create_wgl_attribs(const struct wined3d_gl_info *gl_info, HDC hdc, HGLRC share_ctx)
+{
+    HGLRC ctx;
+    unsigned int ctx_attrib_idx = 0;
+    GLint ctx_attribs[7], ctx_flags = 0;
+
+    if (context_debug_output_enabled(gl_info))
+        ctx_flags = WGL_CONTEXT_DEBUG_BIT_ARB;
+    ctx_attribs[ctx_attrib_idx++] = WGL_CONTEXT_MAJOR_VERSION_ARB;
+    ctx_attribs[ctx_attrib_idx++] = gl_info->selected_gl_version >> 16;
+    ctx_attribs[ctx_attrib_idx++] = WGL_CONTEXT_MINOR_VERSION_ARB;
+    ctx_attribs[ctx_attrib_idx++] = gl_info->selected_gl_version & 0xffff;
+    if (gl_info->selected_gl_version >= MAKEDWORD_VERSION(3, 2))
+        ctx_flags |= WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB;
+    if (ctx_flags)
+    {
+        ctx_attribs[ctx_attrib_idx++] = WGL_CONTEXT_FLAGS_ARB;
+        ctx_attribs[ctx_attrib_idx++] = ctx_flags;
+    }
+    ctx_attribs[ctx_attrib_idx] = 0;
+
+    if (!(ctx = gl_info->p_wglCreateContextAttribsARB(hdc, share_ctx, ctx_attribs)))
+    {
+        if (ctx_flags & WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB)
+        {
+            ctx_attribs[ctx_attrib_idx - 1] &= ~WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB;
+            if (!(ctx = gl_info->p_wglCreateContextAttribsARB(hdc, share_ctx, ctx_attribs)))
+                WARN("Failed to create a WGL context with wglCreateContextAttribsARB, last error %#x.\n",
+                        GetLastError());
+        }
+    }
+    return ctx;
 }
 
 struct wined3d_context *context_create(struct wined3d_swapchain *swapchain,
@@ -1544,22 +1591,8 @@ struct wined3d_context *context_create(struct wined3d_swapchain *swapchain,
     share_ctx = device->context_count ? device->contexts[0]->glCtx : NULL;
     if (gl_info->p_wglCreateContextAttribsARB)
     {
-        unsigned int ctx_attrib_idx = 0;
-        GLint ctx_attribs[3];
-
-        if (context_debug_output_enabled(gl_info))
-        {
-            ctx_attribs[ctx_attrib_idx++] = WGL_CONTEXT_FLAGS_ARB;
-            ctx_attribs[ctx_attrib_idx++] = WGL_CONTEXT_DEBUG_BIT_ARB;
-        }
-        ctx_attribs[ctx_attrib_idx] = 0;
-
-        if (!(ctx = gl_info->p_wglCreateContextAttribsARB(hdc, share_ctx, ctx_attribs)))
-        {
-            ERR("Failed to create a WGL context.\n");
-            context_release(ret);
+        if (!(ctx = context_create_wgl_attribs(gl_info, hdc, share_ctx)))
             goto out;
-        }
     }
     else
     {
@@ -1702,6 +1735,15 @@ struct wined3d_context *context_create(struct wined3d_swapchain *swapchain,
     gl_info->gl_ops.gl.p_glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     checkGLcall("glPixelStorei(GL_UNPACK_ALIGNMENT, device->surface_alignment);");
 
+    if (!gl_info->supported[WINED3D_GL_LEGACY_CONTEXT])
+    {
+        GLuint vao;
+
+        GL_EXTCALL(glGenVertexArrays(1, &vao));
+        GL_EXTCALL(glBindVertexArray(vao));
+        checkGLcall("creating VAO");
+    }
+
     if (gl_info->supported[ARB_VERTEX_BLEND])
     {
         /* Direct3D always uses n-1 weights for n world matrices and uses
@@ -1762,9 +1804,10 @@ struct wined3d_context *context_create(struct wined3d_swapchain *swapchain,
     {
         GL_EXTCALL(glProvokingVertexEXT(GL_FIRST_VERTEX_CONVENTION_EXT));
     }
-    ret->shader_update_mask = (1 << WINED3D_SHADER_TYPE_PIXEL)
-            | (1 << WINED3D_SHADER_TYPE_VERTEX)
-            | (1 << WINED3D_SHADER_TYPE_GEOMETRY);
+    device->shader_backend->shader_init_context_state(ret);
+    ret->shader_update_mask = (1u << WINED3D_SHADER_TYPE_PIXEL)
+            | (1u << WINED3D_SHADER_TYPE_VERTEX)
+            | (1u << WINED3D_SHADER_TYPE_GEOMETRY);
 
     /* If this happens to be the first context for the device, dummy textures
      * are not created yet. In that case, they will be created (and bound) by
@@ -2056,12 +2099,12 @@ static void SetupForBlit(const struct wined3d_device *device, struct wined3d_con
 
 static inline BOOL is_rt_mask_onscreen(DWORD rt_mask)
 {
-    return rt_mask & (1 << 31);
+    return rt_mask & (1u << 31);
 }
 
 static inline GLenum draw_buffer_from_rt_mask(DWORD rt_mask)
 {
-    return rt_mask & ~(1 << 31);
+    return rt_mask & ~(1u << 31);
 }
 
 /* Context activation is done by the caller. */
@@ -2344,7 +2387,7 @@ BOOL context_apply_clear_state(struct wined3d_context *context, const struct win
                 {
                     context->blit_targets[i] = wined3d_rendertarget_view_get_surface(rts[i]);
                     if (rts[i] && rts[i]->format->id != WINED3DFMT_NULL)
-                        rt_mask |= (1 << i);
+                        rt_mask |= (1u << i);
                 }
                 while (i < context->gl_info->limits.buffers)
                 {
@@ -2380,7 +2423,7 @@ BOOL context_apply_clear_state(struct wined3d_context *context, const struct win
         for (i = 0; i < rt_count; ++i)
         {
             if (rts[i] && rts[i]->format->id != WINED3DFMT_NULL)
-                rt_mask |= (1 << i);
+                rt_mask |= (1u << i);
         }
     }
     else
@@ -2439,9 +2482,9 @@ static DWORD find_draw_buffers_mask(const struct wined3d_context *context, const
     i = 0;
     while (rt_mask_bits)
     {
-        rt_mask_bits &= ~(1 << i);
+        rt_mask_bits &= ~(1u << i);
         if (!rts[i] || rts[i]->format->id == WINED3DFMT_NULL)
-            rt_mask &= ~(1 << i);
+            rt_mask &= ~(1u << i);
 
         i++;
     }
@@ -2538,11 +2581,11 @@ static void context_update_fixed_function_usage_map(struct wined3d_context *cont
                 || ((alpha_arg2 == WINED3DTA_TEXTURE) && alpha_op != WINED3D_TOP_SELECT_ARG1)
                 || ((alpha_arg3 == WINED3DTA_TEXTURE)
                     && (alpha_op == WINED3D_TOP_MULTIPLY_ADD || alpha_op == WINED3D_TOP_LERP)))
-            context->fixed_function_usage_map |= (1 << i);
+            context->fixed_function_usage_map |= (1u << i);
 
         if ((color_op == WINED3D_TOP_BUMPENVMAP || color_op == WINED3D_TOP_BUMPENVMAP_LUMINANCE)
                 && i < MAX_TEXTURES - 1)
-            context->fixed_function_usage_map |= (1 << (i + 1));
+            context->fixed_function_usage_map |= (1u << (i + 1));
     }
 
     if (i < context->lowest_disabled_stage)
@@ -2645,7 +2688,7 @@ static BOOL context_unit_free_for_vs(const struct wined3d_context *context,
         if (!ps_resource_info)
         {
             /* No pixel shader, check fixed function */
-            return current_mapping >= MAX_TEXTURES || !(context->fixed_function_usage_map & (1 << current_mapping));
+            return current_mapping >= MAX_TEXTURES || !(context->fixed_function_usage_map & (1u << current_mapping));
         }
 
         /* Pixel shader, check the shader's sampler map */
@@ -2771,6 +2814,7 @@ void context_stream_info_from_declaration(struct wined3d_context *context,
     /* We need to deal with frequency data! */
     struct wined3d_vertex_declaration *declaration = state->vertex_declaration;
     BOOL use_vshader = use_vs(state);
+    BOOL generic_attributes = context->d3d_info->ffp_generic_attributes;
     unsigned int i;
 
     stream_info->use_map = 0;
@@ -2815,7 +2859,7 @@ void context_stream_info_from_declaration(struct wined3d_context *context,
         }
         else
         {
-            if (!element->ffp_valid)
+            if (!generic_attributes && !element->ffp_valid)
             {
                 WARN("Skipping unsupported fixed function element of format %s and usage %s.\n",
                         debug_d3dformat(element->format->id), debug_d3ddeclusage(element->usage));
@@ -2859,9 +2903,9 @@ void context_stream_info_from_declaration(struct wined3d_context *context,
             if (!context->gl_info->supported[ARB_VERTEX_ARRAY_BGRA]
                     && element->format->id == WINED3DFMT_B8G8R8A8_UNORM)
             {
-                stream_info->swizzle_map |= 1 << idx;
+                stream_info->swizzle_map |= 1u << idx;
             }
-            stream_info->use_map |= 1 << idx;
+            stream_info->use_map |= 1u << idx;
         }
     }
 }
@@ -2939,9 +2983,9 @@ static void context_update_stream_info(struct wined3d_context *context, const st
     }
     else
     {
-        WORD slow_mask = (1 << WINED3D_FFP_PSIZE);
+        WORD slow_mask = -!d3d_info->ffp_generic_attributes & (1u << WINED3D_FFP_PSIZE);
         slow_mask |= -!gl_info->supported[ARB_VERTEX_ARRAY_BGRA]
-                & ((1 << WINED3D_FFP_DIFFUSE) | (1 << WINED3D_FFP_SPECULAR));
+                & ((1u << WINED3D_FFP_DIFFUSE) | (1u << WINED3D_FFP_SPECULAR));
 
         if (((stream_info->position_transformed && !d3d_info->xyzrhw)
                 || (stream_info->use_map & slow_mask)) && !stream_info->all_vbo)
@@ -2996,6 +3040,42 @@ static void context_preload_textures(struct wined3d_context *context, const stru
         {
             if (ffu_map & 1)
                 context_preload_texture(context, state, i);
+        }
+    }
+}
+
+static void context_load_shader_resources(struct wined3d_context *context, const struct wined3d_state *state)
+{
+    struct wined3d_shader_sampler_map_entry *entry;
+    struct wined3d_shader_resource_view *view;
+    struct wined3d_shader *shader;
+    unsigned int i, j;
+
+    for (i = 0; i < WINED3D_SHADER_TYPE_COUNT; ++i)
+    {
+        if (!(shader = state->shader[i]))
+            continue;
+
+        for (j = 0; j < WINED3D_MAX_CBS; ++j)
+        {
+            if (state->cb[i][j])
+                buffer_internal_preload(state->cb[i][j], context, state);
+        }
+
+        for (j = 0; j < shader->reg_maps.sampler_map.count; ++j)
+        {
+            entry = &shader->reg_maps.sampler_map.entries[j];
+
+            if (!(view = state->shader_resource_view[i][entry->resource_idx]))
+            {
+                WARN("No resource view bound at index %u, %u.\n", i, entry->resource_idx);
+                continue;
+            }
+
+            if (view->resource->type == WINED3D_RTYPE_BUFFER)
+                buffer_internal_preload(buffer_from_resource(view->resource), context, state);
+            else
+                wined3d_texture_load(wined3d_texture_from_resource(view->resource), context, FALSE);
         }
     }
 }
@@ -3058,7 +3138,6 @@ static void context_bind_shader_resources(struct wined3d_context *context, const
             }
 
             texture = wined3d_texture_from_resource(view->resource);
-            wined3d_texture_load(texture, context, FALSE);
             context_active_texture(context, gl_info, shader_types[i].base_idx + entry->bind_idx);
             wined3d_texture_bind(texture, context, FALSE);
 
@@ -3074,7 +3153,7 @@ BOOL context_apply_draw_state(struct wined3d_context *context, struct wined3d_de
     const struct wined3d_state *state = &device->state;
     const struct StateEntry *state_table = context->state_table;
     const struct wined3d_fb_state *fb = state->fb;
-    unsigned int i, j;
+    unsigned int i;
     WORD map;
 
     if (!context_validate_rt_config(context->gl_info->limits.buffers,
@@ -3091,6 +3170,7 @@ BOOL context_apply_draw_state(struct wined3d_context *context, struct wined3d_de
      * updating a resource location. */
     context_update_tex_unit_map(context, state);
     context_preload_textures(context, state);
+    context_load_shader_resources(context, state);
     /* TODO: Right now the dependency on the vertex shader is necessary
      * since context_stream_info_from_declaration depends on the reg_maps of
      * the current VS but maybe it's possible to relax the coupling in some
@@ -3116,21 +3196,12 @@ BOOL context_apply_draw_state(struct wined3d_context *context, struct wined3d_de
             buffer_get_sysmem(state->index_buffer, context);
     }
 
-    for (i = 0; i < WINED3D_SHADER_TYPE_COUNT; ++i)
-    {
-        for (j = 0; j < WINED3D_MAX_CBS; ++j)
-        {
-            if (state->cb[i][j])
-                buffer_internal_preload(state->cb[i][j], context, state);
-        }
-    }
-
     for (i = 0; i < context->numDirtyEntries; ++i)
     {
         DWORD rep = context->dirtyArray[i];
         DWORD idx = rep / (sizeof(*context->isStateDirty) * CHAR_BIT);
         BYTE shift = rep & ((sizeof(*context->isStateDirty) * CHAR_BIT) - 1);
-        context->isStateDirty[idx] &= ~(1 << shift);
+        context->isStateDirty[idx] &= ~(1u << shift);
         state_table[rep].apply(context, state, rep);
     }
 
@@ -3185,12 +3256,12 @@ static void context_setup_target(struct wined3d_context *context, struct wined3d
         {
             /* Disable blending when the alpha mask has changed and when a format doesn't support blending. */
             if ((old->alpha_size && !new->alpha_size) || (!old->alpha_size && new->alpha_size)
-                    || !(target->resource.format_flags & WINED3DFMT_FLAG_POSTPIXELSHADER_BLENDING))
+                    || !(target->container->resource.format_flags & WINED3DFMT_FLAG_POSTPIXELSHADER_BLENDING))
                 context_invalidate_state(context, STATE_RENDER(WINED3D_RS_ALPHABLENDENABLE));
 
             /* Update sRGB writing when switching between formats that do/do not support sRGB writing */
-            if ((context->current_rt->resource.format_flags & WINED3DFMT_FLAG_SRGB_WRITE)
-                    != (target->resource.format_flags & WINED3DFMT_FLAG_SRGB_WRITE))
+            if ((context->current_rt->container->resource.format_flags & WINED3DFMT_FLAG_SRGB_WRITE)
+                    != (target->container->resource.format_flags & WINED3DFMT_FLAG_SRGB_WRITE))
                 context_invalidate_state(context, STATE_RENDER(WINED3D_RS_SRGBWRITEENABLE));
         }
 

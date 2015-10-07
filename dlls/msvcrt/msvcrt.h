@@ -134,7 +134,20 @@ typedef struct {
     } str;
     LCID lcid;
     int  unk[2];
-    MSVCRT_wchar_t *wstr[43];
+    union {
+        MSVCRT_wchar_t *wstr[43];
+        struct {
+            MSVCRT_wchar_t *short_wday[7];
+            MSVCRT_wchar_t *wday[7];
+            MSVCRT_wchar_t *short_mon[12];
+            MSVCRT_wchar_t *mon[12];
+            MSVCRT_wchar_t *am;
+            MSVCRT_wchar_t *pm;
+            MSVCRT_wchar_t *short_date;
+            MSVCRT_wchar_t *date;
+            MSVCRT_wchar_t *time;
+        } names;
+    } wstr;
     char data[1];
 } MSVCRT___lc_time_data;
 
@@ -146,7 +159,7 @@ typedef struct MSVCRT_threadlocaleinfostruct {
     MSVCRT_LC_ID lc_id[6];
     struct {
         char *locale;
-        wchar_t *wlocale;
+        MSVCRT_wchar_t *wlocale;
         int *refcount;
         int *wrefcount;
     } lc_category[6];
@@ -162,6 +175,9 @@ typedef struct MSVCRT_threadlocaleinfostruct {
     unsigned char *pclmap;
     unsigned char *pcumap;
     MSVCRT___lc_time_data *lc_time_curr;
+#if _MSVCR_VER >= 110
+    MSVCRT_wchar_t *lc_name[6];
+#endif
 } MSVCRT_threadlocinfo;
 
 typedef struct MSVCRT_threadmbcinfostruct {
@@ -221,7 +237,12 @@ struct __thread_data {
     void                           *unk6[3];
     int                             unk7;
     EXCEPTION_RECORD               *exc_record;
-    void                           *unk8[100];
+    void                           *unk8[7];
+    LCID                            cached_lcid;
+    int                             unk9[3];
+    DWORD                           cached_cp;
+    char                            cached_locale[131];
+    void                           *unk10[100];
 };
 
 typedef struct __thread_data thread_data_t;
@@ -645,6 +666,10 @@ struct MSVCRT__stat64 {
 #define MSVCRT_RAND_MAX  0x7fff
 #define MSVCRT_BUFSIZ    512
 
+#define MSVCRT_SEEK_SET  0
+#define MSVCRT_SEEK_CUR  1
+#define MSVCRT_SEEK_END  2
+
 #define MSVCRT_STDIN_FILENO  0
 #define MSVCRT_STDOUT_FILENO 1
 #define MSVCRT_STDERR_FILENO 2
@@ -988,6 +1013,7 @@ int _setmbcp_l(int, LCID, MSVCRT_pthreadmbcinfo) DECLSPEC_HIDDEN;
 int            __cdecl MSVCRT__write(int,const void*,unsigned int);
 int            __cdecl _getch(void);
 int            __cdecl _ismbblead(unsigned int);
+int            __cdecl _ismbblead_l(unsigned int, MSVCRT__locale_t);
 int            __cdecl _ismbclegal(unsigned int c);
 int            __cdecl _ismbstrail(const unsigned char* start, const unsigned char* str);
 int            __cdecl MSVCRT_mbtowc(MSVCRT_wchar_t*,const char*,MSVCRT_size_t);

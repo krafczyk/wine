@@ -453,6 +453,13 @@ static void parse_locale_name( const WCHAR *str, struct locale_name *name )
     name->win_name[0] = 0;
     lstrcpynW( name->lang, str, sizeof(name->lang)/sizeof(WCHAR) );
 
+    if (!*name->lang)
+    {
+        name->lcid = LOCALE_INVARIANT;
+        name->matches = 4;
+        return;
+    }
+
     if (!(p = strpbrkW( name->lang, sepW )))
     {
         if (!strcmpW( name->lang, posixW ) || !strcmpW( name->lang, cW ))
@@ -2506,6 +2513,9 @@ LCID WINAPI ConvertDefaultLocale( LCID lcid )
 
     switch (lcid)
     {
+    case LOCALE_INVARIANT:
+        /* keep as-is */
+        break;
     case LOCALE_SYSTEM_DEFAULT:
         lcid = GetSystemDefaultLCID();
         break;

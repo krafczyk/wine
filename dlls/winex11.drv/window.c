@@ -65,6 +65,15 @@ WINE_DEFAULT_DEBUG_CHANNEL(x11drv);
 #define _NET_WM_STATE_ADD     1
 #define _NET_WM_STATE_TOGGLE  2
 
+static const unsigned int net_wm_state_atoms[NB_NET_WM_STATES] =
+{
+    XATOM__NET_WM_STATE_FULLSCREEN,
+    XATOM__NET_WM_STATE_ABOVE,
+    XATOM__NET_WM_STATE_MAXIMIZED_VERT,
+    XATOM__NET_WM_STATE_SKIP_PAGER,
+    XATOM__NET_WM_STATE_SKIP_TASKBAR
+};
+
 #define SWP_AGG_NOPOSCHANGE (SWP_NOSIZE | SWP_NOMOVE | SWP_NOCLIENTSIZE | SWP_NOCLIENTMOVE | SWP_NOZORDER)
 
 /* is cursor clipping active? */
@@ -573,7 +582,6 @@ static BOOL create_icon_pixmaps( HDC hdc, const ICONINFO *icon, Pixmap *icon_ret
 
 failed:
     if (color_pixmap) XFreePixmap( gdi_display, color_pixmap );
-    if (mask_pixmap) XFreePixmap( gdi_display, mask_pixmap );
     HeapFree( GetProcessHeap(), 0, bits.ptr );
     return FALSE;
 }
@@ -961,15 +969,6 @@ void update_user_time( Time time )
  */
 void update_net_wm_states( struct x11drv_win_data *data )
 {
-    static const unsigned int state_atoms[NB_NET_WM_STATES] =
-    {
-        XATOM__NET_WM_STATE_FULLSCREEN,
-        XATOM__NET_WM_STATE_ABOVE,
-        XATOM__NET_WM_STATE_MAXIMIZED_VERT,
-        XATOM__NET_WM_STATE_SKIP_PAGER,
-        XATOM__NET_WM_STATE_SKIP_TASKBAR
-    };
-
     DWORD i, style, ex_style, new_state = 0;
 
     if (!data->managed) return;
@@ -977,7 +976,7 @@ void update_net_wm_states( struct x11drv_win_data *data )
 
     style = GetWindowLongW( data->hwnd, GWL_STYLE );
     if (style & WS_MINIMIZE)
-        new_state |= data->net_wm_state & (1 << NET_WM_STATE_FULLSCREEN);
+        new_state |= data->net_wm_state & ((1 << NET_WM_STATE_FULLSCREEN)|(1 << NET_WM_STATE_MAXIMIZED));
     if (is_window_rect_fullscreen( &data->whole_rect ))
     {
         if ((style & WS_MAXIMIZE) && (style & WS_CAPTION) == WS_CAPTION)
@@ -1006,8 +1005,8 @@ void update_net_wm_states( struct x11drv_win_data *data )
             if (!(new_state & (1 << i))) continue;
             TRACE( "setting wm state %u for unmapped window %p/%lx\n",
                    i, data->hwnd, data->whole_window );
-            atoms[count++] = X11DRV_Atoms[state_atoms[i] - FIRST_XATOM];
-            if (state_atoms[i] == XATOM__NET_WM_STATE_MAXIMIZED_VERT)
+            atoms[count++] = X11DRV_Atoms[net_wm_state_atoms[i] - FIRST_XATOM];
+            if (net_wm_state_atoms[i] == XATOM__NET_WM_STATE_MAXIMIZED_VERT)
                 atoms[count++] = x11drv_atom(_NET_WM_STATE_MAXIMIZED_HORZ);
         }
         XChangeProperty( data->display, data->whole_window, x11drv_atom(_NET_WM_STATE), XA_ATOM,
@@ -1025,6 +1024,7 @@ void update_net_wm_states( struct x11drv_win_data *data )
         xev.xclient.send_event = True;
         xev.xclient.format = 32;
         xev.xclient.data.l[3] = 1;
+        xev.xclient.data.l[4] = 0;
 
         for (i = 0; i < NB_NET_WM_STATES; i++)
         {
@@ -1035,13 +1035,54 @@ void update_net_wm_states( struct x11drv_win_data *data )
                    (new_state & (1 << i)) != 0, (data->net_wm_state & (1 << i)) != 0 );
 
             xev.xclient.data.l[0] = (new_state & (1 << i)) ? _NET_WM_STATE_ADD : _NET_WM_STATE_REMOVE;
-            xev.xclient.data.l[1] = X11DRV_Atoms[state_atoms[i] - FIRST_XATOM];
-            xev.xclient.data.l[2] = ((state_atoms[i] == XATOM__NET_WM_STATE_MAXIMIZED_VERT) ?
+            xev.xclient.data.l[1] = X11DRV_Atoms[net_wm_state_atoms[i] - FIRST_XATOM];
+            xev.xclient.data.l[2] = ((net_wm_state_atoms[i] == XATOM__NET_WM_STATE_MAXIMIZED_VERT) ?
                                      x11drv_atom(_NET_WM_STATE_MAXIMIZED_HORZ) : 0);
             XSendEvent( data->display, root_window, False,
                         SubstructureRedirectMask | SubstructureNotifyMask, &xev );
         }
     }
+    data->net_wm_state = new_state;
+}
+
+/***********************************************************************
+ *     read_net_wm_states
+ */
+void read_net_wm_states( Display* display, struct x11drv_win_data *data )
+{
+    Atom type, *state;
+    int format;
+    unsigned long i, j, count, remaining;
+    DWORD new_state = 0;
+    BOOL maximized_horz = FALSE;
+
+    if (!data->whole_window) return;
+
+    if (!XGetWindowProperty( display, data->whole_window, x11drv_atom(_NET_WM_STATE), 0,
+                             65536/sizeof(CARD32), False, XA_ATOM, &type, &format, &count,
+                             &remaining, (unsigned char **)&state ))
+    {
+        if (type == XA_ATOM && format == 32)
+        {
+            for (i = 0; i < count; i++)
+            {
+                if (state[i] == x11drv_atom(_NET_WM_STATE_MAXIMIZED_HORZ))
+                    maximized_horz = TRUE;
+                for (j=0; j < NB_NET_WM_STATES; j++)
+                {
+                    if (state[i] == X11DRV_Atoms[net_wm_state_atoms[j] - FIRST_XATOM])
+                    {
+                        new_state |= 1 << j;
+                    }
+                }
+            }
+        }
+        XFree( state );
+    }
+
+    if (!maximized_horz)
+        new_state &= ~(1 << NET_WM_STATE_MAXIMIZED);
+
     data->net_wm_state = new_state;
 }
 
@@ -1336,7 +1377,13 @@ static void move_window_bits( HWND hwnd, Window window, const RECT *old_rect, co
     rgn = CreateRectRgnIndirect( &dst_rect );
     SelectClipRgn( hdc_dst, rgn );
     DeleteObject( rgn );
-    ExcludeUpdateRgn( hdc_dst, hwnd );
+    /* WS_CLIPCHILDREN doesn't exclude children from the window update
+     * region, and ExcludeUpdateRgn call may inappropriately clip valid
+     * child window contents from the copied parent window bits, but we
+     * still want to avoid copying invalid window bits when possible.
+     */
+    if (!(GetWindowLongW( hwnd, GWL_STYLE ) & WS_CLIPCHILDREN ))
+        ExcludeUpdateRgn( hdc_dst, hwnd );
 
     code = X11DRV_START_EXPOSURES;
     ExtEscape( hdc_dst, X11DRV_ESCAPE, sizeof(code), (LPSTR)&code, 0, NULL );
@@ -2593,7 +2640,8 @@ LRESULT CDECL X11DRV_WindowMessage( HWND hwnd, UINT msg, WPARAM wp, LPARAM lp )
     switch(msg)
     {
     case WM_X11DRV_ACQUIRE_SELECTION:
-        return X11DRV_AcquireClipboard( hwnd );
+        X11DRV_AcquireClipboard( hwnd );
+        return 0;
     case WM_X11DRV_SET_WIN_REGION:
         if ((data = get_win_data( hwnd )))
         {

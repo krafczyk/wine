@@ -363,7 +363,7 @@
 @ stdcall GetTrusteeTypeW(ptr) 
 @ stdcall GetUserNameA(ptr ptr)
 @ stdcall GetUserNameW(ptr ptr)
-# @ stub GetWindowsAccountDomainSid
+@ stdcall GetWindowsAccountDomainSid(ptr ptr ptr)
 # @ stub I_QueryTagInformation
 # @ stub I_ScGetCurrentGroupStateW
 # @ stub I_ScIsSecurityProcess
@@ -609,7 +609,7 @@
 @ stdcall RegGetKeySecurity(long long ptr ptr)
 @ stdcall RegGetValueA(long str str long ptr ptr ptr)
 @ stdcall RegGetValueW(long wstr wstr long ptr ptr ptr)
-# @ stub RegisterWaitChainCOMCallback
+@ stdcall RegisterWaitChainCOMCallback(ptr ptr)
 # @ stub RegLoadAppKeyA
 # @ stub RegLoadAppKeyW
 @ stdcall RegLoadKeyA(long str str)

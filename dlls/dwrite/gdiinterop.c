@@ -1,6 +1,7 @@
 /*
  *    GDI Interop
  *
+ * Copyright 2011 Huw Davies
  * Copyright 2012, 2014 Nikolay Sivov for CodeWeavers
  *
  * This library is free software; you can redistribute it and/or
@@ -36,36 +37,61 @@ struct gdiinterop {
     IDWriteFactory2 *factory;
 };
 
+struct dib_data {
+    DWORD *ptr;
+    int stride;
+    int width;
+};
+
 struct rendertarget {
     IDWriteBitmapRenderTarget1 IDWriteBitmapRenderTarget1_iface;
+    ID2D1SimplifiedGeometrySink ID2D1SimplifiedGeometrySink_iface;
     LONG ref;
 
+    IDWriteFactory *factory;
     DWRITE_TEXT_ANTIALIAS_MODE antialiasmode;
-    FLOAT pixels_per_dip;
+    FLOAT ppdip;
     DWRITE_MATRIX m;
     SIZE size;
     HDC hdc;
+    struct dib_data dib;
 };
 
-static HRESULT create_target_dibsection(HDC hdc, UINT32 width, UINT32 height)
+static inline int get_dib_stride(int width, int bpp)
+{
+    return ((width * bpp + 31) >> 3) & ~3;
+}
+
+static HRESULT create_target_dibsection(struct rendertarget *target, UINT32 width, UINT32 height)
 {
     char bmibuf[FIELD_OFFSET(BITMAPINFO, bmiColors[256])];
     BITMAPINFO *bmi = (BITMAPINFO*)bmibuf;
     HBITMAP hbm;
 
+    target->size.cx = width;
+    target->size.cy = height;
+
     memset(bmi, 0, sizeof(bmibuf));
     bmi->bmiHeader.biSize = sizeof(bmi->bmiHeader);
-    bmi->bmiHeader.biHeight = height;
+    bmi->bmiHeader.biHeight = -height;
     bmi->bmiHeader.biWidth = width;
     bmi->bmiHeader.biBitCount = 32;
     bmi->bmiHeader.biPlanes = 1;
     bmi->bmiHeader.biCompression = BI_RGB;
 
-    hbm = CreateDIBSection(hdc, bmi, DIB_RGB_COLORS, NULL, NULL, 0);
-    if (!hbm)
+    hbm = CreateDIBSection(target->hdc, bmi, DIB_RGB_COLORS, (void**)&target->dib.ptr, NULL, 0);
+    if (!hbm) {
         hbm = CreateBitmap(1, 1, 1, 1, NULL);
+        target->dib.ptr = NULL;
+        target->dib.stride = 0;
+        target->dib.width = 0;
+    }
+    else {
+        target->dib.stride = get_dib_stride(width, 32);
+        target->dib.width = width;
+    }
 
-    DeleteObject(SelectObject(hdc, hbm));
+    DeleteObject(SelectObject(target->hdc, hbm));
     return S_OK;
 }
 
@@ -74,10 +100,110 @@ static inline struct rendertarget *impl_from_IDWriteBitmapRenderTarget1(IDWriteB
     return CONTAINING_RECORD(iface, struct rendertarget, IDWriteBitmapRenderTarget1_iface);
 }
 
+static inline struct rendertarget *impl_from_ID2D1SimplifiedGeometrySink(ID2D1SimplifiedGeometrySink *iface)
+{
+    return CONTAINING_RECORD(iface, struct rendertarget, ID2D1SimplifiedGeometrySink_iface);
+}
+
 static inline struct gdiinterop *impl_from_IDWriteGdiInterop(IDWriteGdiInterop *iface)
 {
     return CONTAINING_RECORD(iface, struct gdiinterop, IDWriteGdiInterop_iface);
 }
+
+static HRESULT WINAPI rendertarget_sink_QueryInterface(ID2D1SimplifiedGeometrySink *iface, REFIID riid, void **obj)
+{
+    if (IsEqualIID(riid, &IID_ID2D1SimplifiedGeometrySink) ||
+        IsEqualIID(riid, &IID_IUnknown))
+    {
+        *obj = iface;
+        ID2D1SimplifiedGeometrySink_AddRef(iface);
+        return S_OK;
+    }
+
+    *obj = NULL;
+
+    return E_NOINTERFACE;
+}
+
+static ULONG WINAPI rendertarget_sink_AddRef(ID2D1SimplifiedGeometrySink *iface)
+{
+    struct rendertarget *This = impl_from_ID2D1SimplifiedGeometrySink(iface);
+    return IDWriteBitmapRenderTarget1_AddRef(&This->IDWriteBitmapRenderTarget1_iface);
+}
+
+static ULONG WINAPI rendertarget_sink_Release(ID2D1SimplifiedGeometrySink *iface)
+{
+    struct rendertarget *This = impl_from_ID2D1SimplifiedGeometrySink(iface);
+    return IDWriteBitmapRenderTarget1_Release(&This->IDWriteBitmapRenderTarget1_iface);
+}
+
+static void WINAPI rendertarget_sink_SetFillMode(ID2D1SimplifiedGeometrySink *iface, D2D1_FILL_MODE mode)
+{
+    struct rendertarget *This = impl_from_ID2D1SimplifiedGeometrySink(iface);
+    SetPolyFillMode(This->hdc, mode == D2D1_FILL_MODE_ALTERNATE ? ALTERNATE : WINDING);
+}
+
+static void WINAPI rendertarget_sink_SetSegmentFlags(ID2D1SimplifiedGeometrySink *iface, D2D1_PATH_SEGMENT vertexFlags)
+{
+}
+
+static void WINAPI rendertarget_sink_BeginFigure(ID2D1SimplifiedGeometrySink *iface, D2D1_POINT_2F startPoint, D2D1_FIGURE_BEGIN figureBegin)
+{
+    struct rendertarget *This = impl_from_ID2D1SimplifiedGeometrySink(iface);
+    MoveToEx(This->hdc, startPoint.x, startPoint.y, NULL);
+}
+
+static void WINAPI rendertarget_sink_AddLines(ID2D1SimplifiedGeometrySink *iface, const D2D1_POINT_2F *points, UINT32 count)
+{
+    struct rendertarget *This = impl_from_ID2D1SimplifiedGeometrySink(iface);
+
+    while (count--) {
+        LineTo(This->hdc, points->x, points->y);
+        points++;
+    }
+}
+
+static void WINAPI rendertarget_sink_AddBeziers(ID2D1SimplifiedGeometrySink *iface, const D2D1_BEZIER_SEGMENT *beziers, UINT32 count)
+{
+    struct rendertarget *This = impl_from_ID2D1SimplifiedGeometrySink(iface);
+    POINT points[3];
+
+    while (count--) {
+        points[0].x = beziers->point1.x;
+        points[0].y = beziers->point1.y;
+        points[1].x = beziers->point2.x;
+        points[1].y = beziers->point2.y;
+        points[2].x = beziers->point3.x;
+        points[2].y = beziers->point3.y;
+
+        PolyBezierTo(This->hdc, points, 3);
+        beziers++;
+    }
+}
+
+static void WINAPI rendertarget_sink_EndFigure(ID2D1SimplifiedGeometrySink *iface, D2D1_FIGURE_END figureEnd)
+{
+    struct rendertarget *This = impl_from_ID2D1SimplifiedGeometrySink(iface);
+    CloseFigure(This->hdc);
+}
+
+static HRESULT WINAPI rendertarget_sink_Close(ID2D1SimplifiedGeometrySink *iface)
+{
+    return S_OK;
+}
+
+static const ID2D1SimplifiedGeometrySinkVtbl rendertargetsinkvtbl = {
+    rendertarget_sink_QueryInterface,
+    rendertarget_sink_AddRef,
+    rendertarget_sink_Release,
+    rendertarget_sink_SetFillMode,
+    rendertarget_sink_SetSegmentFlags,
+    rendertarget_sink_BeginFigure,
+    rendertarget_sink_AddLines,
+    rendertarget_sink_AddBeziers,
+    rendertarget_sink_EndFigure,
+    rendertarget_sink_Close
+};
 
 static HRESULT WINAPI rendertarget_QueryInterface(IDWriteBitmapRenderTarget1 *iface, REFIID riid, void **obj)
 {
@@ -116,6 +242,7 @@ static ULONG WINAPI rendertarget_Release(IDWriteBitmapRenderTarget1 *iface)
 
     if (!ref)
     {
+        IDWriteFactory_Release(This->factory);
         DeleteDC(This->hdc);
         heap_free(This);
     }
@@ -123,15 +250,194 @@ static ULONG WINAPI rendertarget_Release(IDWriteBitmapRenderTarget1 *iface)
     return ref;
 }
 
+static inline DWORD *get_pixel_ptr_32(struct dib_data *dib, int x, int y)
+{
+    return (DWORD *)((BYTE*)dib->ptr + y * dib->stride + x * 4);
+}
+
+static void blit_8(struct dib_data *dib, const BYTE *src, const RECT *rect, DWORD text_pixel)
+{
+    DWORD *dst_ptr = get_pixel_ptr_32(dib, rect->left, rect->top);
+    int x, y, src_width = rect->right - rect->left;
+
+    for (y = rect->top; y < rect->bottom; y++) {
+        for (x = 0; x < src_width; x++) {
+            if (src[x] < DWRITE_ALPHA_MAX) continue;
+            dst_ptr[x] = text_pixel;
+        }
+
+        src += src_width;
+        dst_ptr += dib->stride / 4;
+    }
+}
+
+static inline BYTE blend_color(BYTE dst, BYTE src, BYTE alpha)
+{
+    return (src * alpha + dst * (255 - alpha) + 127) / 255;
+}
+
+static inline DWORD blend_subpixel(BYTE r, BYTE g, BYTE b, DWORD text, const BYTE *alpha)
+{
+    return blend_color(r, text >> 16, alpha[0]) << 16 |
+           blend_color(g, text >> 8,  alpha[1]) << 8  |
+           blend_color(b, text,       alpha[2]);
+}
+
+static void blit_subpixel_888(struct dib_data *dib, int dib_width, const BYTE *src,
+    const RECT *rect, DWORD text_pixel)
+{
+    DWORD *dst_ptr = get_pixel_ptr_32(dib, rect->left, rect->top);
+    int x, y, src_width = rect->right - rect->left;
+
+    for (y = rect->top; y < rect->bottom; y++) {
+        for (x = 0; x < src_width; x++) {
+            if (src[3*x] == 0 && src[3*x+1] == 0 && src[3*x+2] == 0) continue;
+            dst_ptr[x] = blend_subpixel(dst_ptr[x] >> 16, dst_ptr[x] >> 8, dst_ptr[x], text_pixel, &src[3*x]);
+        }
+        dst_ptr += dib->stride / 4;
+        src += src_width * 3;
+    }
+}
+
+static inline DWORD colorref_to_pixel_888(COLORREF color)
+{
+    return (((color >> 16) & 0xff) | (color & 0xff00) | ((color << 16) & 0xff0000));
+}
+
 static HRESULT WINAPI rendertarget_DrawGlyphRun(IDWriteBitmapRenderTarget1 *iface,
-    FLOAT baselineOriginX, FLOAT baselineOriginY, DWRITE_MEASURING_MODE measuring_mode,
-    DWRITE_GLYPH_RUN const* glyph_run, IDWriteRenderingParams* params, COLORREF textColor,
-    RECT *blackbox_rect)
+    FLOAT originX, FLOAT originY, DWRITE_MEASURING_MODE measuring_mode,
+    DWRITE_GLYPH_RUN const *run, IDWriteRenderingParams *params, COLORREF color,
+    RECT *bbox_ret)
 {
     struct rendertarget *This = impl_from_IDWriteBitmapRenderTarget1(iface);
-    FIXME("(%p)->(%f %f %d %p %p 0x%08x %p): stub\n", This, baselineOriginX, baselineOriginY,
-        measuring_mode, glyph_run, params, textColor, blackbox_rect);
-    return E_NOTIMPL;
+    IDWriteGlyphRunAnalysis *analysis;
+    DWRITE_RENDERING_MODE rendermode;
+    DWRITE_TEXTURE_TYPE texturetype;
+    IDWriteFontFace1 *fontface1;
+    RECT target, bounds;
+    HRESULT hr;
+
+    TRACE("(%p)->(%.2f %.2f %d %p %p 0x%08x %p)\n", This, originX, originY,
+        measuring_mode, run, params, color, bbox_ret);
+
+    SetRectEmpty(bbox_ret);
+
+    if (!This->dib.ptr)
+        return S_OK;
+
+    hr = IDWriteFontFace_QueryInterface(run->fontFace, &IID_IDWriteFontFace1, (void**)&fontface1);
+    if (hr == S_OK) {
+        hr = IDWriteFontFace1_GetRecommendedRenderingMode(fontface1, run->fontEmSize, This->ppdip * 96.0f,
+            This->ppdip * 96.0f, NULL, run->isSideways, DWRITE_OUTLINE_THRESHOLD_ALIASED, measuring_mode,
+            &rendermode);
+        IDWriteFontFace1_Release(fontface1);
+    }
+    else
+        hr = IDWriteFontFace_GetRecommendedRenderingMode(run->fontFace, run->fontEmSize,
+            This->ppdip, measuring_mode, params, &rendermode);
+
+    if (FAILED(hr))
+        return hr;
+
+    target.left = target.top = 0;
+    target.right = This->size.cx;
+    target.bottom = This->size.cy;
+
+    if (rendermode == DWRITE_RENDERING_MODE_OUTLINE) {
+        static const XFORM identity = { 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f };
+        const DWRITE_MATRIX *m = &This->m;
+        XFORM xform;
+
+        /* target allows any transform to be set, filter it here */
+        if (m->m11 * m->m22 == m->m12 * m->m21) {
+            xform.eM11 = 1.0f;
+            xform.eM12 = 0.0f;
+            xform.eM21 = 0.0f;
+            xform.eM22 = 1.0f;
+            xform.eDx  = originX;
+            xform.eDy  = originY;
+        } else {
+            xform.eM11 = m->m11;
+            xform.eM12 = m->m12;
+            xform.eM21 = m->m21;
+            xform.eM22 = m->m22;
+            xform.eDx  = m->m11 * originX + m->m21 * originY + m->dx;
+            xform.eDy  = m->m12 * originX + m->m22 * originY + m->dy;
+        }
+        SetWorldTransform(This->hdc, &xform);
+
+        BeginPath(This->hdc);
+
+        hr = IDWriteFontFace_GetGlyphRunOutline(run->fontFace, run->fontEmSize * This->ppdip,
+            run->glyphIndices, run->glyphAdvances, run->glyphOffsets, run->glyphCount,
+            run->isSideways, run->bidiLevel & 1, &This->ID2D1SimplifiedGeometrySink_iface);
+
+        EndPath(This->hdc);
+
+        if (hr == S_OK) {
+            HBRUSH brush = CreateSolidBrush(color);
+
+            SelectObject(This->hdc, brush);
+
+            FillPath(This->hdc);
+
+            /* FIXME: one way to get affected rectangle bounds is to use region fill */
+            if (bbox_ret)
+                *bbox_ret = target;
+
+            DeleteObject(brush);
+        }
+
+        SetWorldTransform(This->hdc, &identity);
+
+        return hr;
+    }
+
+    hr = IDWriteFactory_CreateGlyphRunAnalysis(This->factory,
+        run, This->ppdip, &This->m, rendermode, measuring_mode,
+        originX, originY, &analysis);
+    if (FAILED(hr)) {
+        WARN("failed to create analysis instance, 0x%08x\n", hr);
+        return hr;
+    }
+
+    SetRectEmpty(&bounds);
+    texturetype = DWRITE_TEXTURE_ALIASED_1x1;
+    hr = IDWriteGlyphRunAnalysis_GetAlphaTextureBounds(analysis, DWRITE_TEXTURE_ALIASED_1x1, &bounds);
+    if (FAILED(hr) || IsRectEmpty(&bounds)) {
+        hr = IDWriteGlyphRunAnalysis_GetAlphaTextureBounds(analysis, DWRITE_TEXTURE_CLEARTYPE_3x1, &bounds);
+        if (FAILED(hr)) {
+            WARN("GetAlphaTextureBounds() failed, 0x%08x\n", hr);
+            return hr;
+        }
+        texturetype = DWRITE_TEXTURE_CLEARTYPE_3x1;
+    }
+
+    if (IntersectRect(&target, &target, &bounds)) {
+        UINT32 size = (target.right - target.left) * (target.bottom - target.top);
+        BYTE *bitmap;
+
+        color = colorref_to_pixel_888(color);
+        if (texturetype == DWRITE_TEXTURE_CLEARTYPE_3x1)
+            size *= 3;
+        bitmap = heap_alloc_zero(size);
+        hr = IDWriteGlyphRunAnalysis_CreateAlphaTexture(analysis, texturetype, &target, bitmap, size);
+        if (hr == S_OK) {
+            /* blit to target dib */
+            if (texturetype == DWRITE_TEXTURE_ALIASED_1x1)
+                blit_8(&This->dib, bitmap, &target, color);
+            else
+                blit_subpixel_888(&This->dib, This->size.cx, bitmap, &target, color);
+
+            if (bbox_ret) *bbox_ret = target;
+        }
+
+        heap_free(bitmap);
+    }
+
+    IDWriteGlyphRunAnalysis_Release(analysis);
+
+    return S_OK;
 }
 
 static HDC WINAPI rendertarget_GetMemoryDC(IDWriteBitmapRenderTarget1 *iface)
@@ -145,19 +451,19 @@ static FLOAT WINAPI rendertarget_GetPixelsPerDip(IDWriteBitmapRenderTarget1 *ifa
 {
     struct rendertarget *This = impl_from_IDWriteBitmapRenderTarget1(iface);
     TRACE("(%p)\n", This);
-    return This->pixels_per_dip;
+    return This->ppdip;
 }
 
-static HRESULT WINAPI rendertarget_SetPixelsPerDip(IDWriteBitmapRenderTarget1 *iface, FLOAT pixels_per_dip)
+static HRESULT WINAPI rendertarget_SetPixelsPerDip(IDWriteBitmapRenderTarget1 *iface, FLOAT ppdip)
 {
     struct rendertarget *This = impl_from_IDWriteBitmapRenderTarget1(iface);
 
-    TRACE("(%p)->(%.2f)\n", This, pixels_per_dip);
+    TRACE("(%p)->(%.2f)\n", This, ppdip);
 
-    if (pixels_per_dip <= 0.0)
+    if (ppdip <= 0.0)
         return E_INVALIDARG;
 
-    This->pixels_per_dip = pixels_per_dip;
+    This->ppdip = ppdip;
     return S_OK;
 }
 
@@ -199,7 +505,7 @@ static HRESULT WINAPI rendertarget_Resize(IDWriteBitmapRenderTarget1 *iface, UIN
     if (This->size.cx == width && This->size.cy == height)
         return S_OK;
 
-    return create_target_dibsection(This->hdc, width, height);
+    return create_target_dibsection(This, width, height);
 }
 
 static DWRITE_TEXT_ANTIALIAS_MODE WINAPI rendertarget_GetTextAntialiasMode(IDWriteBitmapRenderTarget1 *iface)
@@ -238,7 +544,7 @@ static const IDWriteBitmapRenderTarget1Vtbl rendertargetvtbl = {
     rendertarget_SetTextAntialiasMode
 };
 
-static HRESULT create_rendertarget(HDC hdc, UINT32 width, UINT32 height, IDWriteBitmapRenderTarget **ret)
+static HRESULT create_rendertarget(IDWriteFactory *factory, HDC hdc, UINT32 width, UINT32 height, IDWriteBitmapRenderTarget **ret)
 {
     struct rendertarget *target;
     HRESULT hr;
@@ -249,21 +555,22 @@ static HRESULT create_rendertarget(HDC hdc, UINT32 width, UINT32 height, IDWrite
     if (!target) return E_OUTOFMEMORY;
 
     target->IDWriteBitmapRenderTarget1_iface.lpVtbl = &rendertargetvtbl;
+    target->ID2D1SimplifiedGeometrySink_iface.lpVtbl = &rendertargetsinkvtbl;
     target->ref = 1;
 
-    target->size.cx = width;
-    target->size.cy = height;
-
     target->hdc = CreateCompatibleDC(hdc);
-    hr = create_target_dibsection(target->hdc, width, height);
+    SetGraphicsMode(target->hdc, GM_ADVANCED);
+    hr = create_target_dibsection(target, width, height);
     if (FAILED(hr)) {
         IDWriteBitmapRenderTarget1_Release(&target->IDWriteBitmapRenderTarget1_iface);
         return hr;
     }
 
     target->m = identity;
-    target->pixels_per_dip = 1.0;
+    target->ppdip = 1.0;
     target->antialiasmode = DWRITE_TEXT_ANTIALIAS_MODE_CLEARTYPE;
+    target->factory = factory;
+    IDWriteFactory_AddRef(factory);
 
     *ret = (IDWriteBitmapRenderTarget*)&target->IDWriteBitmapRenderTarget1_iface;
 
@@ -367,6 +674,8 @@ static HRESULT WINAPI gdiinterop_ConvertFontToLOGFONT(IDWriteGdiInterop *iface,
 
     *is_systemfont = FALSE;
 
+    memset(logfont, 0, sizeof(*logfont));
+
     if (!font)
         return E_INVALIDARG;
 
@@ -411,10 +720,8 @@ static HRESULT WINAPI gdiinterop_ConvertFontFaceToLOGFONT(IDWriteGdiInterop *ifa
     IDWriteLocalizedStrings *familynames;
     DWRITE_FONT_SIMULATIONS simulations;
     DWRITE_FONT_FACE_TYPE face_type;
+    struct dwrite_font_props props;
     IDWriteFontFileStream *stream;
-    DWRITE_FONT_STRETCH stretch;
-    DWRITE_FONT_STYLE style;
-    DWRITE_FONT_WEIGHT weight;
     IDWriteFontFile *file = NULL;
     UINT32 index;
     BOOL exists;
@@ -437,8 +744,8 @@ static HRESULT WINAPI gdiinterop_ConvertFontFaceToLOGFONT(IDWriteGdiInterop *ifa
 
     index = IDWriteFontFace_GetIndex(fontface);
     face_type = IDWriteFontFace_GetType(fontface);
-    opentype_get_font_properties(stream, face_type, index, &stretch, &weight, &style);
-    hr = get_family_names_from_stream(stream, index, face_type, &familynames);
+    opentype_get_font_properties(stream, face_type, index, &props);
+    hr = opentype_get_font_familyname(stream, index, face_type, &familynames);
     IDWriteFontFile_Release(file);
     IDWriteFontFileStream_Release(stream);
     if (FAILED(hr))
@@ -447,8 +754,8 @@ static HRESULT WINAPI gdiinterop_ConvertFontFaceToLOGFONT(IDWriteGdiInterop *ifa
     simulations = IDWriteFontFace_GetSimulations(fontface);
 
     logfont->lfCharSet = DEFAULT_CHARSET;
-    logfont->lfWeight = weight;
-    logfont->lfItalic = style == DWRITE_FONT_STYLE_ITALIC || (simulations & DWRITE_FONT_SIMULATIONS_OBLIQUE);
+    logfont->lfWeight = props.weight;
+    logfont->lfItalic = props.style == DWRITE_FONT_STYLE_ITALIC || (simulations & DWRITE_FONT_SIMULATIONS_OBLIQUE);
     logfont->lfOutPrecision = OUT_OUTLINE_PRECIS;
     logfont->lfFaceName[0] = 0;
 
@@ -470,31 +777,85 @@ static HRESULT WINAPI gdiinterop_ConvertFontFaceToLOGFONT(IDWriteGdiInterop *ifa
     return hr;
 }
 
+struct font_realization_info {
+    DWORD size;
+    DWORD flags;
+    DWORD cache_num;
+    DWORD instance_id;
+    DWORD unk;
+    DWORD face_index;
+};
+
+struct font_fileinfo {
+    FILETIME writetime;
+    LARGE_INTEGER size;
+    WCHAR path[1];
+};
+
+/* Undocumented gdi32 exports, used to access actually selected font information */
+extern BOOL WINAPI GetFontRealizationInfo(HDC hdc, struct font_realization_info *info);
+extern BOOL WINAPI GetFontFileInfo(DWORD instance_id, DWORD unknown, struct font_fileinfo *info, DWORD size, DWORD *needed);
+
 static HRESULT WINAPI gdiinterop_CreateFontFaceFromHdc(IDWriteGdiInterop *iface,
     HDC hdc, IDWriteFontFace **fontface)
 {
     struct gdiinterop *This = impl_from_IDWriteGdiInterop(iface);
-    IDWriteFont *font;
-    LOGFONTW logfont;
-    HFONT hfont;
+    struct font_realization_info info;
+    struct font_fileinfo *fileinfo;
+    DWRITE_FONT_FILE_TYPE filetype;
+    DWRITE_FONT_FACE_TYPE facetype;
+    IDWriteFontFile *file;
+    BOOL is_supported;
+    UINT32 facenum;
+    DWORD needed;
     HRESULT hr;
 
     TRACE("(%p)->(%p %p)\n", This, hdc, fontface);
 
     *fontface = NULL;
 
-    hfont = GetCurrentObject(hdc, OBJ_FONT);
-    if (!hfont)
+    if (!hdc)
         return E_INVALIDARG;
-    GetObjectW(hfont, sizeof(logfont), &logfont);
 
-    hr = IDWriteGdiInterop_CreateFontFromLOGFONT(iface, &logfont, &font);
+    /* get selected font id  */
+    info.size = sizeof(info);
+    if (!GetFontRealizationInfo(hdc, &info)) {
+        WARN("failed to get selected font id\n");
+        return E_FAIL;
+    }
+
+    needed = 0;
+    GetFontFileInfo(info.instance_id, 0, NULL, 0, &needed);
+    if (needed == 0) {
+        WARN("failed to get font file info size\n");
+        return E_FAIL;
+    }
+
+    fileinfo = heap_alloc(needed);
+    if (!fileinfo)
+        return E_OUTOFMEMORY;
+
+    if (!GetFontFileInfo(info.instance_id, 0, fileinfo, needed, &needed)) {
+        heap_free(fileinfo);
+        return E_FAIL;
+    }
+
+    hr = IDWriteFactory2_CreateFontFileReference(This->factory, fileinfo->path, &fileinfo->writetime,
+        &file);
+    heap_free(fileinfo);
     if (FAILED(hr))
         return hr;
 
-    hr = IDWriteFont_CreateFontFace(font, fontface);
-    IDWriteFont_Release(font);
+    is_supported = FALSE;
+    hr = IDWriteFontFile_Analyze(file, &is_supported, &filetype, &facetype, &facenum);
+    if (FAILED(hr) || !is_supported) {
+        IDWriteFontFile_Release(file);
+        return hr;
+    }
 
+    hr = IDWriteFactory2_CreateFontFace(This->factory, facetype, 1, &file, info.face_index, DWRITE_FONT_SIMULATIONS_NONE,
+        fontface);
+    IDWriteFontFile_Release(file);
     return hr;
 }
 
@@ -503,7 +864,7 @@ static HRESULT WINAPI gdiinterop_CreateBitmapRenderTarget(IDWriteGdiInterop *ifa
 {
     struct gdiinterop *This = impl_from_IDWriteGdiInterop(iface);
     TRACE("(%p)->(%p %u %u %p)\n", This, hdc, width, height, target);
-    return create_rendertarget(hdc, width, height, target);
+    return create_rendertarget((IDWriteFactory*)This->factory, hdc, width, height, target);
 }
 
 static const struct IDWriteGdiInteropVtbl gdiinteropvtbl = {

@@ -316,23 +316,42 @@ static void dump_irp_params( const char *prefix, const irp_params_t *data )
 {
     switch (data->major)
     {
+    case IRP_MJ_CREATE:
+        fprintf( stderr, "%s{major=CREATE,access=%08x,sharing=%08x,options=%08x",
+                 prefix, data->create.access, data->create.sharing, data->create.options );
+        dump_uint64( ",device=", &data->create.device );
+        fputc( '}', stderr );
+        break;
+    case IRP_MJ_CLOSE:
+        fprintf( stderr, "%s{major=CLOSE", prefix );
+        dump_uint64( ",file=", &data->close.file );
+        fputc( '}', stderr );
+        break;
     case IRP_MJ_READ:
         fprintf( stderr, "%s{major=READ,key=%08x", prefix, data->read.key );
         dump_uint64( ",pos=", &data->read.pos );
+        dump_uint64( ",file=", &data->read.file );
         fputc( '}', stderr );
         break;
     case IRP_MJ_WRITE:
         fprintf( stderr, "%s{major=WRITE,key=%08x", prefix, data->write.key );
         dump_uint64( ",pos=", &data->write.pos );
+        dump_uint64( ",file=", &data->write.file );
         fputc( '}', stderr );
         break;
     case IRP_MJ_FLUSH_BUFFERS:
-        fprintf( stderr, "%s{major=FLUSH_BUFFERS}", prefix );
+        fprintf( stderr, "%s{major=FLUSH_BUFFERS", prefix );
+        dump_uint64( ",file=", &data->flush.file );
+        fputc( '}', stderr );
         break;
     case IRP_MJ_DEVICE_CONTROL:
         fprintf( stderr, "%s{major=DEVICE_CONTROL", prefix );
         dump_ioctl_code( ",code=", &data->ioctl.code );
+        dump_uint64( ",file=", &data->ioctl.file );
         fputc( '}', stderr );
+        break;
+    case IRP_MJ_MAXIMUM_FUNCTION + 1: /* invalid */
+        fprintf( stderr, "%s{}", prefix );
         break;
     default:
         fprintf( stderr, "%s{major=%u}", prefix, data->major );
@@ -1281,12 +1300,22 @@ static void dump_get_thread_info_reply( const struct get_thread_info_reply *req 
     fprintf( stderr, " pid=%04x", req->pid );
     fprintf( stderr, ", tid=%04x", req->tid );
     dump_uint64( ", teb=", &req->teb );
+    dump_uint64( ", entry_point=", &req->entry_point );
     dump_uint64( ", affinity=", &req->affinity );
-    dump_timeout( ", creation_time=", &req->creation_time );
-    dump_timeout( ", exit_time=", &req->exit_time );
     fprintf( stderr, ", exit_code=%d", req->exit_code );
     fprintf( stderr, ", priority=%d", req->priority );
     fprintf( stderr, ", last=%d", req->last );
+}
+
+static void dump_get_thread_times_request( const struct get_thread_times_request *req )
+{
+    fprintf( stderr, " handle=%04x", req->handle );
+}
+
+static void dump_get_thread_times_reply( const struct get_thread_times_reply *req )
+{
+    dump_timeout( " creation_time=", &req->creation_time );
+    dump_timeout( ", exit_time=", &req->exit_time );
 }
 
 static void dump_set_thread_info_request( const struct set_thread_info_request *req )
@@ -1295,6 +1324,7 @@ static void dump_set_thread_info_request( const struct set_thread_info_request *
     fprintf( stderr, ", mask=%d", req->mask );
     fprintf( stderr, ", priority=%d", req->priority );
     dump_uint64( ", affinity=", &req->affinity );
+    dump_uint64( ", entry_point=", &req->entry_point );
     fprintf( stderr, ", token=%04x", req->token );
 }
 
@@ -2807,6 +2837,7 @@ static void dump_set_irp_result_request( const struct set_irp_result_request *re
     fprintf( stderr, " manager=%04x", req->manager );
     fprintf( stderr, ", handle=%04x", req->handle );
     fprintf( stderr, ", status=%08x", req->status );
+    dump_uint64( ", file_ptr=", &req->file_ptr );
     fprintf( stderr, ", size=%u", req->size );
     dump_varargs_bytes( ", data=", cur_size );
 }
@@ -3639,6 +3670,10 @@ static void dump_set_clipboard_info_reply( const struct set_clipboard_info_reply
     fprintf( stderr, ", seqno=%08x", req->seqno );
 }
 
+static void dump_empty_clipboard_request( const struct empty_clipboard_request *req )
+{
+}
+
 static void dump_open_token_request( const struct open_token_request *req )
 {
     fprintf( stderr, " handle=%04x", req->handle );
@@ -3919,6 +3954,17 @@ static void dump_get_object_info_reply( const struct get_object_info_reply *req 
     dump_varargs_unicode_str( ", name=", cur_size );
 }
 
+static void dump_get_object_type_request( const struct get_object_type_request *req )
+{
+    fprintf( stderr, " handle=%04x", req->handle );
+}
+
+static void dump_get_object_type_reply( const struct get_object_type_reply *req )
+{
+    fprintf( stderr, " total=%u", req->total );
+    dump_varargs_unicode_str( ", type=", cur_size );
+}
+
 static void dump_unlink_object_request( const struct unlink_object_request *req )
 {
     fprintf( stderr, " handle=%04x", req->handle );
@@ -3983,8 +4029,7 @@ static void dump_get_next_device_request_request( const struct get_next_device_r
 
 static void dump_get_next_device_request_reply( const struct get_next_device_request_reply *req )
 {
-    dump_uint64( " user_ptr=", &req->user_ptr );
-    dump_irp_params( ", params=", &req->params );
+    dump_irp_params( " params=", &req->params );
     fprintf( stderr, ", next=%04x", req->next );
     fprintf( stderr, ", client_pid=%04x", req->client_pid );
     fprintf( stderr, ", client_tid=%04x", req->client_tid );
@@ -4089,6 +4134,20 @@ static void dump_add_fd_completion_request( const struct add_fd_completion_reque
     dump_uint64( ", cvalue=", &req->cvalue );
     dump_uint64( ", information=", &req->information );
     fprintf( stderr, ", status=%08x", req->status );
+}
+
+static void dump_set_fd_disp_info_request( const struct set_fd_disp_info_request *req )
+{
+    fprintf( stderr, " handle=%04x", req->handle );
+    fprintf( stderr, ", unlink=%d", req->unlink );
+}
+
+static void dump_set_fd_name_info_request( const struct set_fd_name_info_request *req )
+{
+    fprintf( stderr, " handle=%04x", req->handle );
+    fprintf( stderr, ", rootdir=%04x", req->rootdir );
+    fprintf( stderr, ", link=%d", req->link );
+    dump_varargs_string( ", filename=", cur_size );
 }
 
 static void dump_get_window_layered_info_request( const struct get_window_layered_info_request *req )
@@ -4222,6 +4281,7 @@ static const dump_func req_dumpers[REQ_NB_REQUESTS] = {
     (dump_func)dump_get_process_info_request,
     (dump_func)dump_set_process_info_request,
     (dump_func)dump_get_thread_info_request,
+    (dump_func)dump_get_thread_times_request,
     (dump_func)dump_set_thread_info_request,
     (dump_func)dump_get_dll_info_request,
     (dump_func)dump_suspend_thread_request,
@@ -4423,6 +4483,7 @@ static const dump_func req_dumpers[REQ_NB_REQUESTS] = {
     (dump_func)dump_destroy_class_request,
     (dump_func)dump_set_class_info_request,
     (dump_func)dump_set_clipboard_info_request,
+    (dump_func)dump_empty_clipboard_request,
     (dump_func)dump_open_token_request,
     (dump_func)dump_set_global_windows_request,
     (dump_func)dump_adjust_token_privileges_request,
@@ -4445,6 +4506,7 @@ static const dump_func req_dumpers[REQ_NB_REQUESTS] = {
     (dump_func)dump_open_symlink_request,
     (dump_func)dump_query_symlink_request,
     (dump_func)dump_get_object_info_request,
+    (dump_func)dump_get_object_type_request,
     (dump_func)dump_unlink_object_request,
     (dump_func)dump_get_token_impersonation_level_request,
     (dump_func)dump_allocate_locally_unique_id_request,
@@ -4461,6 +4523,8 @@ static const dump_func req_dumpers[REQ_NB_REQUESTS] = {
     (dump_func)dump_query_completion_request,
     (dump_func)dump_set_completion_info_request,
     (dump_func)dump_add_fd_completion_request,
+    (dump_func)dump_set_fd_disp_info_request,
+    (dump_func)dump_set_fd_name_info_request,
     (dump_func)dump_get_window_layered_info_request,
     (dump_func)dump_set_window_layered_info_request,
     (dump_func)dump_alloc_user_handle_request,
@@ -4489,6 +4553,7 @@ static const dump_func reply_dumpers[REQ_NB_REQUESTS] = {
     (dump_func)dump_get_process_info_reply,
     NULL,
     (dump_func)dump_get_thread_info_reply,
+    (dump_func)dump_get_thread_times_reply,
     NULL,
     (dump_func)dump_get_dll_info_reply,
     (dump_func)dump_suspend_thread_reply,
@@ -4690,6 +4755,7 @@ static const dump_func reply_dumpers[REQ_NB_REQUESTS] = {
     (dump_func)dump_destroy_class_reply,
     (dump_func)dump_set_class_info_reply,
     (dump_func)dump_set_clipboard_info_reply,
+    NULL,
     (dump_func)dump_open_token_reply,
     (dump_func)dump_set_global_windows_reply,
     (dump_func)dump_adjust_token_privileges_reply,
@@ -4712,6 +4778,7 @@ static const dump_func reply_dumpers[REQ_NB_REQUESTS] = {
     (dump_func)dump_open_symlink_reply,
     (dump_func)dump_query_symlink_reply,
     (dump_func)dump_get_object_info_reply,
+    (dump_func)dump_get_object_type_reply,
     NULL,
     (dump_func)dump_get_token_impersonation_level_reply,
     (dump_func)dump_allocate_locally_unique_id_reply,
@@ -4726,6 +4793,8 @@ static const dump_func reply_dumpers[REQ_NB_REQUESTS] = {
     NULL,
     (dump_func)dump_remove_completion_reply,
     (dump_func)dump_query_completion_reply,
+    NULL,
+    NULL,
     NULL,
     NULL,
     (dump_func)dump_get_window_layered_info_reply,
@@ -4756,6 +4825,7 @@ static const char * const req_names[REQ_NB_REQUESTS] = {
     "get_process_info",
     "set_process_info",
     "get_thread_info",
+    "get_thread_times",
     "set_thread_info",
     "get_dll_info",
     "suspend_thread",
@@ -4957,6 +5027,7 @@ static const char * const req_names[REQ_NB_REQUESTS] = {
     "destroy_class",
     "set_class_info",
     "set_clipboard_info",
+    "empty_clipboard",
     "open_token",
     "set_global_windows",
     "adjust_token_privileges",
@@ -4979,6 +5050,7 @@ static const char * const req_names[REQ_NB_REQUESTS] = {
     "open_symlink",
     "query_symlink",
     "get_object_info",
+    "get_object_type",
     "unlink_object",
     "get_token_impersonation_level",
     "allocate_locally_unique_id",
@@ -4995,6 +5067,8 @@ static const char * const req_names[REQ_NB_REQUESTS] = {
     "query_completion",
     "set_completion_info",
     "add_fd_completion",
+    "set_fd_disp_info",
+    "set_fd_name_info",
     "get_window_layered_info",
     "set_window_layered_info",
     "alloc_user_handle",
@@ -5081,7 +5155,6 @@ static const struct
     { "NAME_TOO_LONG",               STATUS_NAME_TOO_LONG },
     { "NETWORK_BUSY",                STATUS_NETWORK_BUSY },
     { "NETWORK_UNREACHABLE",         STATUS_NETWORK_UNREACHABLE },
-    { "NOTIFY_ENUM_DIR",             STATUS_NOTIFY_ENUM_DIR },
     { "NOT_ALL_ASSIGNED",            STATUS_NOT_ALL_ASSIGNED },
     { "NOT_A_DIRECTORY",             STATUS_NOT_A_DIRECTORY },
     { "NOT_FOUND",                   STATUS_NOT_FOUND },

@@ -751,6 +751,7 @@ uninstall::
     ;;
 
   darwin*|macosx*)
+    AC_CHECK_HEADERS(libunwind.h)
     LIBEXT="dylib"
     DLLFLAGS="$DLLFLAGS -fPIC"
     LIBWINE_LDFLAGS="-multiply_defined suppress"
@@ -1762,8 +1763,22 @@ then
                       AC_DEFINE_UNQUOTED(HAVE_OPENAL,1,[Define to 1 if OpenAL is available])],,)
 fi
 WINE_NOTICE_WITH(openal,[test "x$ac_cv_lib_openal" != xyes],
-                 [libopenal ${notice_platform}development files not found (or too old), OpenAL won't be supported.])
+                 [libopenal ${notice_platform}development files not found (or too old), OpenAL won't be supported])
 test "x$ac_cv_lib_openal" = xyes || enable_openal32=${enable_openal32:-no}
+
+dnl **** Check for openal-soft ****
+if test "x$ac_cv_lib_openal" = xyes
+then
+    AC_CACHE_CHECK([for openal-soft], ac_cv_have_openalsoft,
+        AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
+            [[#include <AL/alext.h>
+LPALCRENDERSAMPLESSOFT x;]])],[ac_cv_have_openalsoft=yes],[ac_cv_have_openalsoft=no]))
+fi
+if test "x$ac_cv_have_openalsoft" != xyes
+then
+    WINE_NOTICE([openal-soft ${notice_platform}development files not found (or too old), XAudio2 won't be supported])
+    enable_xaudio2_7=${enable_xaudio2_7:-no}
+fi
 
 dnl **** Check for libkstat ****
 if test "$ac_cv_header_kstat_h" = "yes"
@@ -1822,7 +1837,7 @@ then
   for(i=0; i<4 - 1; i++) L[[i]] = L[[i + 1]];
   L[[i]] = 4;
   return (Array[[1]] != -2 || L[[2]] != 3)]])],
-    [ac_cv_c_gcc_strength_bug="no"],[ac_cv_c_gcc_strength_bug="yes"],[ac_cv_c_gcc_strength_bug="yes"]) )
+    [ac_cv_c_gcc_strength_bug="no"],[ac_cv_c_gcc_strength_bug="yes"],[ac_cv_c_gcc_strength_bug="no"]) )
   if test "$ac_cv_c_gcc_strength_bug" = "yes"
   then
     EXTRACFLAGS="$EXTRACFLAGS -fno-strength-reduce"
@@ -1831,6 +1846,7 @@ then
   dnl Check for some compiler flags
   WINE_TRY_CFLAGS([-fno-builtin],[AC_SUBST(BUILTINFLAG,"-fno-builtin")])
   WINE_TRY_CFLAGS([-fno-strict-aliasing])
+  WINE_TRY_CFLAGS([-fexcess-precision=standard],[AC_SUBST(EXCESS_PRECISION_CFLAGS,"-fexcess-precision=standard")])
   dnl clang needs to be told to fail on unknown options
   saved_CFLAGS=$CFLAGS
   WINE_TRY_CFLAGS([-Werror=unknown-warning-option],[CFLAGS="$CFLAGS -Werror=unknown-warning-option"])
@@ -1864,14 +1880,11 @@ char*f(const char *h,char n) {return strchr(h,n);}]])],[ac_cv_c_logicalop_noisy=
 
   CFLAGS=$saved_CFLAGS
 
-  dnl On Darwin, prefer stabs; everywhere else, default to dwarf-2 debug info
+  dnl Default to dwarf-2 debug info
   for ac_flag in $CFLAGS; do
     case $ac_flag in
-      -g) case $host_os in
-            darwin*) WINE_TRY_CFLAGS([-gstabs+]) ;;
-            *) WINE_TRY_CFLAGS([-gdwarf-2])
-               WINE_TRY_CFLAGS([-gstrict-dwarf]) ;;
-          esac ;;
+      -g) WINE_TRY_CFLAGS([-gdwarf-2])
+          WINE_TRY_CFLAGS([-gstrict-dwarf]) ;;
     esac
   done
 
@@ -1911,7 +1924,7 @@ dnl **** Disable Fortify, it has too many false positives
 
 AC_CACHE_CHECK([for the need to disable Fortify], ac_cv_c_fortify_enabled,
     AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <string.h>]],
-[[#if defined(__USE_FORTIFY_LEVEL) && __USE_FORTIFY_LEVEL > 0
+[[#if (defined(__USE_FORTIFY_LEVEL) && __USE_FORTIFY_LEVEL > 0) || (defined(_FORTIFY_SOURCE) && _FORTIFY_SOURCE > 0)
 #error Fortify enabled
 #endif]])],
         [ac_cv_c_fortify_enabled=no],[ac_cv_c_fortify_enabled=yes]))
@@ -2013,6 +2026,10 @@ then
    AC_SUBST([UNWINDFLAGS],[-fasynchronous-unwind-tables])
 else
    AC_DEFINE([__ASM_CFI(str)],[""])
+   if test "x$enable_win64" = "xyes"
+   then
+      WINE_WARNING([building 64-bit Wine without support for CFI directives; exception handling will not work properly.])
+   fi
 fi
 
 asm_func_code="$asm_func_header\" code \"$asm_func_trailer"
@@ -2702,7 +2719,7 @@ test -n "$CROSSTARGET" || WINE_APPEND_RULE(
 [crosstest:
 	@echo \"crosstest is not supported (mingw not installed?)\" && false])
 
-WINE_CONFIG_SYMLINK(fonts,fonts,[marlett.ttf,symbol.ttf,tahoma.ttf,tahomabd.ttf],enable_fonts)
+WINE_CONFIG_SYMLINK(fonts,fonts,[marlett.ttf,symbol.ttf,tahoma.ttf,tahomabd.ttf,wingding.ttf],enable_fonts)
 WINE_CONFIG_SYMLINK(loader,loader,[l_intl.nls])
 WINE_CONFIG_SYMLINK(po,po,[LINGUAS])
 WINE_CONFIG_SYMLINK(,tools,[wine],,winewrapper)
@@ -2779,6 +2796,21 @@ WINE_CONFIG_DLL(api-ms-win-core-winrt-error-l1-1-1)
 WINE_CONFIG_DLL(api-ms-win-core-winrt-l1-1-0)
 WINE_CONFIG_DLL(api-ms-win-core-winrt-string-l1-1-0)
 WINE_CONFIG_DLL(api-ms-win-core-xstate-l2-1-0)
+WINE_CONFIG_DLL(api-ms-win-crt-conio-l1-1-0)
+WINE_CONFIG_DLL(api-ms-win-crt-convert-l1-1-0)
+WINE_CONFIG_DLL(api-ms-win-crt-environment-l1-1-0)
+WINE_CONFIG_DLL(api-ms-win-crt-filesystem-l1-1-0)
+WINE_CONFIG_DLL(api-ms-win-crt-heap-l1-1-0)
+WINE_CONFIG_DLL(api-ms-win-crt-locale-l1-1-0)
+WINE_CONFIG_DLL(api-ms-win-crt-math-l1-1-0)
+WINE_CONFIG_DLL(api-ms-win-crt-multibyte-l1-1-0)
+WINE_CONFIG_DLL(api-ms-win-crt-private-l1-1-0)
+WINE_CONFIG_DLL(api-ms-win-crt-process-l1-1-0)
+WINE_CONFIG_DLL(api-ms-win-crt-runtime-l1-1-0)
+WINE_CONFIG_DLL(api-ms-win-crt-stdio-l1-1-0)
+WINE_CONFIG_DLL(api-ms-win-crt-string-l1-1-0)
+WINE_CONFIG_DLL(api-ms-win-crt-time-l1-1-0)
+WINE_CONFIG_DLL(api-ms-win-crt-utility-l1-1-0)
 WINE_CONFIG_DLL(api-ms-win-downlevel-advapi32-l1-1-0)
 WINE_CONFIG_DLL(api-ms-win-downlevel-advapi32-l2-1-0)
 WINE_CONFIG_DLL(api-ms-win-downlevel-normaliz-l1-1-0)
@@ -2860,7 +2892,8 @@ WINE_CONFIG_TEST(dlls/d3d10/tests)
 WINE_CONFIG_DLL(d3d10_1,,[implib])
 WINE_CONFIG_DLL(d3d10core,,[implib])
 WINE_CONFIG_TEST(dlls/d3d10core/tests)
-WINE_CONFIG_DLL(d3d11)
+WINE_CONFIG_DLL(d3d11,,[implib])
+WINE_CONFIG_TEST(dlls/d3d11/tests)
 WINE_CONFIG_DLL(d3d8,,[implib])
 WINE_CONFIG_TEST(dlls/d3d8/tests)
 WINE_CONFIG_DLL(d3d9,,[implib])
@@ -2877,6 +2910,8 @@ WINE_CONFIG_DLL(d3dcompiler_41)
 WINE_CONFIG_DLL(d3dcompiler_42)
 WINE_CONFIG_DLL(d3dcompiler_43,,[implib],[d3dcompiler])
 WINE_CONFIG_TEST(dlls/d3dcompiler_43/tests)
+WINE_CONFIG_DLL(d3dcompiler_46)
+WINE_CONFIG_DLL(d3dcompiler_47)
 WINE_CONFIG_DLL(d3dim,,[implib])
 WINE_CONFIG_DLL(d3drm,,[implib])
 WINE_CONFIG_TEST(dlls/d3drm/tests)
@@ -2916,6 +2951,7 @@ WINE_CONFIG_DLL(d3dx9_42)
 WINE_CONFIG_DLL(d3dx9_43)
 WINE_CONFIG_DLL(d3dxof,,[clean,implib])
 WINE_CONFIG_TEST(dlls/d3dxof/tests)
+WINE_CONFIG_DLL(davclnt)
 WINE_CONFIG_DLL(dbgeng,,[implib])
 WINE_CONFIG_DLL(dbghelp,,[implib])
 WINE_CONFIG_DLL(dciman32,,[implib])
@@ -2984,6 +3020,7 @@ WINE_CONFIG_DLL(dxgi,,[implib])
 WINE_CONFIG_TEST(dlls/dxgi/tests)
 WINE_CONFIG_LIB(dxguid)
 WINE_CONFIG_DLL(dxva2)
+WINE_CONFIG_DLL(esent)
 WINE_CONFIG_DLL(evr)
 WINE_CONFIG_DLL(explorerframe,,[clean])
 WINE_CONFIG_TEST(dlls/explorerframe/tests)
@@ -3009,6 +3046,7 @@ WINE_CONFIG_DLL(gpkcsp)
 WINE_CONFIG_DLL(hal)
 WINE_CONFIG_DLL(hhctrl.ocx,,[clean,implib,po],[htmlhelp])
 WINE_CONFIG_DLL(hid,,[implib])
+WINE_CONFIG_DLL(hidclass.sys,,[implib],[hidclass])
 WINE_CONFIG_DLL(hlink,,[clean,implib])
 WINE_CONFIG_TEST(dlls/hlink/tests)
 WINE_CONFIG_DLL(hnetcfg,,[clean])
@@ -3099,6 +3137,7 @@ WINE_CONFIG_DLL(msctf,,[clean])
 WINE_CONFIG_TEST(dlls/msctf/tests)
 WINE_CONFIG_DLL(msctfp,,[clean])
 WINE_CONFIG_DLL(msdaps,,[clean])
+WINE_CONFIG_DLL(msdelta)
 WINE_CONFIG_DLL(msdmo,,[implib])
 WINE_CONFIG_TEST(dlls/msdmo/tests)
 WINE_CONFIG_DLL(msftedit)
@@ -3120,16 +3159,19 @@ WINE_CONFIG_DLL(msnet32)
 WINE_CONFIG_DLL(mspatcha,,[implib])
 WINE_CONFIG_DLL(msrle32,,[po])
 WINE_CONFIG_TEST(dlls/msrle32/tests)
+WINE_CONFIG_DLL(msscript.ocx,,[clean])
 WINE_CONFIG_DLL(mssign32)
 WINE_CONFIG_DLL(mssip32)
 WINE_CONFIG_DLL(mstask,,[clean])
 WINE_CONFIG_TEST(dlls/mstask/tests)
 WINE_CONFIG_DLL(msvcirt)
+WINE_CONFIG_TEST(dlls/msvcirt/tests)
 WINE_CONFIG_DLL(msvcm80)
 WINE_CONFIG_DLL(msvcm90)
 WINE_CONFIG_DLL(msvcp100)
 WINE_CONFIG_TEST(dlls/msvcp100/tests)
 WINE_CONFIG_DLL(msvcp110)
+WINE_CONFIG_TEST(dlls/msvcp110/tests)
 WINE_CONFIG_DLL(msvcp120)
 WINE_CONFIG_TEST(dlls/msvcp120/tests)
 WINE_CONFIG_DLL(msvcp120_app)
@@ -3321,6 +3363,8 @@ WINE_CONFIG_DLL(twain.dll16,enable_win16)
 WINE_CONFIG_DLL(twain_32)
 WINE_CONFIG_TEST(dlls/twain_32/tests)
 WINE_CONFIG_DLL(typelib.dll16,enable_win16)
+WINE_CONFIG_DLL(ucrtbase)
+WINE_CONFIG_TEST(dlls/ucrtbase/tests)
 WINE_CONFIG_DLL(unicows,,[implib])
 WINE_CONFIG_DLL(updspapi)
 WINE_CONFIG_DLL(url,,[implib])
@@ -3340,7 +3384,9 @@ WINE_CONFIG_TEST(dlls/uxtheme/tests)
 WINE_CONFIG_DLL(vbscript,,[clean])
 WINE_CONFIG_TEST(dlls/vbscript/tests,[clean])
 WINE_CONFIG_DLL(vcomp)
+WINE_CONFIG_TEST(dlls/vcomp/tests)
 WINE_CONFIG_DLL(vcomp100)
+WINE_CONFIG_DLL(vcomp110)
 WINE_CONFIG_DLL(vcomp90)
 WINE_CONFIG_DLL(vdhcp.vxd,enable_win16)
 WINE_CONFIG_DLL(vdmdbg,,[implib])
@@ -3360,6 +3406,7 @@ WINE_CONFIG_TEST(dlls/wbemdisp/tests)
 WINE_CONFIG_DLL(wbemprox,,[clean])
 WINE_CONFIG_TEST(dlls/wbemprox/tests)
 WINE_CONFIG_DLL(webservices,,[implib])
+WINE_CONFIG_TEST(dlls/webservices/tests)
 WINE_CONFIG_DLL(wer,,[implib])
 WINE_CONFIG_TEST(dlls/wer/tests)
 WINE_CONFIG_DLL(wevtapi)
@@ -3430,18 +3477,28 @@ WINE_CONFIG_DLL(wtsapi32,,[implib])
 WINE_CONFIG_TEST(dlls/wtsapi32/tests)
 WINE_CONFIG_DLL(wuapi,,[clean])
 WINE_CONFIG_DLL(wuaueng)
+WINE_CONFIG_DLL(x3daudio1_0)
 WINE_CONFIG_DLL(x3daudio1_1)
 WINE_CONFIG_DLL(x3daudio1_2)
 WINE_CONFIG_DLL(x3daudio1_3)
 WINE_CONFIG_DLL(x3daudio1_4)
 WINE_CONFIG_DLL(x3daudio1_5)
 WINE_CONFIG_DLL(x3daudio1_6)
-WINE_CONFIG_DLL(x3daudio1_7)
+WINE_CONFIG_DLL(x3daudio1_7,,[implib])
 WINE_CONFIG_DLL(xapofx1_1)
+WINE_CONFIG_DLL(xapofx1_2)
 WINE_CONFIG_DLL(xapofx1_3)
 WINE_CONFIG_DLL(xapofx1_4)
 WINE_CONFIG_DLL(xapofx1_5)
-WINE_CONFIG_DLL(xaudio2_7)
+WINE_CONFIG_DLL(xaudio2_1,,[clean])
+WINE_CONFIG_DLL(xaudio2_2,,[clean])
+WINE_CONFIG_DLL(xaudio2_3,,[clean])
+WINE_CONFIG_DLL(xaudio2_4,,[clean])
+WINE_CONFIG_DLL(xaudio2_5,,[clean])
+WINE_CONFIG_DLL(xaudio2_6,,[clean])
+WINE_CONFIG_DLL(xaudio2_7,,[clean])
+WINE_CONFIG_TEST(dlls/xaudio2_7/tests)
+WINE_CONFIG_DLL(xaudio2_8)
 WINE_CONFIG_DLL(xinput1_1)
 WINE_CONFIG_DLL(xinput1_2)
 WINE_CONFIG_DLL(xinput1_3,,[implib],[xinput])

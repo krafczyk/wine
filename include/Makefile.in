@@ -15,6 +15,8 @@ PUBLIC_IDL_H_SRCS = \
 	bdaiface.idl \
 	bits.idl \
 	bits1_5.idl \
+	bits2_0.idl \
+	bits2_5.idl \
 	bits3_0.idl \
 	comcat.idl \
 	commoncontrols.idl \
@@ -30,6 +32,7 @@ PUBLIC_IDL_H_SRCS = \
 	d3d11_1.idl \
 	d3d11sdklayers.idl \
 	d3dcommon.idl \
+	d3dx10core.idl \
 	ddstream.idl \
 	devicetopology.idl \
 	dimm.idl \
@@ -55,13 +58,16 @@ PUBLIC_IDL_H_SRCS = \
 	iads.idl \
 	icftypes.idl \
 	iextag.idl \
+	iimgctx.idl \
 	imnact.idl \
 	imnxport.idl \
 	indexsrv.idl \
 	inputscope.idl \
 	inseng.idl \
+	inspectable.idl \
 	mediaobj.idl \
 	metahost.idl \
+	mfobjects.idl \
 	mimeinfo.idl \
 	mimeole.idl \
 	mlang.idl \
@@ -129,6 +135,7 @@ PUBLIC_IDL_H_SRCS = \
 	wia_xp.idl \
 	wincodec.idl \
 	wincodecsdk.idl \
+	windows.foundation.idl \
 	wine/itss.idl \
 	wine/svcctl.idl \
 	winsxs.idl \
@@ -139,7 +146,9 @@ PUBLIC_IDL_H_SRCS = \
 	wpcapi.idl \
 	wtypes.idl \
 	wuapi.idl \
+	xapo.idl \
 	xaudio2.idl \
+	xaudio2fx.idl \
 	xmllite.idl
 
 IDL_TLB_SRCS = \
@@ -234,6 +243,7 @@ SRCDIR_INCLUDES = \
 	d3dx9shape.h \
 	d3dx9tex.h \
 	d3dx9xof.h \
+	davclnt.h \
 	dbccmd.idl \
 	dbcses.idl \
 	dbdsad.idl \
@@ -250,7 +260,11 @@ SRCDIR_INCLUDES = \
 	ddeml.h \
 	ddk/compstui.h \
 	ddk/csq.h \
+	ddk/hidclass.h \
+	ddk/hidpi.h \
+	ddk/hidport.h \
 	ddk/hidsdi.h \
+	ddk/hidtypes.h \
 	ddk/imm.h \
 	ddk/mountmgr.h \
 	ddk/ntddcdvd.h \
@@ -468,6 +482,7 @@ SRCDIR_INCLUDES = \
 	msxmldid.h \
 	nb30.h \
 	ndrtypes.h \
+	netioapi.h \
 	nldef.h \
 	npapi.h \
 	nspapi.h \
@@ -568,6 +583,7 @@ SRCDIR_INCLUDES = \
 	t2embapi.h \
 	tapi.h \
 	tchar.h \
+	tcpestats.h \
 	tcpmib.h \
 	textserv.h \
 	tlhelp32.h \
@@ -590,6 +606,8 @@ SRCDIR_INCLUDES = \
 	vsstyle.h \
 	vssym32.h \
 	vswriter.h \
+	wct.h \
+	webservices.h \
 	werapi.h \
 	wfext.h \
 	wia.h \
@@ -648,6 +666,7 @@ SRCDIR_INCLUDES = \
 	wsipx.h \
 	wsnwlink.h \
 	wtsapi32.h \
+	x3daudio.h \
 	xcmc.h \
 	xinput.h \
 	xmldom.h \

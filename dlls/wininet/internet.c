@@ -1317,9 +1317,8 @@ HINTERNET WINAPI InternetConnectW(HINTERNET hInternet,
     HINTERNET rc = NULL;
     DWORD res = ERROR_SUCCESS;
 
-    TRACE("(%p, %s, %i, %s, %s, %i, %x, %lx)\n", hInternet, debugstr_w(lpszServerName),
-	  nServerPort, debugstr_w(lpszUserName), debugstr_w(lpszPassword),
-	  dwService, dwFlags, dwContext);
+    TRACE("(%p, %s, %u, %s, %p, %u, %x, %lx)\n", hInternet, debugstr_w(lpszServerName),
+          nServerPort, debugstr_w(lpszUserName), lpszPassword, dwService, dwFlags, dwContext);
 
     if (!lpszServerName)
     {
@@ -2764,6 +2763,15 @@ static DWORD set_global_option(DWORD option, void *buf, DWORD size)
     case INTERNET_OPTION_SETTINGS_CHANGED:
         FIXME("INTERNETOPTION_SETTINGS_CHANGED semi-stub\n");
         collect_connections(COLLECT_CONNECTIONS);
+        return ERROR_SUCCESS;
+
+    case INTERNET_OPTION_SUPPRESS_BEHAVIOR:
+        FIXME("INTERNET_OPTION_SUPPRESS_BEHAVIOR stub\n");
+
+        if(size != sizeof(ULONG))
+            return ERROR_INTERNET_BAD_OPTION_LENGTH;
+
+        FIXME("%08x\n", *(ULONG*)buf);
         return ERROR_SUCCESS;
     }
 

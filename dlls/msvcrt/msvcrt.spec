@@ -178,7 +178,7 @@
 # stub __CxxCallUnwindDtor
 # stub __CxxCallUnwindVecDtor
 @ cdecl -arch=i386,x86_64,arm __CxxDetectRethrow(ptr)
-# stub __CxxExceptionFilter
+@ cdecl -arch=i386,x86_64,arm __CxxExceptionFilter(ptr ptr long ptr)
 @ cdecl -arch=i386,x86_64,arm -norelay __CxxFrameHandler(ptr ptr ptr ptr)
 @ cdecl -arch=i386,x86_64,arm -norelay __CxxFrameHandler2(ptr ptr ptr ptr) __CxxFrameHandler
 @ cdecl -arch=i386,x86_64,arm -norelay __CxxFrameHandler3(ptr ptr ptr ptr) __CxxFrameHandler
@@ -533,8 +533,8 @@
 @ cdecl _getpid() _getpid
 @ stub _getsystime(ptr)
 @ cdecl _getw(ptr) MSVCRT__getw
-# stub _getwch()
-# stub _getwche()
+@ cdecl _getwch()
+@ cdecl _getwche()
 @ cdecl _getws(ptr) MSVCRT__getws
 @ cdecl -arch=i386 _global_unwind2(ptr)
 @ cdecl _gmtime32(ptr) MSVCRT__gmtime32
@@ -585,7 +585,7 @@
 @ stub _ismbbkpunct(long)
 # stub _ismbbkpunct_l(long ptr)
 @ cdecl _ismbblead(long)
-# stub _ismbblead_l(long ptr)
+@ cdecl _ismbblead_l(long ptr)
 @ stub _ismbbprint(long)
 # stub _ismbbprint_l(long ptr)
 @ stub _ismbbpunct(long)
@@ -713,8 +713,8 @@
 @ cdecl _mbsbtype(str long)
 # stub _mbsbtype_l(str long ptr)
 @ cdecl _mbscat(str str)
-# stub _mbscat_s(str long str)
-# stub _mbscat_s_l(str long str ptr)
+@ cdecl _mbscat_s(ptr long str)
+@ cdecl _mbscat_s_l(ptr long str ptr)
 @ cdecl _mbschr(str long)
 # stub _mbschr_l(str long ptr)
 @ cdecl _mbscmp(str str)
@@ -861,7 +861,7 @@
 @ cdecl _putenv(str)
 @ cdecl _putenv_s(str str)
 @ cdecl _putw(long ptr) MSVCRT__putw
-@ cdecl _putwch(long) MSVCRT__putwch
+@ cdecl _putwch(long)
 @ cdecl _putws(wstr) MSVCRT__putws
 # extern _pwctype
 @ cdecl _read(long ptr long) MSVCRT__read
@@ -1025,7 +1025,7 @@
 @ cdecl _umask(long) MSVCRT__umask
 # stub _umask_s(long ptr)
 @ cdecl _ungetch(long)
-# stub _ungetwch(long)
+@ cdecl _ungetwch(long)
 @ cdecl _unlink(str) MSVCRT__unlink
 @ cdecl _unloaddll(long)
 @ cdecl _unlock(long)
@@ -1137,9 +1137,9 @@
 @ cdecl _wcsxfrm_l(ptr wstr long ptr) MSVCRT__wcsxfrm_l
 @ cdecl _wctime(ptr) MSVCRT__wctime
 @ cdecl _wctime32(ptr) MSVCRT__wctime32
-# stub _wctime32_s(ptr long ptr)
+@ cdecl _wctime32_s(ptr long ptr) MSVCRT__wctime32_s
 @ cdecl _wctime64(ptr) MSVCRT__wctime64
-# stub _wctime64_s(ptr long ptr)
+@ cdecl _wctime64_s(ptr long ptr) MSVCRT__wctime64_s
 @ cdecl _wctomb_l(ptr long ptr) MSVCRT__wctomb_l
 @ cdecl _wctomb_s_l(ptr ptr long long ptr) MSVCRT__wctomb_s_l
 # extern _wctype

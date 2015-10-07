@@ -110,6 +110,7 @@ typedef struct
     LPWSTR proxy_username;
     LPWSTR proxy_password;
     struct list cookie_cache;
+    HANDLE unload_event;
 } session_t;
 
 typedef struct
@@ -148,6 +149,14 @@ typedef struct
     BOOL is_request; /* part of request headers? */
 } header_t;
 
+enum auth_target
+{
+    TARGET_INVALID = -1,
+    TARGET_SERVER,
+    TARGET_PROXY,
+    TARGET_MAX
+};
+
 enum auth_scheme
 {
     SCHEME_INVALID = -1,
@@ -155,7 +164,8 @@ enum auth_scheme
     SCHEME_NTLM,
     SCHEME_PASSPORT,
     SCHEME_DIGEST,
-    SCHEME_NEGOTIATE
+    SCHEME_NEGOTIATE,
+    SCHEME_MAX
 };
 
 struct authinfo
@@ -206,6 +216,11 @@ typedef struct
     HANDLE task_thread;
     struct list task_queue;
     CRITICAL_SECTION task_cs;
+    struct
+    {
+        WCHAR *username;
+        WCHAR *password;
+    } creds[TARGET_MAX][SCHEME_MAX];
 } request_t;
 
 typedef struct _task_header_t task_header_t;

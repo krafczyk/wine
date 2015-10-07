@@ -3058,8 +3058,8 @@ static BOOL get_bool_property(IWICMetadataReader *reader, const GUID *guid, cons
     PROPVARIANT id, value;
     BOOL ret = FALSE;
 
-    IWICMetadataReader_GetMetadataFormat(reader, &format);
-    if (!IsEqualGUID(&format, guid)) return FALSE;
+    hr = IWICMetadataReader_GetMetadataFormat(reader, &format);
+    if (FAILED(hr) || !IsEqualGUID(&format, guid)) return FALSE;
 
     PropVariantInit(&id);
     PropVariantInit(&value);
@@ -3085,8 +3085,8 @@ static PropertyItem *get_property(IWICMetadataReader *reader, const GUID *guid, 
     PROPVARIANT id, value;
     PropertyItem *item = NULL;
 
-    IWICMetadataReader_GetMetadataFormat(reader, &format);
-    if (!IsEqualGUID(&format, guid)) return NULL;
+    hr = IWICMetadataReader_GetMetadataFormat(reader, &format);
+    if (FAILED(hr) || !IsEqualGUID(&format, guid)) return NULL;
 
     PropVariantInit(&id);
     PropVariantInit(&value);
@@ -4401,6 +4401,12 @@ static GpStatus encode_image_jpeg(GpImage *image, IStream* stream,
     return encode_image_wic(image, stream, &GUID_ContainerFormatJpeg, params);
 }
 
+static GpStatus encode_image_gif(GpImage *image, IStream* stream,
+    GDIPCONST CLSID* clsid, GDIPCONST EncoderParameters* params)
+{
+    return encode_image_wic(image, stream, &CLSID_WICGifEncoder, params);
+}
+
 /*****************************************************************************
  * GdipSaveImageToStream [GDIPLUS.@]
  */
@@ -4611,14 +4617,14 @@ static const struct image_codec codecs[NUM_CODECS] = {
             /* FormatDescription */  gif_format,
             /* FilenameExtension */  gif_extension,
             /* MimeType */           gif_mimetype,
-            /* Flags */              ImageCodecFlagsDecoder | ImageCodecFlagsSupportBitmap | ImageCodecFlagsBuiltin,
+            /* Flags */              ImageCodecFlagsDecoder | ImageCodecFlagsEncoder | ImageCodecFlagsSupportBitmap | ImageCodecFlagsBuiltin,
             /* Version */            1,
             /* SigCount */           2,
             /* SigSize */            6,
             /* SigPattern */         gif_sig_pattern,
             /* SigMask */            gif_sig_mask,
         },
-        NULL,
+        encode_image_gif,
         decode_image_gif,
         select_frame_gif
     },
@@ -5234,4 +5240,13 @@ GpStatus WINGDIPAPI GdipImageRotateFlip(GpImage *image, RotateFlipType type)
         GdipDisposeImage((GpImage*)new_bitmap);
 
     return stat;
+}
+
+/*****************************************************************************
+ * GdipImageSetAbort [GDIPLUS.@]
+ */
+GpStatus WINGDIPAPI GdipImageSetAbort(GpImage *image, GdiplusAbort *pabort)
+{
+    FIXME("(%p, %p): stub\n", image, pabort);
+    return NotImplemented;
 }

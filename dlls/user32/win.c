@@ -1875,8 +1875,7 @@ BOOL WINAPI DestroyWindow( HWND hwnd )
     WIN_SendDestroyMsg( hwnd );
     if (!IsWindow( hwnd )) return TRUE;
 
-    if (GetClipboardOwner() == hwnd)
-        CLIPBOARD_ReleaseOwner();
+    CLIPBOARD_ReleaseOwner( hwnd );
 
       /* Destroy the window storage */
 
@@ -2677,13 +2676,15 @@ INT WINAPI GetWindowTextA( HWND hwnd, LPSTR lpString, INT nMaxCount )
 {
     WCHAR *buffer;
 
-    if (!lpString) return 0;
+    if (!lpString || nMaxCount <= 0) return 0;
 
     if (WIN_IsCurrentProcess( hwnd ))
+    {
+        lpString[0] = 0;
         return (INT)SendMessageA( hwnd, WM_GETTEXT, nMaxCount, (LPARAM)lpString );
+    }
 
     /* when window belongs to other process, don't send a message */
-    if (nMaxCount <= 0) return 0;
     if (!(buffer = HeapAlloc( GetProcessHeap(), 0, nMaxCount * sizeof(WCHAR) ))) return 0;
     get_server_window_text( hwnd, buffer, nMaxCount );
     if (!WideCharToMultiByte( CP_ACP, 0, buffer, -1, lpString, nMaxCount, NULL, NULL ))
@@ -2722,13 +2723,15 @@ INT WINAPI InternalGetWindowText(HWND hwnd,LPWSTR lpString,INT nMaxCount )
  */
 INT WINAPI GetWindowTextW( HWND hwnd, LPWSTR lpString, INT nMaxCount )
 {
-    if (!lpString) return 0;
+    if (!lpString || nMaxCount <= 0) return 0;
 
     if (WIN_IsCurrentProcess( hwnd ))
+    {
+        lpString[0] = 0;
         return (INT)SendMessageW( hwnd, WM_GETTEXT, nMaxCount, (LPARAM)lpString );
+    }
 
     /* when window belongs to other process, don't send a message */
-    if (nMaxCount <= 0) return 0;
     get_server_window_text( hwnd, lpString, nMaxCount );
     return strlenW(lpString);
 }

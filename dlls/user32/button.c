@@ -334,7 +334,6 @@ LRESULT ButtonWndProc_common(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
             break;
         }
         SendMessageW( hWnd, BM_SETSTATE, FALSE, 0 );
-        ReleaseCapture();
         GetClientRect( hWnd, &rect );
 	if (uMsg == WM_KEYUP || PtInRect( &rect, pt ))
         {
@@ -354,6 +353,7 @@ LRESULT ButtonWndProc_common(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
             }
             BUTTON_NOTIFY_PARENT(hWnd, BN_CLICKED);
         }
+        ReleaseCapture();
         break;
 
     case WM_CAPTURECHANGED:
@@ -443,7 +443,6 @@ LRESULT ButtonWndProc_common(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
         break;
 
     case BM_SETSTYLE:
-        if ((wParam & BS_TYPEMASK) >= MAX_BTN_TYPE) break;
         btn_type = wParam & BS_TYPEMASK;
         style = (style & ~BS_TYPEMASK) | btn_type;
         WIN_SetStyle( hWnd, style, BS_TYPEMASK & ~style );

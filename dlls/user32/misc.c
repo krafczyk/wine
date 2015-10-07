@@ -717,7 +717,16 @@ BOOL WINAPI UserHandleGrantAccess(HANDLE handle, HANDLE job, BOOL grant)
 HPOWERNOTIFY WINAPI RegisterPowerSettingNotification(HANDLE recipient, const GUID *guid, DWORD flags)
 {
     FIXME("(%p,%s,%x): stub\n", recipient, debugstr_guid(guid), flags);
-    return NULL;
+    return (HPOWERNOTIFY)0xdeadbeef;
+}
+
+/**********************************************************************
+ * UnregisterPowerSettingNotification [USER32.@]
+ */
+BOOL WINAPI UnregisterPowerSettingNotification(HPOWERNOTIFY handle)
+{
+    FIXME("(%p): stub\n", handle);
+    return TRUE;
 }
 
 /**********************************************************************
@@ -738,6 +747,16 @@ BOOL WINAPI IsTouchWindow( HWND hwnd, PULONG flags )
     FIXME("(%p %p): stub\n", hwnd, flags);
     return FALSE;
 }
+
+/**********************************************************************
+ * IsWindowRedirectedForPrint [USER32.@]
+ */
+BOOL WINAPI IsWindowRedirectedForPrint( HWND hwnd )
+{
+    FIXME("(%p): stub\n", hwnd);
+    return FALSE;
+}
+
 
 static const WCHAR imeW[] = {'I','M','E',0};
 const struct builtin_class_descr IME_builtin_class =

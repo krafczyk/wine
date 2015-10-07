@@ -950,7 +950,10 @@ static void ContextualShape_Control(HDC hdc, ScriptCache *psc, SCRIPT_ANALYSIS *
     {
         switch (pwcChars[i])
         {
-            case 0x000D: pwOutGlyphs[i] = psc->sfp.wgBlank; break;
+            case 0x000A:
+            case 0x000D:
+                pwOutGlyphs[i] = psc->sfp.wgBlank;
+                break;
             default:
                 if (pwcChars[i] < 0x1C)
                     pwOutGlyphs[i] = psc->sfp.wgDefault;
@@ -3348,13 +3351,8 @@ rpRangeProperties = &ShapingData[psa->eScript].defaultTextRange;
 
 void SHAPE_ApplyOpenTypePositions(HDC hdc, ScriptCache *psc, SCRIPT_ANALYSIS *psa, const WORD* pwGlyphs, INT cGlyphs, int *piAdvance, GOFFSET *pGoffset )
 {
-    const TEXTRANGE_PROPERTIES *rpRangeProperties;
+    const TEXTRANGE_PROPERTIES *rpRangeProperties = &ShapingData[psa->eScript].defaultGPOSTextRange;
     int i;
-
-    rpRangeProperties = &ShapingData[psa->eScript].defaultGPOSTextRange;
-
-    if (!rpRangeProperties)
-        return;
 
     load_ot_tables(hdc, psc);
 

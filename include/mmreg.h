@@ -18,6 +18,8 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
+#ifndef __WIDL__
+
 #ifndef __WINE_MMREG_H
 #define __WINE_MMREG_H
 
@@ -105,6 +107,7 @@ typedef struct _WAVEFORMATEX {
 #define  WAVE_FORMAT_G721_ADPCM			0x0040	/*  Antex Electronics Corporation  */
 #define  WAVE_FORMAT_MPEG			0x0050	/*  Microsoft Corporation  */
 #define  WAVE_FORMAT_MPEGLAYER3			0x0055
+#define  WAVE_FORMAT_MSRT24			0x0082  /*  Microsoft Corporation */
 #define  WAVE_FORMAT_CREATIVE_ADPCM		0x0200	/*  Creative Labs, Inc  */
 #define  WAVE_FORMAT_CREATIVE_FASTSPEECH8	0x0202	/*  Creative Labs, Inc  */
 #define  WAVE_FORMAT_CREATIVE_FASTSPEECH10	0x0203	/*  Creative Labs, Inc  */
@@ -126,6 +129,7 @@ typedef struct _WAVEFORMATEX {
 
 #define MM_FRAUNHOFER_IIS 0xAC
 #define MM_FHGIIS_MPEGLAYER3_DECODE 0x09
+#define MM_FHGIIS_MPEGLAYER3_PROFESSIONAL 0x0d
 
 #if !defined(WAVE_FORMAT_EXTENSIBLE)
 #define  WAVE_FORMAT_EXTENSIBLE			0xFFFE  /* Microsoft */
@@ -509,3 +513,37 @@ typedef struct tagEXBMINFOHEADER {
 #endif
 
 #endif /* __WINE_MMREG_H */
+
+#else /* __WIDL__ */
+
+cpp_quote("#if 0")
+#pragma pack(push, 1)
+
+typedef struct tWAVEFORMATEX {
+    WORD wFormatTag;
+    WORD nChannels;
+    DWORD nSamplesPerSec;
+    DWORD nAvgBytesPerSec;
+    WORD nBlockAlign;
+    WORD wBitsPerSample;
+    WORD cbSize;
+    [size_is(cbSize)] BYTE pExtraBytes[];
+} WAVEFORMATEX, *PWAVEFORMATEX, *NPWAVEFORMATEX, *LPWAVEFORMATEX;
+
+typedef struct {
+    WORD wFormatTag;
+    WORD nChannels;
+    DWORD nSamplesPerSec;
+    DWORD nAvgBytesPerSec;
+    WORD nBlockAlign;
+    WORD wBitsPerSample;
+    WORD cbSize;
+    WORD wValidBitsPerSample;
+    DWORD dwChannelMask;
+    GUID SubFormat;
+} WAVEFORMATEXTENSIBLE, *PWAVEFORMATEXTENSIBLE;
+
+#pragma pack(pop)
+cpp_quote("#endif")
+
+#endif /* __WIDL__ */

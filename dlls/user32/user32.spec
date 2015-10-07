@@ -450,6 +450,7 @@
 @ stdcall IsWindow(long)
 @ stdcall IsWindowEnabled(long)
 # @ stub IsWindowInDestroy
+@ stdcall IsWindowRedirectedForPrint(long)
 @ stdcall IsWindowUnicode(long)
 @ stdcall IsWindowVisible(long)
 @ stdcall IsZoomed(long)
@@ -697,6 +698,8 @@
 @ stub ShowStartGlass
 @ stdcall ShowWindow(long long)
 @ stdcall ShowWindowAsync(long long)
+@ stdcall ShutdownBlockReasonCreate(long wstr)
+@ stdcall ShutdownBlockReasonDestroy(long)
 # @ stub SoftModalMessageBox
 @ stdcall SubtractRect(ptr ptr ptr)
 @ stdcall SwapMouseButton(long)
@@ -734,6 +737,7 @@
 @ stdcall UnregisterDeviceNotification(long)
 @ stdcall UnregisterHotKey(long long)
 # @ stub UnregisterMessagePumpHook
+@ stdcall UnregisterPowerSettingNotification(ptr)
 # @ stub UnregisterUserApiHook
 @ stdcall UpdateLayeredWindow(long long ptr ptr long ptr long ptr long)
 @ stdcall UpdateLayeredWindowIndirect(long ptr)

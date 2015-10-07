@@ -314,11 +314,15 @@ static double strtod_helper(const char *str, char **end, MSVCRT__locale_t locale
     double ret;
     long double lret=1, expcnt = 10;
     BOOL found_digit = FALSE, negexp;
+    int base = 10;
 
     if(err)
         *err = 0;
-    else
-        if(!MSVCRT_CHECK_PMT(str != NULL)) return 0;
+    else if(!MSVCRT_CHECK_PMT(str != NULL)) {
+        if (end)
+            *end = NULL;
+        return 0;
+    }
 
     if(!locale)
         locinfo = get_locinfo();
@@ -336,16 +340,50 @@ static double strtod_helper(const char *str, char **end, MSVCRT__locale_t locale
     } else  if(*p == '+')
         p++;
 
-    while(isdigit(*p)) {
+#if _MSVCR_VER >= 140
+    if(tolower(p[0]) == 'i' && tolower(p[1]) == 'n' && tolower(p[2]) == 'f') {
+        if(end)
+            *end = (char*) &p[3];
+        if(tolower(p[3]) == 'i' && tolower(p[4]) == 'n' && tolower(p[5]) == 'i' &&
+           tolower(p[6]) == 't' && tolower(p[7]) == 'y' && end)
+            *end = (char*) &p[8];
+        return sign*INFINITY;
+    }
+    if(tolower(p[0]) == 'n' &&
+       tolower(p[1]) == 'a' &&
+       tolower(p[2]) == 'n') {
+        if(end)
+            *end = (char*) &p[3];
+        return NAN;
+    }
+
+    if(p[0] == '0' && tolower(p[1]) == 'x') {
+        base = 16;
+        expcnt = 2;
+        p += 2;
+    }
+#endif
+
+    while(isdigit(*p) ||
+          (base == 16 && ((*p >= 'a' && *p <= 'f') || (*p >= 'A' && *p <= 'F')))) {
+        char c = *p++;
+        int val;
         found_digit = TRUE;
-        hlp = d*10+*(p++)-'0';
-        if(d>MSVCRT_UI64_MAX/10 || hlp<d) {
+        if (isdigit(c))
+            val = c - '0';
+        else if (c >= 'a' && c <= 'f')
+            val = 10 + c - 'a';
+        else
+            val = 10 + c - 'A';
+        hlp = d*base+val;
+        if(d>MSVCRT_UI64_MAX/base || hlp<d) {
             exp++;
             break;
         } else
             d = hlp;
     }
-    while(isdigit(*p)) {
+    while(isdigit(*p) ||
+          (base == 16 && ((*p >= 'a' && *p <= 'f') || (*p >= 'A' && *p <= 'F')))) {
         exp++;
         p++;
     }
@@ -353,16 +391,25 @@ static double strtod_helper(const char *str, char **end, MSVCRT__locale_t locale
     if(*p == *locinfo->lconv->decimal_point)
         p++;
 
-    while(isdigit(*p)) {
+    while(isdigit(*p) ||
+          (base == 16 && ((*p >= 'a' && *p <= 'f') || (*p >= 'A' && *p <= 'F')))) {
+        char c = *p++;
+        int val;
         found_digit = TRUE;
-        hlp = d*10+*(p++)-'0';
-        if(d>MSVCRT_UI64_MAX/10 || hlp<d)
+        if (isdigit(c))
+            val = c - '0';
+        else if (c >= 'a' && c <= 'f')
+            val = 10 + c - 'a';
+        else
+            val = 10 + c - 'A';
+        hlp = d*base+val;
+        if(d>MSVCRT_UI64_MAX/base || hlp<d)
             break;
-
         d = hlp;
         exp--;
     }
-    while(isdigit(*p))
+    while(isdigit(*p) ||
+          (base == 16 && ((*p >= 'a' && *p <= 'f') || (*p >= 'A' && *p <= 'F'))))
         p++;
 
     if(!found_digit) {
@@ -371,7 +418,11 @@ static double strtod_helper(const char *str, char **end, MSVCRT__locale_t locale
         return 0.0;
     }
 
-    if(*p=='e' || *p=='E' || *p=='d' || *p=='D') {
+    if(base == 16)
+        exp *= 4;
+
+    if((base == 10 && (*p=='e' || *p=='E' || *p=='d' || *p=='D')) ||
+       (base == 16 && (*p=='p' || *p=='P'))) {
         int e=0, s=1;
 
         p++;
@@ -839,7 +890,9 @@ MSVCRT_size_t CDECL MSVCRT_strnlen(const char *s, MSVCRT_size_t maxlen)
  */
 __int64 CDECL MSVCRT_strtoi64_l(const char *nptr, char **endptr, int base, MSVCRT__locale_t locale)
 {
+    const char *p = nptr;
     BOOL negative = FALSE;
+    BOOL got_digit = FALSE;
     __int64 ret = 0;
 
     TRACE("(%s %p %d %p)\n", debugstr_a(nptr), endptr, base, locale);
@@ -881,6 +934,7 @@ __int64 CDECL MSVCRT_strtoi64_l(const char *nptr, char **endptr, int base, MSVCR
                 break;
             v = cur-'a'+10;
         }
+        got_digit = TRUE;
 
         if(negative)
             v = -v;
@@ -898,7 +952,7 @@ __int64 CDECL MSVCRT_strtoi64_l(const char *nptr, char **endptr, int base, MSVCR
     }
 
     if(endptr)
-        *endptr = (char*)nptr;
+        *endptr = (char*)(got_digit ? nptr : p);
 
     return ret;
 }
@@ -1014,7 +1068,9 @@ MSVCRT_ulong CDECL MSVCRT_strtoul(const char* nptr, char** end, int base)
  */
 unsigned __int64 CDECL MSVCRT_strtoui64_l(const char *nptr, char **endptr, int base, MSVCRT__locale_t locale)
 {
+    const char *p = nptr;
     BOOL negative = FALSE;
+    BOOL got_digit = FALSE;
     unsigned __int64 ret = 0;
 
     TRACE("(%s %p %d %p)\n", debugstr_a(nptr), endptr, base, locale);
@@ -1056,6 +1112,7 @@ unsigned __int64 CDECL MSVCRT_strtoui64_l(const char *nptr, char **endptr, int b
                 break;
             v = cur-'a'+10;
         }
+        got_digit = TRUE;
 
         nptr++;
 
@@ -1067,7 +1124,7 @@ unsigned __int64 CDECL MSVCRT_strtoui64_l(const char *nptr, char **endptr, int b
     }
 
     if(endptr)
-        *endptr = (char*)nptr;
+        *endptr = (char*)(got_digit ? nptr : p);
 
     return negative ? -ret : ret;
 }

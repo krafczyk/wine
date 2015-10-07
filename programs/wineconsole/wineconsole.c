@@ -150,6 +150,23 @@ static BOOL WINECON_SetHistoryMode(HANDLE hConIn, int mode)
 }
 
 /******************************************************************
+ *              WINECON_SetInsertMode
+ *
+ *
+ */
+static void WINECON_SetInsertMode(HANDLE hConIn, unsigned int enable)
+{
+    DWORD mode;
+
+    GetConsoleMode(hConIn, &mode);
+    if (enable)
+        mode |= ENABLE_INSERT_MODE|ENABLE_EXTENDED_FLAGS;
+    else
+        mode &= ~ENABLE_INSERT_MODE;
+    SetConsoleMode(hConIn, mode);
+}
+
+/******************************************************************
  *		WINECON_GetConsoleTitle
  *
  *
@@ -397,6 +414,11 @@ void     WINECON_SetConfig(struct inner_data* data, const struct config_data* cf
         data->curcfg.history_nodup = cfg->history_nodup;
         WINECON_SetHistoryMode(data->hConIn, cfg->history_nodup);
     }
+    if (data->curcfg.insert_mode != cfg->insert_mode)
+    {
+        data->curcfg.insert_mode = cfg->insert_mode;
+        WINECON_SetInsertMode(data->hConIn, cfg->insert_mode);
+    }
     data->curcfg.menu_mask = cfg->menu_mask;
     data->curcfg.quick_edit = cfg->quick_edit;
     if (1 /* FIXME: font info has changed */)
@@ -519,6 +541,7 @@ static void WINECON_Delete(struct inner_data* data)
     if (data->hConIn)		CloseHandle(data->hConIn);
     if (data->hConOut)		CloseHandle(data->hConOut);
     if (data->hSynchro)		CloseHandle(data->hSynchro);
+    if (data->hProcess)         CloseHandle(data->hProcess);
     HeapFree(GetProcessHeap(), 0, data->curcfg.registry);
     HeapFree(GetProcessHeap(), 0, data->cells);
     HeapFree(GetProcessHeap(), 0, data);
@@ -533,7 +556,8 @@ static void WINECON_Delete(struct inner_data* data)
  */
 static BOOL WINECON_GetServerConfig(struct inner_data* data)
 {
-    BOOL        ret;
+    BOOL  ret;
+    DWORD mode;
 
     SERVER_START_REQ(get_console_input_info)
     {
@@ -545,6 +569,11 @@ static BOOL WINECON_GetServerConfig(struct inner_data* data)
     }
     SERVER_END_REQ;
     if (!ret) return FALSE;
+
+    GetConsoleMode(data->hConIn, &mode);
+    data->curcfg.insert_mode = (mode & (ENABLE_INSERT_MODE|ENABLE_EXTENDED_FLAGS)) ==
+                                       (ENABLE_INSERT_MODE|ENABLE_EXTENDED_FLAGS);
+
     SERVER_START_REQ(get_console_output_info)
     {
         req->handle = wine_server_obj_handle( data->hConOut );
@@ -692,7 +721,7 @@ static struct inner_data* WINECON_Init(HINSTANCE hInst, DWORD pid, LPCWSTR appna
  *
  * Spawn the child process when invoked with wineconsole foo bar
  */
-static BOOL WINECON_Spawn(struct inner_data* data, LPWSTR cmdLine)
+static int WINECON_Spawn(struct inner_data* data, LPWSTR cmdLine)
 {
     PROCESS_INFORMATION info;
     STARTUPINFOW        startup;
@@ -715,20 +744,22 @@ static BOOL WINECON_Spawn(struct inner_data* data, LPWSTR cmdLine)
     {
 	WINE_ERR("Can't dup handles\n");
 	/* no need to delete handles, we're exiting the program anyway */
-	return FALSE;
+	return 1;
     }
 
     done = CreateProcessW(NULL, cmdLine, NULL, NULL, TRUE, 0L, NULL, NULL, &startup, &info);
+    if (done)
+    {
+        data->hProcess = info.hProcess;
+        CloseHandle(info.hThread);
+    }
 
     /* we no longer need the handles passed to the child for the console */
     CloseHandle(startup.hStdInput);
     CloseHandle(startup.hStdOutput);
     CloseHandle(startup.hStdError);
 
-    CloseHandle(info.hProcess);
-    CloseHandle(info.hThread);
-
-    return done;
+    return !done;
 }
 
 struct wc_init {
@@ -824,9 +855,9 @@ int PASCAL WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, INT nCmdSh
     {
     case from_event:
         /* case of wineconsole <evt>, signal process that created us that we're up and running */
-        if (!(data = WINECON_Init(hInst, 0, NULL, wci.backend, nCmdShow))) return 0;
-	ret = SetEvent(wci.event);
-	if (!ret) WINE_ERR("SetEvent failed.\n");
+        if (!(data = WINECON_Init(hInst, 0, NULL, wci.backend, nCmdShow))) return 1;
+        ret = !SetEvent(wci.event);
+        if (ret != 0) WINE_ERR("SetEvent failed.\n");
         break;
     case from_process_name:
         {
@@ -837,33 +868,43 @@ int PASCAL WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, INT nCmdSh
 
             buffer = HeapAlloc(GetProcessHeap(), 0, len * sizeof(WCHAR));
             if (!buffer)
-                return 0;
+                return 1;
 
             MultiByteToWideChar(CP_ACP, 0, wci.ptr, -1, buffer, len);
 
             if (!(data = WINECON_Init(hInst, GetCurrentProcessId(), buffer, wci.backend, nCmdShow)))
             {
                 HeapFree(GetProcessHeap(), 0, buffer);
-                return 0;
+                return 1;
             }
             ret = WINECON_Spawn(data, buffer);
             HeapFree(GetProcessHeap(), 0, buffer);
-            if (!ret)
+            if (ret != 0)
             {
                 WINECON_Delete(data);
                 printf_res(IDS_CMD_LAUNCH_FAILED, wine_dbgstr_a(wci.ptr));
-                return 0;
+                return ret;
             }
         }
         break;
     default:
-        return 0;
+        return 1;
     }
 
-    if (ret)
+    if (!ret)
     {
-	WINE_TRACE("calling MainLoop.\n");
-	ret = data->fnMainLoop(data);
+        DWORD exitcode;
+
+        WINE_TRACE("calling MainLoop.\n");
+        ret = data->fnMainLoop(data);
+
+        if (!ret && data->hProcess &&
+            WaitForSingleObject(data->hProcess, INFINITE) == WAIT_OBJECT_0 &&
+            GetExitCodeProcess(data->hProcess, &exitcode))
+        {
+            WINE_TRACE("forwarding exitcode %u from child process\n", exitcode);
+            ret = exitcode;
+        }
     }
 
     WINECON_Delete(data);

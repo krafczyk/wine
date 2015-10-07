@@ -48,7 +48,9 @@ typedef enum {
 } dateorder;
 
 char* __cdecl _Getdays(void);
+wchar_t* __cdecl _W_Getdays(void);
 char* __cdecl _Getmonths(void);
+wchar_t* __cdecl _W_Getmonths(void);
 void* __cdecl _Gettnames(void);
 unsigned int __cdecl ___lc_codepage_func(void);
 int __cdecl ___lc_collate_cp_func(void);
@@ -59,15 +61,7 @@ MSVCP_size_t __cdecl _Strftime(char*, MSVCP_size_t, const char*,
 const locale* __cdecl locale_classic(void);
 
 #if _MSVCP_VER >= 110
-static LCID* ___lc_handle_func(void)
-{
-    LCID *ret;
-
-    _locale_t loc = _get_current_locale();
-    ret = loc->locinfo->lc_handle;
-    _free_locale(loc);
-    return ret;
-}
+wchar_t ** __cdecl ___lc_locale_name_func(void);
 #else
 LCID* __cdecl ___lc_handle_func(void);
 #endif
@@ -86,6 +80,12 @@ LCID* __cdecl ___lc_handle_func(void);
 #define locale_string_char_dtor(this)           _Yarn_char_dtor(this)
 #define locale_string_char_c_str(this)          _Yarn_char_c_str(this)
 #define locale_string_char_assign(this,assign)  _Yarn_char_op_assign(this,assign)
+
+#define locale_string_wchar _Yarn_wchar
+#define locale_string_wchar_ctor(this)           _Yarn_wchar_ctor(this)
+#define locale_string_wchar_ctor_cstr(this,str)  _Yarn_wchar_ctor(this); _Yarn_wchar_op_assign_cstr(this,str)
+#define locale_string_wchar_dtor(this)           _Yarn_wchar_dtor(this)
+#define locale_string_wchar_c_str(this)          _Yarn_wchar__C_str(this)
 #endif
 
 typedef int category;
@@ -111,13 +111,22 @@ typedef struct {
     _Lockit lock;
     locale_string days;
     locale_string months;
+#if _MSVCP_VER >= 110
+    locale_string_wchar wdays;
+    locale_string_wchar wmonths;
+#endif
     locale_string oldlocname;
     locale_string newlocname;
 } _Locinfo;
 
 typedef struct {
+#if _MSVCP_VER < 110
     LCID handle;
+#endif
     unsigned page;
+#if _MSVCP_VER >= 110
+    wchar_t *lc_name;
+#endif
 } _Collvec;
 
 typedef struct {
@@ -502,6 +511,9 @@ void* __thiscall _Timevec__Getptr(_Timevec *this)
 _Locinfo* __cdecl _Locinfo__Locinfo_ctor_cat_cstr(_Locinfo *locinfo, int category, const char *locstr)
 {
     const char *locale = NULL;
+#if _MSVCP_VER >= 110
+    static const wchar_t empty[] = { '\0' };
+#endif
 
     /* This function is probably modifying more global objects */
     FIXME("(%p %d %s) semi-stub\n", locinfo, category, locstr);
@@ -512,6 +524,10 @@ _Locinfo* __cdecl _Locinfo__Locinfo_ctor_cat_cstr(_Locinfo *locinfo, int categor
     _Lockit_ctor_locktype(&locinfo->lock, _LOCK_LOCALE);
     locale_string_char_ctor_cstr(&locinfo->days, "");
     locale_string_char_ctor_cstr(&locinfo->months, "");
+#if _MSVCP_VER >= 110
+    locale_string_wchar_ctor_cstr(&locinfo->wdays, empty);
+    locale_string_wchar_ctor_cstr(&locinfo->wmonths, empty);
+#endif
     locale_string_char_ctor_cstr(&locinfo->oldlocname, setlocale(LC_ALL, NULL));
 
     if(category)
@@ -574,6 +590,10 @@ void __cdecl _Locinfo__Locinfo_dtor(_Locinfo *locinfo)
     setlocale(LC_ALL, locale_string_char_c_str(&locinfo->oldlocname));
     locale_string_char_dtor(&locinfo->days);
     locale_string_char_dtor(&locinfo->months);
+#if _MSVCP_VER >= 110
+    locale_string_wchar_dtor(&locinfo->wdays);
+    locale_string_wchar_dtor(&locinfo->wmonths);
+#endif
     locale_string_char_dtor(&locinfo->oldlocname);
     locale_string_char_dtor(&locinfo->newlocname);
     _Lockit_dtor(&locinfo->lock);
@@ -640,7 +660,11 @@ ULONGLONG __cdecl _Getcoll(void)
     TRACE("\n");
 
     ret.collvec.page = ___lc_collate_cp_func();
+#if _MSVCP_VER < 110
     ret.collvec.handle = ___lc_handle_func()[LC_COLLATE];
+#else
+    ret.collvec.lc_name = ___lc_locale_name_func()[LC_COLLATE];
+#endif
     return ret.ull;
 }
 
@@ -658,6 +682,10 @@ _Collvec* __thiscall _Locinfo__Getcoll(const _Locinfo *this, _Collvec *ret)
 _Ctypevec* __cdecl _Getctype(_Ctypevec *ret)
 {
     short *table;
+#if _MSVCP_VER >= 110
+    wchar_t *name;
+    MSVCP_size_t size;
+#endif
 
     TRACE("\n");
 
@@ -665,8 +693,14 @@ _Ctypevec* __cdecl _Getctype(_Ctypevec *ret)
 #if _MSVCP_VER < 110
     ret->handle = ___lc_handle_func()[LC_COLLATE];
 #else
-    /* FIXME: use ___lc_locale_name_func() */
-    ret->name = NULL;
+    if((name = ___lc_locale_name_func()[LC_COLLATE])) {
+        size = wcslen(name)+1;
+        ret->name = malloc(size*sizeof(*name));
+        if(!ret->name) throw_exception(EXCEPTION_BAD_ALLOC, NULL);
+        memcpy(ret->name, name, size*sizeof(*name));
+    } else {
+        ret->name = NULL;
+    }
 #endif
     ret->delfl = TRUE;
     table = malloc(sizeof(short[256]));
@@ -738,9 +772,15 @@ int __cdecl _Getdateorder(void)
 {
     WCHAR date_fmt[2];
 
+#if _MSVCP_VER < 110
     if(!GetLocaleInfoW(___lc_handle_func()[LC_TIME], LOCALE_ILDATE,
                 date_fmt, sizeof(date_fmt)/sizeof(*date_fmt)))
         return DATEORDER_no_order;
+#else
+    if(!GetLocaleInfoEx(___lc_locale_name_func()[LC_TIME], LOCALE_ILDATE,
+                date_fmt, sizeof(date_fmt)/sizeof(*date_fmt)))
+        return DATEORDER_no_order;
+#endif
 
     if(*date_fmt == '0') return DATEORDER_mdy;
     if(*date_fmt == '1') return DATEORDER_dmy;
@@ -760,7 +800,7 @@ int __thiscall _Locinfo__Getdateorder(const _Locinfo *this)
 /* ?_Getdays@_Locinfo@std@@QBEPBDXZ */
 /* ?_Getdays@_Locinfo@std@@QEBAPEBDXZ */
 DEFINE_THISCALL_WRAPPER(_Locinfo__Getdays, 4)
-const char* __thiscall _Locinfo__Getdays(_Locinfo *this)
+const char* __thiscall _Locinfo__Getdays(const _Locinfo *this)
 {
     char *days = _Getdays();
     const char *ret;
@@ -768,8 +808,8 @@ const char* __thiscall _Locinfo__Getdays(_Locinfo *this)
     TRACE("(%p)\n", this);
 
     if(days) {
-        locale_string_char_dtor(&this->days);
-        locale_string_char_ctor_cstr(&this->days, days);
+        locale_string_char_dtor((locale_string *)&this->days);
+        locale_string_char_ctor_cstr((locale_string *)&this->days, days);
         free(days);
     }
 
@@ -778,10 +818,79 @@ const char* __thiscall _Locinfo__Getdays(_Locinfo *this)
     return ret;
 }
 
+#if _MSVCP_VER >= 110
+/* ?_W_Getdays@_Locinfo@std@@QBEPBGXZ */
+/* ?_W_Getdays@_Locinfo@std@@QEBAPEBGXZ */
+DEFINE_THISCALL_WRAPPER(_Locinfo__W_Getdays, 4)
+const wchar_t* __thiscall _Locinfo__W_Getdays(const _Locinfo *this)
+{
+    static const wchar_t defdays[] =
+    {
+        ':','S','u','n',':','S','u','n','d','a','y',
+        ':','M','o','n',':','M','o','n','d','a','y',
+        ':','T','u','e',':','T','u','e','s','d','a','y',
+        ':','W','e','d',':','W','e','d','n','e','s','d','a','y',
+        ':','T','h','u',':','T','h','u','r','s','d','a','y',
+        ':','F','r','i',':','F','r','i','d','a','y',
+        ':','S','a','t',':','S','a','t','u','r','d','a','y'
+    };
+    wchar_t *wdays = _W_Getdays();
+    const wchar_t *ret;
+
+    TRACE("(%p)\n", this);
+
+    if(wdays) {
+        locale_string_wchar_dtor((locale_string_wchar *)&this->wdays);
+        locale_string_wchar_ctor_cstr((locale_string_wchar *)&this->wdays, wdays);
+        free(wdays);
+    }
+
+    ret = locale_string_wchar_c_str(&this->wdays);
+    if (!ret[0]) ret = defdays;
+    return ret;
+}
+
+/* ?_W_Getmonths@_Locinfo@std@@QBEPBGXZ */
+/* ?_W_Getmonths@_Locinfo@std@@QEBAPEBGXZ */
+DEFINE_THISCALL_WRAPPER(_Locinfo__W_Getmonths, 4)
+const wchar_t* __thiscall _Locinfo__W_Getmonths(const _Locinfo *this)
+{
+    static const wchar_t defmonths[] =
+    {
+        ':','J','a','n',':','J','a','n','u','a','r','y',
+        ':','F','e','b',':','F','e','b','r','u','a','r','y',
+        ':','M','a','r',':','M','a','r','c','h',
+        ':','A','p','r',':','A','p','r','i','l',
+        ':','M','a','y',':','M','a','y',
+        ':','J','u','n',':','J','u','n','e',
+        ':','J','u','l',':','J','u','l','y',
+        ':','A','u','g',':','A','u','g','u','s','t',
+        ':','S','e','p',':','S','e','p','t','e','m','b','e','r',
+        ':','O','c','t',':','O','c','t','o','b','e','r',
+        ':','N','o','v',':','N','o','v','e','m','b','e','r',
+        ':','D','e','c',':','D','e','c','e','m','b','e','r'
+    };
+    wchar_t *wmonths = _W_Getmonths();
+    const wchar_t *ret;
+
+    TRACE("(%p)\n", this);
+
+    if(wmonths) {
+        locale_string_wchar_dtor((locale_string_wchar *)&this->wmonths);
+        locale_string_wchar_ctor_cstr((locale_string_wchar *)&this->wmonths, wmonths);
+        free(wmonths);
+    }
+
+    ret = locale_string_wchar_c_str(&this->wmonths);
+    if (!ret[0]) ret = defmonths;
+    return ret;
+}
+#endif
+
 /* ?_Getmonths@_Locinfo@std@@QBEPBDXZ */
 /* ?_Getmonths@_Locinfo@std@@QEBAPEBDXZ */
 DEFINE_THISCALL_WRAPPER(_Locinfo__Getmonths, 4)
-const char* __thiscall _Locinfo__Getmonths(_Locinfo *this)
+const char* __thiscall _Locinfo__Getmonths(const _Locinfo *this)
 {
     char *months = _Getmonths();
     const char *ret;
@@ -789,8 +898,8 @@ const char* __thiscall _Locinfo__Getmonths(_Locinfo *this)
     TRACE("(%p)\n", this);
 
     if(months) {
-        locale_string_char_dtor(&this->months);
-        locale_string_char_ctor_cstr(&this->months, months);
+        locale_string_char_dtor((locale_string *)&this->months);
+        locale_string_char_ctor_cstr((locale_string *)&this->months, months);
         free(months);
     }
 
@@ -993,10 +1102,11 @@ int __cdecl _Strcoll(const char *first1, const char *last1, const char *first2,
 
     TRACE("(%s %s)\n", debugstr_an(first1, last1-first1), debugstr_an(first2, last2-first2));
 
-    if(coll)
-        lcid = coll->handle;
-    else
-        lcid = ___lc_handle_func()[LC_COLLATE];
+#if _MSVCP_VER < 110
+    lcid = (coll ? coll->handle : ___lc_handle_func()[LC_COLLATE]);
+#else
+    lcid = LocaleNameToLCID(coll ? coll->lc_name : ___lc_locale_name_func()[LC_COLLATE], 0);
+#endif
     return CompareStringA(lcid, 0, first1, last1-first1, first2, last2-first2)-CSTR_EQUAL;
 }
 
@@ -1327,15 +1437,15 @@ static collate* collate_short_use_facet(const locale *loc)
 int __cdecl _Wcscoll(const wchar_t *first1, const wchar_t *last1, const wchar_t *first2,
         const wchar_t *last2, const _Collvec *coll)
 {
-    LCID lcid;
-
     TRACE("(%s %s)\n", debugstr_wn(first1, last1-first1), debugstr_wn(first2, last2-first2));
 
-    if(coll)
-        lcid = coll->handle;
-    else
-        lcid = ___lc_handle_func()[LC_COLLATE];
-    return CompareStringW(lcid, 0, first1, last1-first1, first2, last2-first2)-CSTR_EQUAL;
+#if _MSVCP_VER < 110
+    return CompareStringW(coll ? coll->handle : ___lc_handle_func()[LC_COLLATE],
+            0, first1, last1-first1, first2, last2-first2)-CSTR_EQUAL;
+#else
+    return CompareStringEx(coll ? coll->lc_name : ___lc_locale_name_func()[LC_COLLATE],
+            0, first1, last1-first1, first2, last2-first2, NULL, NULL, 0)-CSTR_EQUAL;
+#endif
 }
 
 /* ?do_compare@?$collate@_W@std@@MBEHPB_W000@Z */
@@ -9555,38 +9665,79 @@ extern const vtable_ptr MSVCP_time_get_char_vtable;
 DEFINE_THISCALL_WRAPPER(time_get_char__Init, 8)
 void __thiscall time_get_char__Init(time_get_char *this, const _Locinfo *locinfo)
 {
-    FIXME("(%p %p) stub\n", this, locinfo);
-}
+    const char *months;
+    const char *days;
+    int len;
 
-/* ??0?$time_get@DV?$istreambuf_iterator@DU?$char_traits@D@std@@@std@@@std@@IAE@PBDI@Z */
-/* ??0?$time_get@DV?$istreambuf_iterator@DU?$char_traits@D@std@@@std@@@std@@IEAA@PEBD_K@Z */
-DEFINE_THISCALL_WRAPPER(time_get_char_ctor_name, 12)
-time_get_char* __thiscall time_get_char_ctor_name(time_get_char *this, const char *name, unsigned int refs)
-{
-    FIXME("(%p %p %d) stub\n", this, name, refs);
-    this->facet.vtable = &MSVCP_time_get_char_vtable;
-    return NULL;
+    TRACE("(%p %p)\n", this, locinfo);
+
+    days = _Locinfo__Getdays(locinfo);
+    len = strlen(days)+1;
+    this->days = MSVCRT_operator_new(len);
+    if(!this->days)
+    {
+        ERR("Out of memory\n");
+        throw_exception(EXCEPTION_BAD_ALLOC, NULL);
+    }
+    memcpy((char*)this->days, days, len);
+
+    months = _Locinfo__Getmonths(locinfo);
+    len = strlen(months)+1;
+    this->months = MSVCRT_operator_new(len);
+    if(!this->months)
+    {
+        MSVCRT_operator_delete((char*)this->days);
+
+        ERR("Out of memory\n");
+        throw_exception(EXCEPTION_BAD_ALLOC, NULL);
+    }
+    memcpy((char*)this->months, months, len);
+
+    this->dateorder = _Locinfo__Getdateorder(locinfo);
+    _Locinfo__Getcvt(locinfo, &this->cvt);
 }
 
 /* ??0?$time_get@DV?$istreambuf_iterator@DU?$char_traits@D@std@@@std@@@std@@QAE@ABV_Locinfo@1@I@Z */
 /* ??0?$time_get@DV?$istreambuf_iterator@DU?$char_traits@D@std@@@std@@@std@@QEAA@AEBV_Locinfo@1@_K@Z */
 DEFINE_THISCALL_WRAPPER(time_get_char_ctor_locinfo, 12)
 time_get_char* __thiscall time_get_char_ctor_locinfo(time_get_char *this,
-        const _Locinfo *locinfo, unsigned int refs)
+        const _Locinfo *locinfo, MSVCP_size_t refs)
 {
-    FIXME("(%p %p %d) stub\n", this, locinfo, refs);
+    TRACE("(%p %p %lu)\n", this, locinfo, refs);
+    locale_facet_ctor_refs(&this->facet, refs);
     this->facet.vtable = &MSVCP_time_get_char_vtable;
-    return NULL;
+    time_get_char__Init(this, locinfo);
+    return this;
+}
+
+/* ??0?$time_get@DV?$istreambuf_iterator@DU?$char_traits@D@std@@@std@@@std@@IAE@PBDI@Z */
+/* ??0?$time_get@DV?$istreambuf_iterator@DU?$char_traits@D@std@@@std@@@std@@IEAA@PEBD_K@Z */
+DEFINE_THISCALL_WRAPPER(time_get_char_ctor_name, 12)
+time_get_char* __thiscall time_get_char_ctor_name(time_get_char *this, const char *name, MSVCP_size_t refs)
+{
+    _Locinfo locinfo;
+
+    TRACE("(%p %s %lu)\n", this, name, refs);
+
+    _Locinfo_ctor_cstr(&locinfo, name);
+    time_get_char_ctor_locinfo(this, &locinfo, refs);
+    _Locinfo_dtor(&locinfo);
+    return this;
 }
 
 /* ??0?$time_get@DV?$istreambuf_iterator@DU?$char_traits@D@std@@@std@@@std@@QAE@I@Z */
 /* ??0?$time_get@DV?$istreambuf_iterator@DU?$char_traits@D@std@@@std@@@std@@QEAA@_K@Z */
 DEFINE_THISCALL_WRAPPER(time_get_char_ctor_refs, 8)
-time_get_char* __thiscall time_get_char_ctor_refs(time_get_char *this, unsigned int refs)
+time_get_char* __thiscall time_get_char_ctor_refs(time_get_char *this, MSVCP_size_t refs)
 {
-    FIXME("(%p %d) stub\n", this, refs);
-    this->facet.vtable = &MSVCP_time_get_char_vtable;
-    return NULL;
+    _Locinfo locinfo;
+
+    TRACE("(%p %lu)\n", this, refs);
+
+    _Locinfo_ctor(&locinfo);
+    time_get_char_ctor_locinfo(this, &locinfo, refs);
+    _Locinfo_dtor(&locinfo);
+    return this;
 }
 
 /* ??_F?$time_get@DV?$istreambuf_iterator@DU?$char_traits@D@std@@@std@@@std@@QAEXXZ */
@@ -9602,7 +9753,10 @@ time_get_char* __thiscall time_get_char_ctor(time_get_char *this)
 DEFINE_THISCALL_WRAPPER(time_get_char__Tidy, 4)
 void __thiscall time_get_char__Tidy(time_get_char *this)
 {
-    FIXME("(%p) stub\n", this);
+    TRACE("(%p)\n", this);
+
+    MSVCRT_operator_delete((char*)this->days);
+    MSVCRT_operator_delete((char*)this->months);
 }
 
 /* ??1?$time_get@DV?$istreambuf_iterator@DU?$char_traits@D@std@@@std@@@std@@MAE@XZ */
@@ -9610,7 +9764,9 @@ void __thiscall time_get_char__Tidy(time_get_char *this)
 DEFINE_THISCALL_WRAPPER(time_get_char_dtor, 4) /* virtual */
 void __thiscall time_get_char_dtor(time_get_char *this)
 {
-    FIXME("(%p) stub\n", this);
+    TRACE("(%p)\n", this);
+
+    time_get_char__Tidy(this);
 }
 
 DEFINE_THISCALL_WRAPPER(time_get_char_vector_dtor, 8)
@@ -9867,6 +10023,9 @@ istreambuf_iterator_char* __thiscall time_get_char_get_year(const time_get_char 
     return call_time_get_char_do_get_year(this, ret, s, e, base, err, t);
 }
 
+/* ??_7_Locimp@locale@std@@6B@ */
+extern const vtable_ptr MSVCP_locale__Locimp_vtable;
+
 /* ??0_Locimp@locale@std@@AAE@_N@Z */
 /* ??0_Locimp@locale@std@@AEAA@_N@Z */
 DEFINE_THISCALL_WRAPPER(locale__Locimp_ctor_transparent, 8)
@@ -9876,6 +10035,7 @@ locale__Locimp* __thiscall locale__Locimp_ctor_transparent(locale__Locimp *this,
 
     memset(this, 0, sizeof(locale__Locimp));
     locale_facet_ctor_refs(&this->facet, 1);
+    this->facet.vtable = &MSVCP_locale__Locimp_vtable;
     this->transparent = transparent;
     locale_string_char_ctor_cstr(&this->name, "*");
     return this;
@@ -9902,6 +10062,7 @@ locale__Locimp* __thiscall locale__Locimp_copy_ctor(locale__Locimp *this, const 
     _Lockit_ctor_locktype(&lock, _LOCK_LOCALE);
     memcpy(this, copy, sizeof(locale__Locimp));
     locale_facet_ctor_refs(&this->facet, 1);
+    this->facet.vtable = &MSVCP_locale__Locimp_vtable;
     if(copy->facetvec) {
         this->facetvec = MSVCRT_operator_new(copy->facet_cnt*sizeof(locale_facet*));
         if(!this->facetvec) {
@@ -10461,11 +10622,6 @@ locale__Locimp* __cdecl locale__Locimp__Makeloc(const _Locinfo *locinfo, categor
     return locimp;
 }
 
-/* ??_7_Locimp@locale@std@@6B@ */
-const vtable_ptr MSVCP_locale__Locimp_vtable[] = {
-    (vtable_ptr)THISCALL_NAME(locale__Locimp_vector_dtor)
-};
-
 /* ??0locale@std@@AAE@PAV_Locimp@01@@Z */
 /* ??0locale@std@@AEAA@PEAV_Locimp@01@@Z */
 DEFINE_THISCALL_WRAPPER(locale_ctor_locimp, 8)
@@ -10967,6 +11123,7 @@ size_t __cdecl wcsrtombs(char *dst, const wchar_t **pstr, size_t n, mbstate_t *s
 
 
 DEFINE_RTTI_DATA0(locale_facet, 0, ".?AVfacet@locale@std@@")
+DEFINE_RTTI_DATA1(locale__Locimp, 0, &locale_facet_rtti_base_descriptor, ".?AV_Locimp@locale@std@@")
 DEFINE_RTTI_DATA1(collate_char, 0, &locale_facet_rtti_base_descriptor, ".?AV?$collate@D@std@@")
 DEFINE_RTTI_DATA1(collate_wchar, 0, &locale_facet_rtti_base_descriptor, ".?AV?$collate@_W@std@@")
 DEFINE_RTTI_DATA1(collate_short, 0, &locale_facet_rtti_base_descriptor, ".?AV?$collate@G@std@@")
@@ -10998,6 +11155,13 @@ void __asm_dummy_vtables(void) {
 #endif
     __ASM_VTABLE(locale_facet,
             VTABLE_ADD_FUNC(locale_facet_vector_dtor)
+#if _MSVCP_VER >= 110
+            VTABLE_ADD_FUNC(locale_facet__Incref)
+            VTABLE_ADD_FUNC(locale_facet__Decref)
+#endif
+            );
+    __ASM_VTABLE(locale__Locimp,
+            VTABLE_ADD_FUNC(locale__Locimp_vector_dtor)
 #if _MSVCP_VER >= 110
             VTABLE_ADD_FUNC(locale_facet__Incref)
             VTABLE_ADD_FUNC(locale_facet__Decref)
@@ -11326,6 +11490,7 @@ void init_locale(void *base)
 {
 #ifdef __x86_64__
     init_locale_facet_rtti(base);
+    init_locale__Locimp_rtti(base);
     init_collate_char_rtti(base);
     init_collate_wchar_rtti(base);
     init_collate_short_rtti(base);

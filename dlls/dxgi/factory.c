@@ -80,9 +80,9 @@ static ULONG STDMETHODCALLTYPE dxgi_factory_Release(IDXGIFactory1 *iface)
         }
         HeapFree(GetProcessHeap(), 0, factory->adapters);
 
-        EnterCriticalSection(&dxgi_cs);
+        wined3d_mutex_lock();
         wined3d_decref(factory->wined3d);
-        LeaveCriticalSection(&dxgi_cs);
+        wined3d_mutex_unlock();
         wined3d_private_store_cleanup(&factory->private_store);
         HeapFree(GetProcessHeap(), 0, factory);
     }
@@ -190,8 +190,35 @@ static HRESULT STDMETHODCALLTYPE dxgi_factory_CreateSwapChain(IDXGIFactory1 *ifa
     struct wined3d_swapchain_desc wined3d_desc;
     IWineDXGIDevice *dxgi_device;
     HRESULT hr;
+    UINT min_buffer_count;
 
     FIXME("iface %p, device %p, desc %p, swapchain %p partial stub!\n", iface, device, desc, swapchain);
+
+    switch (desc->SwapEffect)
+    {
+        case DXGI_SWAP_EFFECT_DISCARD:
+        case DXGI_SWAP_EFFECT_SEQUENTIAL:
+            min_buffer_count = 1;
+            break;
+
+        case DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL:
+            min_buffer_count = 2;
+            break;
+
+        default:
+            WARN("Invalid swap effect %u used, returning DXGI_ERROR_INVALID_CALL.\n", desc->SwapEffect);
+            return DXGI_ERROR_INVALID_CALL;
+    }
+
+    if (desc->BufferCount < min_buffer_count || desc->BufferCount > 16)
+    {
+        WARN("BufferCount is %u, returning DXGI_ERROR_INVALID_CALL.\n", desc->BufferCount);
+        return DXGI_ERROR_INVALID_CALL;
+    }
+    if (!desc->OutputWindow)
+    {
+        FIXME("No output window, should use factory output window\n");
+    }
 
     hr = IUnknown_QueryInterface(device, &IID_IWineDXGIDevice, (void **)&dxgi_device);
     if (FAILED(hr))
@@ -200,27 +227,14 @@ static HRESULT STDMETHODCALLTYPE dxgi_factory_CreateSwapChain(IDXGIFactory1 *ifa
         return hr;
     }
 
-    if (!desc->OutputWindow)
-    {
-        FIXME("No output window, should use factory output window\n");
-    }
-
     FIXME("Ignoring SwapEffect and Flags\n");
 
     wined3d_desc.backbuffer_width = desc->BufferDesc.Width;
     wined3d_desc.backbuffer_height = desc->BufferDesc.Height;
     wined3d_desc.backbuffer_format = wined3dformat_from_dxgi_format(desc->BufferDesc.Format);
     wined3d_desc.backbuffer_count = desc->BufferCount;
-    if (desc->SampleDesc.Count > 1)
-    {
-        wined3d_desc.multisample_type = desc->SampleDesc.Count;
-        wined3d_desc.multisample_quality = desc->SampleDesc.Quality;
-    }
-    else
-    {
-        wined3d_desc.multisample_type = WINED3D_MULTISAMPLE_NONE;
-        wined3d_desc.multisample_quality = 0;
-    }
+    wined3d_sample_desc_from_dxgi(&wined3d_desc.multisample_type,
+            &wined3d_desc.multisample_quality, &desc->SampleDesc);
     wined3d_desc.swap_effect = WINED3D_SWAP_EFFECT_DISCARD;
     wined3d_desc.device_window = desc->OutputWindow;
     wined3d_desc.windowed = desc->Windowed;
@@ -239,7 +253,9 @@ static HRESULT STDMETHODCALLTYPE dxgi_factory_CreateSwapChain(IDXGIFactory1 *ifa
         return hr;
     }
 
+    wined3d_mutex_lock();
     *swapchain = wined3d_swapchain_get_parent(wined3d_swapchain);
+    wined3d_mutex_unlock();
 
     return S_OK;
 }
@@ -294,17 +310,17 @@ static HRESULT dxgi_factory_init(struct dxgi_factory *factory, BOOL extended)
     factory->refcount = 1;
     wined3d_private_store_init(&factory->private_store);
 
-    EnterCriticalSection(&dxgi_cs);
+    wined3d_mutex_lock();
     factory->wined3d = wined3d_create(0);
     if (!factory->wined3d)
     {
-        LeaveCriticalSection(&dxgi_cs);
+        wined3d_mutex_unlock();
         wined3d_private_store_cleanup(&factory->private_store);
         return DXGI_ERROR_UNSUPPORTED;
     }
 
     factory->adapter_count = wined3d_get_adapter_count(factory->wined3d);
-    LeaveCriticalSection(&dxgi_cs);
+    wined3d_mutex_unlock();
     factory->adapters = HeapAlloc(GetProcessHeap(), 0, factory->adapter_count * sizeof(*factory->adapters));
     if (!factory->adapters)
     {
@@ -353,9 +369,9 @@ static HRESULT dxgi_factory_init(struct dxgi_factory *factory, BOOL extended)
 
 fail:
     HeapFree(GetProcessHeap(), 0, factory->adapters);
-    EnterCriticalSection(&dxgi_cs);
+    wined3d_mutex_lock();
     wined3d_decref(factory->wined3d);
-    LeaveCriticalSection(&dxgi_cs);
+    wined3d_mutex_unlock();
     wined3d_private_store_cleanup(&factory->private_store);
     return hr;
 }
@@ -385,21 +401,21 @@ HRESULT dxgi_factory_create(REFIID riid, void **factory, BOOL extended)
 
 HWND dxgi_factory_get_device_window(struct dxgi_factory *factory)
 {
-    EnterCriticalSection(&dxgi_cs);
+    wined3d_mutex_lock();
 
     if (!factory->device_window)
     {
         if (!(factory->device_window = CreateWindowA("static", "DXGI device window",
                 WS_DISABLED, 0, 0, 0, 0, NULL, NULL, NULL, NULL)))
         {
-            LeaveCriticalSection(&dxgi_cs);
+            wined3d_mutex_unlock();
             ERR("Failed to create a window.\n");
             return NULL;
         }
         TRACE("Created device window %p for factory %p.\n", factory->device_window, factory);
     }
 
-    LeaveCriticalSection(&dxgi_cs);
+    wined3d_mutex_unlock();
 
     return factory->device_window;
 }

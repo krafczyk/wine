@@ -49,20 +49,19 @@ msgid "Support Information"
 msgstr ""
 
 #: appwiz.rc:78 avifil32.rc:54 comctl32.rc:55 comdlg32.rc:231 comdlg32.rc:261
-#: comdlg32.rc:304 comdlg32.rc:358 comdlg32.rc:397 comdlg32.rc:451
-#: credui.rc:52 cryptui.rc:263 cryptui.rc:275 cryptui.rc:365 dinput.rc:46
-#: ieframe.rc:96 localui.rc:44 localui.rc:57 mpr.rc:49 msacm32.rc:53
-#: mshtml.rc:47 mshtml.rc:57 msvfw32.rc:36 oledlg.rc:60 oledlg.rc:92
-#: serialui.rc:41 setupapi.rc:59 shell32.rc:276 shell32.rc:300 shell32.rc:322
-#: shell32.rc:340 shlwapi.rc:44 user32.rc:80 user32.rc:98 wininet.rc:51
-#: wininet.rc:71 winspool.rc:42 net.rc:47 notepad.rc:117 oleview.rc:162
-#: oleview.rc:175 progman.rc:106 progman.rc:124 progman.rc:142 progman.rc:158
-#: progman.rc:180 progman.rc:199 progman.rc:216 regedit.rc:247 regedit.rc:258
-#: regedit.rc:271 regedit.rc:287 regedit.rc:300 regedit.rc:313 taskmgr.rc:442
-#: taskmgr.rc:517 winecfg.rc:214 winecfg.rc:224 wineconsole.rc:134
-#: winefile.rc:131 winefile.rc:154 winefile.rc:184 winemine.rc:71
-#: winemine.rc:81 winemine.rc:95 wordpad.rc:207 wordpad.rc:218 wordpad.rc:236
-#: wordpad.rc:249
+#: comdlg32.rc:304 comdlg32.rc:358 comdlg32.rc:397 comdlg32.rc:451 credui.rc:52
+#: cryptui.rc:263 cryptui.rc:275 cryptui.rc:365 dinput.rc:46 ieframe.rc:96
+#: localui.rc:44 localui.rc:57 mpr.rc:49 msacm32.rc:53 mshtml.rc:47
+#: mshtml.rc:57 msvfw32.rc:36 oledlg.rc:62 oledlg.rc:94 serialui.rc:41
+#: setupapi.rc:59 shell32.rc:276 shell32.rc:300 shell32.rc:322 shell32.rc:340
+#: shlwapi.rc:44 user32.rc:80 user32.rc:98 wininet.rc:51 wininet.rc:71
+#: winspool.rc:42 net.rc:47 notepad.rc:117 oleview.rc:162 oleview.rc:175
+#: progman.rc:106 progman.rc:124 progman.rc:142 progman.rc:158 progman.rc:180
+#: progman.rc:199 progman.rc:216 regedit.rc:247 regedit.rc:258 regedit.rc:271
+#: regedit.rc:287 regedit.rc:300 regedit.rc:313 taskmgr.rc:442 taskmgr.rc:517
+#: winecfg.rc:214 winecfg.rc:224 wineconsole.rc:135 winefile.rc:131
+#: winefile.rc:154 winefile.rc:184 winemine.rc:71 winemine.rc:81 winemine.rc:95
+#: wordpad.rc:207 wordpad.rc:218 wordpad.rc:236 wordpad.rc:249
 msgid "OK"
 msgstr ""
 
@@ -125,19 +124,19 @@ msgstr ""
 #: comctl32.rc:71 comdlg32.rc:170 comdlg32.rc:192 comdlg32.rc:210
 #: comdlg32.rc:232 comdlg32.rc:262 comdlg32.rc:305 comdlg32.rc:327
 #: comdlg32.rc:347 comdlg32.rc:359 comdlg32.rc:398 comdlg32.rc:452
-#: comdlg32.rc:477 comdlg32.rc:495 credui.rc:53 cryptui.rc:264 cryptui.rc:276
+#: comdlg32.rc:477 comdlg32.rc:500 credui.rc:53 cryptui.rc:264 cryptui.rc:276
 #: cryptui.rc:366 dinput.rc:47 ieframe.rc:97 inetcpl.rc:81 localui.rc:45
 #: localui.rc:58 mpr.rc:50 msacm32.rc:54 mshtml.rc:48 mshtml.rc:58
-#: msvfw32.rc:37 oledlg.rc:61 oledlg.rc:93 serialui.rc:42 setupapi.rc:42
+#: msvfw32.rc:37 oledlg.rc:63 oledlg.rc:95 serialui.rc:42 setupapi.rc:42
 #: setupapi.rc:60 shell32.rc:277 shell32.rc:301 shell32.rc:312 shell32.rc:341
 #: shlwapi.rc:45 user32.rc:81 user32.rc:99 wininet.rc:52 wininet.rc:72
 #: winspool.rc:43 notepad.rc:118 oleview.rc:163 oleview.rc:176 progman.rc:107
 #: progman.rc:125 progman.rc:143 progman.rc:159 progman.rc:181 progman.rc:200
 #: progman.rc:217 regedit.rc:248 regedit.rc:259 regedit.rc:272 regedit.rc:288
 #: regedit.rc:301 regedit.rc:314 taskmgr.rc:443 taskmgr.rc:518 wineboot.rc:34
-#: winecfg.rc:215 winecfg.rc:225 wineconsole.rc:135 winefile.rc:132
-#: winefile.rc:155 winefile.rc:185 winemine.rc:96 wordpad.rc:208
-#: wordpad.rc:219 wordpad.rc:237 wordpad.rc:250
+#: winecfg.rc:215 winecfg.rc:225 wineconsole.rc:136 winefile.rc:132
+#: winefile.rc:155 winefile.rc:185 winemine.rc:96 wordpad.rc:208 wordpad.rc:219
+#: wordpad.rc:237 wordpad.rc:250
 msgid "Cancel"
 msgstr ""
 
@@ -321,11 +320,11 @@ msgstr ""
 
 #: comctl32.rc:86 comdlg32.rc:171 comdlg32.rc:193 comdlg32.rc:264
 #: comdlg32.rc:328 comdlg32.rc:348 comdlg32.rc:360 comdlg32.rc:478
-#: comdlg32.rc:496 ieframe.rc:58 msacm32.rc:52 oledlg.rc:94 shell32.rc:128
+#: comdlg32.rc:501 ieframe.rc:58 msacm32.rc:52 oledlg.rc:96 shell32.rc:128
 #: clock.rc:44 notepad.rc:60 notepad.rc:119 oleview.rc:72 progman.rc:55
 #: progman.rc:108 progman.rc:126 progman.rc:144 progman.rc:160 progman.rc:184
 #: progman.rc:202 progman.rc:219 regedit.rc:79 taskmgr.rc:87 winefile.rc:82
-#: winemine.rc:51 winhlp32.rc:56 wordpad.rc:94
+#: winemine.rc:51 winhlp32.rc:57 wordpad.rc:94
 msgid "&Help"
 msgstr ""
 
@@ -501,7 +500,7 @@ msgstr ""
 msgid "&Source"
 msgstr ""
 
-#: comdlg32.rc:249 wineconsole.rc:84
+#: comdlg32.rc:249 wineconsole.rc:85
 msgid "Font"
 msgstr ""
 
@@ -7185,72 +7184,72 @@ msgstr ""
 msgid "Off"
 msgstr ""
 
-#: oledlg.rc:53
+#: oledlg.rc:55
 msgid "Insert Object"
 msgstr ""
 
-#: oledlg.rc:59
+#: oledlg.rc:61
 msgid "Object Type:"
 msgstr ""
 
-#: oledlg.rc:62 oledlg.rc:100
+#: oledlg.rc:64 oledlg.rc:102
 msgid "Result"
 msgstr ""
 
-#: oledlg.rc:63
+#: oledlg.rc:65
 msgid "Create New"
 msgstr ""
 
-#: oledlg.rc:65
+#: oledlg.rc:67
 msgid "Create Control"
 msgstr ""
 
-#: oledlg.rc:67
+#: oledlg.rc:69
 msgid "Create From File"
 msgstr ""
 
-#: oledlg.rc:70
+#: oledlg.rc:72
 msgid "&Add Control..."
 msgstr ""
 
-#: oledlg.rc:71
+#: oledlg.rc:73
 msgid "Display As Icon"
 msgstr ""
 
-#: oledlg.rc:73 setupapi.rc:61
+#: oledlg.rc:75 setupapi.rc:61
 msgid "Browse..."
 msgstr ""
 
-#: oledlg.rc:74
+#: oledlg.rc:76
 msgid "File:"
 msgstr ""
 
-#: oledlg.rc:80
+#: oledlg.rc:82
 msgid "Paste Special"
 msgstr ""
 
-#: oledlg.rc:83 setupapi.rc:43
+#: oledlg.rc:85 setupapi.rc:43
 msgid "Source:"
 msgstr ""
 
-#: oledlg.rc:84 shdoclc.rc:50 shdoclc.rc:82 shdoclc.rc:95 shdoclc.rc:135
+#: oledlg.rc:86 shdoclc.rc:50 shdoclc.rc:82 shdoclc.rc:95 shdoclc.rc:135
 #: shdoclc.rc:162 shdoclc.rc:186 user32.rc:62 wineconsole.rc:33 wordpad.rc:106
 msgid "&Paste"
 msgstr ""
 
-#: oledlg.rc:86
+#: oledlg.rc:88
 msgid "Paste &Link"
 msgstr ""
 
-#: oledlg.rc:88
+#: oledlg.rc:90
 msgid "&As:"
 msgstr ""
 
-#: oledlg.rc:95
+#: oledlg.rc:97
 msgid "&Display As Icon"
 msgstr ""
 
-#: oledlg.rc:97
+#: oledlg.rc:99
 msgid "Change &Icon..."
 msgstr ""
 
@@ -7278,64 +7277,72 @@ msgstr ""
 msgid "Add Control"
 msgstr ""
 
-#: oledlg.rc:34
+#: oledlg.rc:35
 msgid "&Convert..."
+msgstr ""
+
+#: oledlg.rc:36
+msgid "%1 %2 &Object"
+msgstr ""
+
+#: oledlg.rc:34
+msgid "%1 &Object"
 msgstr ""
 
 #: oledlg.rc:33 oleview.rc:40
 msgid "&Object"
 msgstr ""
 
-#: oledlg.rc:39
+#: oledlg.rc:41
 msgid "Inserts the contents of the clipboard into your document as %s."
 msgstr ""
 
-#: oledlg.rc:40
+#: oledlg.rc:42
 msgid ""
 "Inserts the contents of the clipboard into your document so that you can "
 "activate it using %s."
 msgstr ""
 
-#: oledlg.rc:41
+#: oledlg.rc:43
 msgid ""
 "Inserts the contents of the clipboard into your document so that you can "
 "activate it using %s. It will be displayed as an icon."
 msgstr ""
 
-#: oledlg.rc:42
+#: oledlg.rc:44
 msgid ""
 "Inserts the contents of the clipboard into your document as %s. The data is "
 "linked to the source file so that changes to the file will be reflected in "
 "your document."
 msgstr ""
 
-#: oledlg.rc:43
+#: oledlg.rc:45
 msgid ""
 "Inserts a picture of the clipboard contents into your document. The picture "
 "is linked to the source file so that changes to the file will be reflected "
 "in your document."
 msgstr ""
 
-#: oledlg.rc:44
+#: oledlg.rc:46
 msgid ""
 "Inserts a shortcut which points to the location of the clipboard contents. "
 "The shortcut is linked to the source file so that changes to the file will "
 "be reflected in your document."
 msgstr ""
 
-#: oledlg.rc:45
+#: oledlg.rc:47
 msgid "Inserts the contents of the clipboard into your document."
 msgstr ""
 
-#: oledlg.rc:46
+#: oledlg.rc:48
 msgid "Unknown Type"
 msgstr ""
 
-#: oledlg.rc:47
+#: oledlg.rc:49
 msgid "Unknown Source"
 msgstr ""
 
-#: oledlg.rc:48
+#: oledlg.rc:50
 msgid "the program which created it"
 msgstr ""
 
@@ -7976,7 +7983,7 @@ msgstr ""
 msgid "PrintHood"
 msgstr ""
 
-#: shell32.rc:214 winhlp32.rc:48
+#: shell32.rc:214 winhlp32.rc:49
 msgid "History"
 msgstr ""
 
@@ -8290,7 +8297,7 @@ msgstr ""
 msgid "&Move"
 msgstr ""
 
-#: user32.rc:32 user32.rc:45 wineconsole.rc:92
+#: user32.rc:32 user32.rc:45 wineconsole.rc:93
 msgid "&Size"
 msgstr ""
 
@@ -9145,13 +9152,13 @@ msgstr ""
 msgid "Referral hop limit exceeded"
 msgstr ""
 
-#: attrib.rc:30 cmd.rc:327
+#: attrib.rc:30 cmd.rc:361
 msgid ""
 "Not Yet Implemented\n"
 "\n"
 msgstr ""
 
-#: attrib.rc:31 cmd.rc:330
+#: attrib.rc:31 cmd.rc:364
 msgid "%1: File Not Found\n"
 msgstr ""
 
@@ -9215,66 +9222,66 @@ msgstr ""
 
 #: cmd.rc:40
 msgid ""
-"CALL <batchfilename> is used within a batch file to execute commands\n"
-"from another batch file. When the batch file exits, control returns to\n"
-"the file which called it. The CALL command may supply parameters to the\n"
-"called procedure.\n"
+"CALL <batchfilename> is used within a batch file to execute commands from\n"
+"another batch file. When the batch file exits, control returns to the file\n"
+"which called it. The CALL command may supply parameters to the called\n"
+"procedure.\n"
 "\n"
 "Changes to default directory, environment variables etc made within a\n"
 "called procedure are inherited by the caller.\n"
 msgstr ""
 
-#: cmd.rc:43
+#: cmd.rc:44
 msgid ""
 "CD <directory> is the short version of CHDIR. It changes the current\n"
 "default directory.\n"
 msgstr ""
 
-#: cmd.rc:44
+#: cmd.rc:47
 msgid "CHDIR <directory> changes the current default directory.\n"
 msgstr ""
 
-#: cmd.rc:46
+#: cmd.rc:50
 msgid "CLS clears the console screen.\n"
 msgstr ""
 
-#: cmd.rc:48
+#: cmd.rc:53
 msgid "COPY <filename> copies a file.\n"
 msgstr ""
 
-#: cmd.rc:49
+#: cmd.rc:56
 msgid "CTTY changes the input/output device.\n"
 msgstr ""
 
-#: cmd.rc:50
+#: cmd.rc:59
 msgid "DATE shows or changes the system date.\n"
 msgstr ""
 
-#: cmd.rc:51
+#: cmd.rc:62
 msgid "DEL <filename> deletes a file or set of files.\n"
 msgstr ""
 
-#: cmd.rc:52
+#: cmd.rc:65
 msgid "DIR lists the contents of a directory.\n"
 msgstr ""
 
-#: cmd.rc:62
+#: cmd.rc:75
 msgid ""
 "ECHO <string> displays <string> on the current terminal device.\n"
 "\n"
-"ECHO ON causes all subsequent commands in a batch file to be displayed\n"
-"on the terminal device before they are executed.\n"
+"ECHO ON causes all subsequent commands in a batch file to be displayed on\n"
+"the terminal device before they are executed.\n"
 "\n"
 "ECHO OFF reverses the effect of a previous ECHO ON (ECHO is OFF by\n"
 "default). The ECHO OFF command can be prevented from displaying by\n"
 "preceding it with an @ sign.\n"
 msgstr ""
 
-#: cmd.rc:64
+#: cmd.rc:78
 msgid "ERASE <filename> deletes a file or set of files.\n"
 msgstr ""
 
-#: cmd.rc:71
+#: cmd.rc:85
 msgid ""
 "The FOR command is used to execute a command for each of a set of files.\n"
 "\n"
@@ -9283,27 +9290,27 @@ msgid ""
 "The % sign must be doubled when using FOR in a batch file.\n"
 msgstr ""
 
-#: cmd.rc:83
+#: cmd.rc:97
 msgid ""
-"The GOTO command transfers execution to another statement within a\n"
-"batch file.\n"
+"The GOTO command transfers execution to another statement within a batch\n"
+"file.\n"
 "\n"
-"The label which is the target of a GOTO may be up to 255 characters\n"
-"long but may not include spaces (this is different from other operating\n"
-"systems). If two or more identical labels exist in a batch file the\n"
-"first one will always be executed. Attempting to GOTO a nonexistent\n"
-"label terminates the batch file execution.\n"
+"The label which is the target of a GOTO may be up to 255 characters long\n"
+"but may not include spaces (this is different from other operating\n"
+"systems). If two or more identical labels exist in a batch file the first\n"
+"one will always be executed. Attempting to GOTO a nonexistent label\n"
+"terminates the batch file execution.\n"
 "\n"
 "GOTO has no effect when used interactively.\n"
 msgstr ""
 
-#: cmd.rc:86
+#: cmd.rc:101
 msgid ""
 "HELP <command> shows brief help details on a topic.\n"
 "HELP without an argument shows all CMD built-in commands.\n"
 msgstr ""
 
-#: cmd.rc:96
+#: cmd.rc:111
 msgid ""
 "IF is used to conditionally execute a command.\n"
 "\n"
@@ -9315,7 +9322,7 @@ msgid ""
 "quotes. The comparison is not case-sensitive.\n"
 msgstr ""
 
-#: cmd.rc:102
+#: cmd.rc:118
 msgid ""
 "LABEL is used to set a disk volume label.\n"
 "\n"
@@ -9324,47 +9331,46 @@ msgid ""
 "You can display the disk volume label with the VOL command.\n"
 msgstr ""
 
-#: cmd.rc:105
+#: cmd.rc:121
 msgid "MD <name> is the short version of MKDIR. It creates a subdirectory.\n"
 msgstr ""
 
-#: cmd.rc:106
+#: cmd.rc:123
 msgid "MKDIR <name> creates a subdirectory.\n"
 msgstr ""
 
-#: cmd.rc:113
+#: cmd.rc:131
 msgid ""
 "MOVE relocates a file or directory to a new point within the file system.\n"
 "\n"
-"If the item being moved is a directory then all the files and "
-"subdirectories\n"
-"below the item are moved as well.\n"
+"If the item being moved is a directory then all the files and\n"
+"subdirectories below the item are moved as well.\n"
 "\n"
 "MOVE fails if the old and new locations are on different DOS drive letters.\n"
 msgstr ""
 
-#: cmd.rc:124
+#: cmd.rc:142
 msgid ""
 "PATH displays or changes the cmd search path.\n"
 "\n"
-"Entering PATH will display the current PATH setting (initially taken\n"
-"from the registry). To change the setting follow the\n"
-"PATH command with the new value.\n"
+"Entering PATH will display the current PATH setting (initially taken from\n"
+"the registry). To change the setting follow the PATH command with the new\n"
+"value.\n"
 "\n"
 "It is also possible to modify the PATH by using the PATH environment\n"
 "variable, for example:\n"
 "PATH %PATH%;c:\\temp\n"
 msgstr ""
 
-#: cmd.rc:130
+#: cmd.rc:148
 msgid ""
 "PAUSE displays a message on the screen asking the user to press a key.\n"
 "\n"
-"It is mainly useful in batch files to allow the user to read the output\n"
-"of a previous command before it scrolls off the screen.\n"
+"It is mainly useful in batch files to allow the user to read the output of\n"
+"a previous command before it scrolls off the screen.\n"
 msgstr ""
 
-#: cmd.rc:151
+#: cmd.rc:169
 msgid ""
 "PROMPT sets the command-line prompt.\n"
 "\n"
@@ -9387,29 +9393,29 @@ msgid ""
 "so the command 'SET PROMPT=text' has the same effect as 'PROMPT text'.\n"
 msgstr ""
 
-#: cmd.rc:155
+#: cmd.rc:173
 msgid ""
-"A command line beginning with REM (followed by a space) performs no\n"
-"action, and can therefore be used as a comment in a batch file.\n"
+"A command line beginning with REM (followed by a space) performs no action,\n"
+"and can therefore be used as a comment in a batch file.\n"
 msgstr ""
 
-#: cmd.rc:158
+#: cmd.rc:176
 msgid "REN <filename> is the short version of RENAME. It renames a file.\n"
 msgstr ""
 
-#: cmd.rc:159
+#: cmd.rc:178
 msgid "RENAME <filename> renames a file.\n"
 msgstr ""
 
-#: cmd.rc:161
+#: cmd.rc:181
 msgid "RD <directory> is the short version of RMDIR. It deletes a directory.\n"
 msgstr ""
 
-#: cmd.rc:162
+#: cmd.rc:183
 msgid "RMDIR <directory> deletes a directory.\n"
 msgstr ""
 
-#: cmd.rc:206
+#: cmd.rc:229
 msgid ""
 "SET displays or changes the cmd environment variables.\n"
 "\n"
@@ -9419,68 +9425,68 @@ msgid ""
 "\n"
 "SET <variable>=<value>\n"
 "\n"
-"where <variable> and <value> are character strings. There must be no\n"
-"space before the equals sign, nor can the variable name\n"
-"have embedded spaces.\n"
+"where <variable> and <value> are character strings. There must be no space\n"
+"before the equals sign, nor can the variable name have embedded spaces.\n"
 "\n"
-"Under Wine, the environment of the underlying operating system is\n"
-"included into the Win32 environment, there will generally therefore be\n"
-"many more values than in a native Win32 implementation. Note that it is\n"
-"not possible to affect the operating system environment from within cmd.\n"
+"Under Wine, the environment of the underlying operating system is included\n"
+"into the Win32 environment, there will generally therefore be many more\n"
+"values than in a native Win32 implementation. Note that it is not possible\n"
+"to affect the operating system environment from within cmd.\n"
 msgstr ""
 
-#: cmd.rc:211
+#: cmd.rc:234
 msgid ""
-"SHIFT is used in a batch file to remove one parameter from the head of\n"
-"the list, so parameter 2 becomes parameter 1 and so on. It has no effect\n"
-"if called from the command line.\n"
+"SHIFT is used in a batch file to remove one parameter from the head of the\n"
+"list, so parameter 2 becomes parameter 1 and so on. It has no effect if\n"
+"called from the command line.\n"
 msgstr ""
 
-#: cmd.rc:188 start.rc:53
+#: cmd.rc:212 start.rc:56
 msgid ""
-"Start a program, or open a document in the program normally used for files "
+"Start a program, or open a document in the program normally used for files\n"
 "with that suffix.\n"
 "Usage:\n"
 "start [options] program_filename [...]\n"
 "start [options] document_filename\n"
 "\n"
 "Options:\n"
-"\"title\"      Specifies the title of the child windows.\n"
-"/d directory Start the program in the specified directory.\n"
-"/b           Don't create a new console for the program.\n"
-"/i           Start the program with fresh environment variables.\n"
-"/min         Start the program minimized.\n"
-"/max         Start the program maximized.\n"
-"/low         Start the program in the idle priority class.\n"
-"/normal      Start the program in the normal priority class.\n"
-"/high        Start the program in the high priority class.\n"
-"/realtime    Start the program in the realtime priority class.\n"
-"/abovenormal Start the program in the abovenormal priority class.\n"
-"/belownormal Start the program in the belownormal priority class.\n"
-"/node n      Start the program on the specified NUMA node.\n"
+"\"title\"        Specifies the title of the child windows.\n"
+"/d directory   Start the program in the specified directory.\n"
+"/b             Don't create a new console for the program.\n"
+"/i             Start the program with fresh environment variables.\n"
+"/min           Start the program minimized.\n"
+"/max           Start the program maximized.\n"
+"/low           Start the program in the idle priority class.\n"
+"/normal        Start the program in the normal priority class.\n"
+"/high          Start the program in the high priority class.\n"
+"/realtime      Start the program in the realtime priority class.\n"
+"/abovenormal   Start the program in the abovenormal priority class.\n"
+"/belownormal   Start the program in the belownormal priority class.\n"
+"/node n        Start the program on the specified NUMA node.\n"
 "/affinity mask Start the program with the specified affinity mask.\n"
-"/wait        Wait for the started program to finish, then exit with its exit "
-"code.\n"
-"/unix        Use a Unix filename and start the file like windows explorer.\n"
-"/ProgIDOpen  Open a document using the specified progID.\n"
-"/?           Display this help and exit.\n"
+"/wait          Wait for the started program to finish, then exit with its\n"
+"exit code.\n"
+"/unix          Use a Unix filename and start the file like windows\n"
+"explorer.\n"
+"/ProgIDOpen    Open a document using the specified progID.\n"
+"/?             Display this help and exit.\n"
 msgstr ""
 
-#: cmd.rc:213
+#: cmd.rc:237
 msgid "TIME sets or shows the current system time.\n"
 msgstr ""
 
-#: cmd.rc:215
+#: cmd.rc:240
 msgid "TITLE <string> sets the window title for the cmd window.\n"
 msgstr ""
 
-#: cmd.rc:219
+#: cmd.rc:244
 msgid ""
-"TYPE <filename> copies <filename> to the console device (or elsewhere\n"
-"if redirected). No check is made that the file is readable text.\n"
+"TYPE <filename> copies <filename> to the console device (or elsewhere if\n"
+"redirected). No check is made that the file is readable text.\n"
 msgstr ""
 
-#: cmd.rc:228
+#: cmd.rc:253
 msgid ""
 "VERIFY is used to set, clear or test the verify flag. Valid forms are:\n"
 "\n"
@@ -9491,21 +9497,21 @@ msgid ""
 "The verify flag has no function in Wine.\n"
 msgstr ""
 
-#: cmd.rc:231
+#: cmd.rc:256
 msgid "VER displays the version of cmd you are running.\n"
 msgstr ""
 
-#: cmd.rc:233
+#: cmd.rc:259
 msgid "VOL shows the volume label of a disk device.\n"
 msgstr ""
 
-#: cmd.rc:237
+#: cmd.rc:263
 msgid ""
-"ENDLOCAL ends localization of environment changes in a batch file\n"
-"which were introduced by a preceding SETLOCAL.\n"
+"ENDLOCAL ends localization of environment changes in a batch file which\n"
+"were introduced by a preceding SETLOCAL.\n"
 msgstr ""
 
-#: cmd.rc:245
+#: cmd.rc:271
 msgid ""
 "SETLOCAL starts localization of environment changes in a batch file.\n"
 "\n"
@@ -9515,17 +9521,17 @@ msgid ""
 "settings are restored.\n"
 msgstr ""
 
-#: cmd.rc:248
+#: cmd.rc:275
 msgid ""
-"PUSHD <directory> saves the current directory onto a\n"
-"stack, and then changes the current directory to the supplied one.\n"
+"PUSHD <directory> saves the current directory onto a stack, and then\n"
+"changes the current directory to the supplied one.\n"
 msgstr ""
 
-#: cmd.rc:250
+#: cmd.rc:278
 msgid "POPD changes current directory to the last one saved with PUSHD.\n"
 msgstr ""
 
-#: cmd.rc:258
+#: cmd.rc:288
 msgid ""
 "ASSOC shows or modifies file extension associations.\n"
 "\n"
@@ -9533,42 +9539,42 @@ msgid ""
 "\n"
 "ASSOC without parameters displays current file associations.\n"
 "If used with only a file extension, displays the current association.\n"
-"Specifying no file type after the equal sign removes the current "
+"Specifying no file type after the equal sign removes the current\n"
 "association, if any.\n"
 msgstr ""
 
-#: cmd.rc:269
+#: cmd.rc:300
 msgid ""
 "FTYPE shows or modifies open commands associated with file types.\n"
 "\n"
 "Syntax: FTYPE [fileType[=[openCommand]]]\n"
 "\n"
-"Without parameters, shows the file types for which open command strings are "
+"Without parameters, shows the file types for which open command strings are\n"
 "currently defined.\n"
-"If used with only a file type, displays the associated open command string, "
+"If used with only a file type, displays the associated open command string,\n"
 "if any.\n"
-"Specifying no open command after the equal sign removes the command string "
+"Specifying no open command after the equal sign removes the command string\n"
 "associated to the specified file type.\n"
 msgstr ""
 
-#: cmd.rc:271
+#: cmd.rc:303
 msgid "MORE displays output of files or piped input in pages.\n"
 msgstr ""
 
-#: cmd.rc:275
+#: cmd.rc:308
 msgid ""
-"CHOICE displays a text and waits, until the User\n"
-"presses an allowed Key from a selectable list.\n"
+"CHOICE displays a text and waits, until the User presses an allowed Key\n"
+"from a selectable list.\n"
 "CHOICE is mainly used to build a menu selection in a batch file.\n"
 msgstr ""
 
-#: cmd.rc:279
+#: cmd.rc:312
 msgid ""
-"EXIT terminates the current command session and returns\n"
-"to the operating system or shell from which you invoked cmd.\n"
+"EXIT terminates the current command session and returns to the operating\n"
+"system or shell from which you invoked cmd.\n"
 msgstr ""
 
-#: cmd.rc:317
+#: cmd.rc:351
 msgid ""
 "CMD built-in commands are:\n"
 "ASSOC\t\tShow or modify file extension associations\n"
@@ -9610,181 +9616,181 @@ msgid ""
 "Enter HELP <command> for further information on any of the above commands.\n"
 msgstr ""
 
-#: cmd.rc:319
+#: cmd.rc:353
 msgid "Are you sure?"
 msgstr ""
 
-#: cmd.rc:320 xcopy.rc:43
+#: cmd.rc:354 xcopy.rc:43
 msgctxt "Yes key"
 msgid "Y"
 msgstr ""
 
-#: cmd.rc:321 xcopy.rc:44
+#: cmd.rc:355 xcopy.rc:44
 msgctxt "No key"
 msgid "N"
 msgstr ""
 
-#: cmd.rc:322
+#: cmd.rc:356
 msgid "File association missing for extension %1\n"
 msgstr ""
 
-#: cmd.rc:323
+#: cmd.rc:357
 msgid "No open command associated with file type '%1'\n"
 msgstr ""
 
-#: cmd.rc:324
+#: cmd.rc:358
 msgid "Overwrite %1?"
 msgstr ""
 
-#: cmd.rc:325
+#: cmd.rc:359
 msgid "More..."
 msgstr ""
 
-#: cmd.rc:326
+#: cmd.rc:360
 msgid "Line in Batch processing possibly truncated. Using:\n"
 msgstr ""
 
-#: cmd.rc:328
+#: cmd.rc:362
 msgid "Argument missing\n"
 msgstr ""
 
-#: cmd.rc:329
+#: cmd.rc:363
 msgid "Syntax error\n"
 msgstr ""
 
-#: cmd.rc:331
+#: cmd.rc:365
 msgid "No help available for %1\n"
 msgstr ""
 
-#: cmd.rc:332
+#: cmd.rc:366
 msgid "Target to GOTO not found\n"
 msgstr ""
 
-#: cmd.rc:333
+#: cmd.rc:367
 msgid "Current Date is %1\n"
 msgstr ""
 
-#: cmd.rc:334
+#: cmd.rc:368
 msgid "Current Time is %1\n"
 msgstr ""
 
-#: cmd.rc:335
+#: cmd.rc:369
 msgid "Enter new date: "
 msgstr ""
 
-#: cmd.rc:336
+#: cmd.rc:370
 msgid "Enter new time: "
 msgstr ""
 
-#: cmd.rc:337
+#: cmd.rc:371
 msgid "Environment variable %1 not defined\n"
 msgstr ""
 
-#: cmd.rc:338 xcopy.rc:41
+#: cmd.rc:372 xcopy.rc:41
 msgid "Failed to open '%1'\n"
 msgstr ""
 
-#: cmd.rc:339
+#: cmd.rc:373
 msgid "Cannot call batch label outside of a batch script\n"
 msgstr ""
 
-#: cmd.rc:340 xcopy.rc:45
+#: cmd.rc:374 xcopy.rc:45
 msgctxt "All key"
 msgid "A"
 msgstr ""
 
-#: cmd.rc:341
+#: cmd.rc:375
 msgid "Delete %1?"
 msgstr ""
 
-#: cmd.rc:342
+#: cmd.rc:376
 msgid "Echo is %1\n"
 msgstr ""
 
-#: cmd.rc:343
+#: cmd.rc:377
 msgid "Verify is %1\n"
 msgstr ""
 
-#: cmd.rc:344
+#: cmd.rc:378
 msgid "Verify must be ON or OFF\n"
 msgstr ""
 
-#: cmd.rc:345
+#: cmd.rc:379
 msgid "Parameter error\n"
 msgstr ""
 
-#: cmd.rc:346
+#: cmd.rc:380
 msgid ""
 "Volume Serial Number is %1!04x!-%2!04x!\n"
 "\n"
 msgstr ""
 
-#: cmd.rc:347
+#: cmd.rc:381
 msgid "Volume label (11 characters, <Enter> for none)?"
 msgstr ""
 
-#: cmd.rc:348
+#: cmd.rc:382
 msgid "PATH not found\n"
 msgstr ""
 
-#: cmd.rc:349
+#: cmd.rc:383
 msgid "Press any key to continue... "
 msgstr ""
 
-#: cmd.rc:350
+#: cmd.rc:384
 msgid "Wine Command Prompt"
 msgstr ""
 
-#: cmd.rc:351
+#: cmd.rc:385
 msgid "Microsoft Windows %1!S!\n"
 msgstr ""
 
-#: cmd.rc:352
+#: cmd.rc:386
 msgid "More? "
 msgstr ""
 
-#: cmd.rc:353
+#: cmd.rc:387
 msgid "The input line is too long.\n"
 msgstr ""
 
-#: cmd.rc:354
+#: cmd.rc:388
 msgid "Volume in drive %1!c! is %2\n"
 msgstr ""
 
-#: cmd.rc:355
+#: cmd.rc:389
 msgid "Volume in drive %1!c! has no label.\n"
 msgstr ""
 
-#: cmd.rc:356
+#: cmd.rc:390
 msgid " (Yes|No)"
 msgstr ""
 
-#: cmd.rc:357
+#: cmd.rc:391
 msgid " (Yes|No|All)"
 msgstr ""
 
-#: cmd.rc:358
+#: cmd.rc:392
 msgid ""
 "Can't recognize '%1' as an internal or external command, or batch script.\n"
 msgstr ""
 
-#: cmd.rc:359
+#: cmd.rc:393
 msgid "Division by zero error.\n"
 msgstr ""
 
-#: cmd.rc:360
+#: cmd.rc:394
 msgid "Expected an operand.\n"
 msgstr ""
 
-#: cmd.rc:361
+#: cmd.rc:395
 msgid "Expected an operator.\n"
 msgstr ""
 
-#: cmd.rc:362
+#: cmd.rc:396
 msgid "Mismatch in parentheses.\n"
 msgstr ""
 
-#: cmd.rc:363
+#: cmd.rc:397
 msgid ""
 "Badly formed number - must be one of decimal (12),\n"
 " hexadecimal (0x34) or octal (056).\n"
@@ -11307,7 +11313,7 @@ msgid "regsvr32: Failed to load DLL '%1'\n"
 msgstr ""
 
 #: regsvr32.rc:43
-msgid "regsvr32: %1 not implemented in DLL '%2'\n"
+msgid "regsvr32: '%1!S!' not implemented in DLL '%2'\n"
 msgstr ""
 
 #: regsvr32.rc:44
@@ -11342,14 +11348,14 @@ msgstr ""
 msgid "regsvr32: Successfully uninstalled DLL '%1'\n"
 msgstr ""
 
-#: start.rc:55
+#: start.rc:58
 msgid ""
 "Application could not be started, or no application associated with the "
 "specified file.\n"
 "ShellExecuteEx failed"
 msgstr ""
 
-#: start.rc:57
+#: start.rc:60
 msgid "Could not translate the specified Unix filename to a DOS filename."
 msgstr ""
 
@@ -12202,6 +12208,41 @@ msgid ""
 "Do you want to remove the uninstall entry from the registry?"
 msgstr ""
 
+#: uninstaller.rc:31
+msgid "uninstaller: The application with GUID '%1' was not found\n"
+msgstr ""
+
+#: uninstaller.rc:32
+msgid ""
+"uninstaller: The option '--remove' must be followed by an application GUID\n"
+msgstr ""
+
+#: uninstaller.rc:33
+msgid "uninstaller: Invalid option [%1]\n"
+msgstr ""
+
+#: uninstaller.rc:35
+msgid ""
+"Wine Application Uninstaller\n"
+"\n"
+"Uninstall applications from the current Wine prefix.\n"
+"\n"
+msgstr ""
+
+#: uninstaller.rc:43
+msgid ""
+"Usage:\n"
+"  uninstaller [options]\n"
+"\n"
+"Options:\n"
+"  --help\t    Display this information.\n"
+"  --list\t    List all applications installed in this Wine prefix.\n"
+"  --remove {GUID}   Uninstall the specified application.\n"
+"\t\t    Use '--list' to determine the application GUID.\n"
+"  [no option]       Launch the graphical version of this program.\n"
+"\n"
+msgstr ""
+
 #: view.rc:36
 msgid "&Pan"
 msgstr ""
@@ -12820,98 +12861,98 @@ msgid "&Large"
 msgstr ""
 
 #: wineconsole.rc:68
-msgid "Control"
-msgstr ""
-
-#: wineconsole.rc:69
-msgid "Popup menu"
-msgstr ""
-
-#: wineconsole.rc:70
-msgid "&Control"
-msgstr ""
-
-#: wineconsole.rc:71
-msgid "S&hift"
-msgstr ""
-
-#: wineconsole.rc:72
-msgid "Quick edit"
-msgstr ""
-
-#: wineconsole.rc:73
-msgid "&enable"
-msgstr ""
-
-#: wineconsole.rc:75
 msgid "Command history"
 msgstr ""
 
+#: wineconsole.rc:69
+msgid "&Buffer size:"
+msgstr ""
+
+#: wineconsole.rc:72
+msgid "&Remove duplicates"
+msgstr ""
+
+#: wineconsole.rc:74
+msgid "Popup menu"
+msgstr ""
+
+#: wineconsole.rc:75
+msgid "&Control"
+msgstr ""
+
 #: wineconsole.rc:76
-msgid "&Number of recalled commands:"
+msgid "S&hift"
+msgstr ""
+
+#: wineconsole.rc:78
+msgid "Console"
 msgstr ""
 
 #: wineconsole.rc:79
-msgid "&Remove doubles"
+msgid "&Quick Edit mode"
 msgstr ""
 
-#: wineconsole.rc:87
+#: wineconsole.rc:80
+msgid "&Insert mode"
+msgstr ""
+
+#: wineconsole.rc:88
 msgid "&Font"
 msgstr ""
 
-#: wineconsole.rc:89
+#: wineconsole.rc:90
 msgid "&Color"
 msgstr ""
 
-#: wineconsole.rc:100
+#: wineconsole.rc:101
 msgid "Configuration"
 msgstr ""
 
-#: wineconsole.rc:103
+#: wineconsole.rc:104
 msgid "Buffer zone"
 msgstr ""
 
-#: wineconsole.rc:104
+#: wineconsole.rc:105
 msgid "&Width:"
 msgstr ""
 
-#: wineconsole.rc:107
+#: wineconsole.rc:108
 msgid "&Height:"
 msgstr ""
 
-#: wineconsole.rc:111
+#: wineconsole.rc:112
 msgid "Window size"
 msgstr ""
 
-#: wineconsole.rc:112
+#: wineconsole.rc:113
 msgid "W&idth:"
 msgstr ""
 
-#: wineconsole.rc:115
+#: wineconsole.rc:116
 msgid "H&eight:"
 msgstr ""
 
-#: wineconsole.rc:119
+#: wineconsole.rc:120
 msgid "End of program"
 msgstr ""
 
-#: wineconsole.rc:120
+#: wineconsole.rc:121
 msgid "&Close console"
 msgstr ""
 
-#: wineconsole.rc:122
+#: wineconsole.rc:123
 msgid "Edition"
 msgstr ""
 
-#: wineconsole.rc:128
+#: wineconsole.rc:129
 msgid "Console parameters"
 msgstr ""
 
-#: wineconsole.rc:131
+#: wineconsole.rc:132
 msgid "Retain these settings for later sessions"
 msgstr ""
 
-#: wineconsole.rc:132
+#: wineconsole.rc:133
 msgid "Modify only current session"
 msgstr ""
 
@@ -13392,28 +13433,28 @@ msgstr ""
 msgid "&Define..."
 msgstr ""
 
-#: winhlp32.rc:49 winhlp32.rc:70
+#: winhlp32.rc:48
+msgid "Always on &top"
+msgstr ""
+
+#: winhlp32.rc:50 winhlp32.rc:70
 msgid "Fonts"
 msgstr ""
 
-#: winhlp32.rc:51 winhlp32.rc:72
+#: winhlp32.rc:52 winhlp32.rc:72
 msgid "Small"
 msgstr ""
 
-#: winhlp32.rc:52 winhlp32.rc:73
+#: winhlp32.rc:53 winhlp32.rc:73
 msgid "Normal"
 msgstr ""
 
-#: winhlp32.rc:53 winhlp32.rc:74
+#: winhlp32.rc:54 winhlp32.rc:74
 msgid "Large"
 msgstr ""
 
-#: winhlp32.rc:57
-msgid "&Help on help\tF1"
-msgstr ""
-
 #: winhlp32.rc:58
-msgid "Always on &top"
+msgid "&Help on help\tF1"
 msgstr ""
 
 #: winhlp32.rc:59

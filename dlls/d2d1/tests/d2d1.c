@@ -23,6 +23,14 @@
 #include "wine/test.h"
 #include "initguid.h"
 #include "dwrite.h"
+#include "wincodec.h"
+
+struct figure
+{
+    unsigned int *spans;
+    unsigned int spans_size;
+    unsigned int span_count;
+};
 
 static void set_point(D2D1_POINT_2F *point, float x, float y)
 {
@@ -30,7 +38,23 @@ static void set_point(D2D1_POINT_2F *point, float x, float y)
     point->y = y;
 }
 
+static void set_quadratic(D2D1_QUADRATIC_BEZIER_SEGMENT *quadratic, float x1, float y1, float x2, float y2)
+{
+    quadratic->point1.x = x1;
+    quadratic->point1.y = y1;
+    quadratic->point2.x = x2;
+    quadratic->point2.y = y2;
+}
+
 static void set_rect(D2D1_RECT_F *rect, float left, float top, float right, float bottom)
+{
+    rect->left = left;
+    rect->top = top;
+    rect->right = right;
+    rect->bottom = bottom;
+}
+
+static void set_rect_u(D2D1_RECT_U *rect, UINT32 left, UINT32 top, UINT32 right, UINT32 bottom)
 {
     rect->left = left;
     rect->top = top;
@@ -179,6 +203,218 @@ static BOOL compare_surface(IDXGISurface *surface, const char *ref_sha1)
     return ret;
 }
 
+static void serialize_figure(struct figure *figure)
+{
+    static const char lookup[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    unsigned int i, j, k, span;
+    char output[76];
+    char t[3];
+    char *p;
+
+    for (i = 0, j = 0, k = 0, p = output; i < figure->span_count; ++i)
+    {
+        span = figure->spans[i];
+        while (span)
+        {
+            t[j] = span & 0x7f;
+            if (span > 0x7f)
+                t[j] |= 0x80;
+            span >>= 7;
+            if (++j == 3)
+            {
+                p[0] = lookup[(t[0] & 0xfc) >> 2];
+                p[1] = lookup[((t[0] & 0x03) << 4) | ((t[1] & 0xf0) >> 4)];
+                p[2] = lookup[((t[1] & 0x0f) << 2) | ((t[2] & 0xc0) >> 6)];
+                p[3] = lookup[t[2] & 0x3f];
+                p += 4;
+                if (++k == 19)
+                {
+                    trace("%.76s\n", output);
+                    p = output;
+                    k = 0;
+                }
+                j = 0;
+            }
+        }
+    }
+    if (j)
+    {
+        for (i = j; i < 3; ++i)
+            t[i] = 0;
+        p[0] = lookup[(t[0] & 0xfc) >> 2];
+        p[1] = lookup[((t[0] & 0x03) << 4) | ((t[1] & 0xf0) >> 4)];
+        p[2] = lookup[((t[1] & 0x0f) << 2) | ((t[2] & 0xc0) >> 6)];
+        p[3] = lookup[t[2] & 0x3f];
+        ++k;
+    }
+    if (k)
+        trace("%.*s\n", k * 4, output);
+}
+
+static void figure_add_span(struct figure *figure, unsigned int span)
+{
+    if (figure->span_count == figure->spans_size)
+    {
+        figure->spans_size *= 2;
+        figure->spans = HeapReAlloc(GetProcessHeap(), 0, figure->spans,
+                figure->spans_size * sizeof(*figure->spans));
+    }
+
+    figure->spans[figure->span_count++] = span;
+}
+
+static void deserialize_span(struct figure *figure, unsigned int *current, unsigned int *shift, unsigned int c)
+{
+    *current |= (c & 0x7f) << *shift;
+    if (c & 0x80)
+    {
+        *shift += 7;
+        return;
+    }
+
+    if (*current)
+        figure_add_span(figure, *current);
+    *current = 0;
+    *shift = 0;
+}
+
+static void deserialize_figure(struct figure *figure, const BYTE *s)
+{
+    static const BYTE lookup[] =
+    {
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x3e, 0xff, 0xff, 0xff, 0x3f,
+        0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+        0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28,
+        0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f, 0x30, 0x31, 0x32, 0x33, 0xff, 0xff, 0xff, 0xff, 0xff,
+    };
+    unsigned int current = 0, shift = 0;
+    const BYTE *ptr;
+    BYTE x, y;
+
+    figure->span_count = 0;
+    figure->spans_size = 64;
+    figure->spans = HeapAlloc(GetProcessHeap(), 0, figure->spans_size * sizeof(*figure->spans));
+
+    for (ptr = s; *ptr; ptr += 4)
+    {
+        x = lookup[ptr[0]];
+        y = lookup[ptr[1]];
+        deserialize_span(figure, &current, &shift, ((x & 0x3f) << 2) | ((y & 0x3f) >> 4));
+        x = lookup[ptr[2]];
+        deserialize_span(figure, &current, &shift, ((y & 0x0f) << 4) | ((x & 0x3f) >> 2));
+        y = lookup[ptr[3]];
+        deserialize_span(figure, &current, &shift, ((x & 0x03) << 6) | (y & 0x3f));
+    }
+}
+
+static BOOL compare_figure(IDXGISurface *surface, unsigned int x, unsigned int y,
+        unsigned int w, unsigned int h, DWORD prev, unsigned int max_diff, const char *ref)
+{
+    D3D10_MAPPED_TEXTURE2D mapped_texture;
+    D3D10_TEXTURE2D_DESC texture_desc;
+    struct figure ref_figure, figure;
+    DXGI_SURFACE_DESC surface_desc;
+    unsigned int i, j, span, diff;
+    ID3D10Resource *src_resource;
+    ID3D10Texture2D *texture;
+    ID3D10Device *device;
+    HRESULT hr;
+
+    hr = IDXGISurface_GetDevice(surface, &IID_ID3D10Device, (void **)&device);
+    ok(SUCCEEDED(hr), "Failed to get device, hr %#x.\n", hr);
+    hr = IDXGISurface_QueryInterface(surface, &IID_ID3D10Resource, (void **)&src_resource);
+    ok(SUCCEEDED(hr), "Failed to query resource interface, hr %#x.\n", hr);
+
+    hr = IDXGISurface_GetDesc(surface, &surface_desc);
+    ok(SUCCEEDED(hr), "Failed to get surface desc, hr %#x.\n", hr);
+    texture_desc.Width = surface_desc.Width;
+    texture_desc.Height = surface_desc.Height;
+    texture_desc.MipLevels = 1;
+    texture_desc.ArraySize = 1;
+    texture_desc.Format = surface_desc.Format;
+    texture_desc.SampleDesc = surface_desc.SampleDesc;
+    texture_desc.Usage = D3D10_USAGE_STAGING;
+    texture_desc.BindFlags = 0;
+    texture_desc.CPUAccessFlags = D3D10_CPU_ACCESS_READ;
+    texture_desc.MiscFlags = 0;
+    hr = ID3D10Device_CreateTexture2D(device, &texture_desc, NULL, &texture);
+    ok(SUCCEEDED(hr), "Failed to create texture, hr %#x.\n", hr);
+
+    ID3D10Device_CopyResource(device, (ID3D10Resource *)texture, src_resource);
+    hr = ID3D10Texture2D_Map(texture, 0, D3D10_MAP_READ, 0, &mapped_texture);
+    ok(SUCCEEDED(hr), "Failed to map texture, hr %#x.\n", hr);
+
+    figure.span_count = 0;
+    figure.spans_size = 64;
+    figure.spans = HeapAlloc(GetProcessHeap(), 0, figure.spans_size * sizeof(*figure.spans));
+
+    for (i = 0, span = 0; i < h; ++i)
+    {
+        const DWORD *row = (DWORD *)((BYTE *)mapped_texture.pData + (y + i) * mapped_texture.RowPitch + x * 4);
+        for (j = 0; j < w; ++j, ++span)
+        {
+            if ((i || j) && prev != row[j])
+            {
+                figure_add_span(&figure, span);
+                prev = row[j];
+                span = 0;
+            }
+        }
+    }
+    if (span)
+        figure_add_span(&figure, span);
+
+    deserialize_figure(&ref_figure, (BYTE *)ref);
+    span = w * h;
+    for (i = 0; i < ref_figure.span_count; ++i)
+    {
+        span -= ref_figure.spans[i];
+    }
+    if (span)
+        figure_add_span(&ref_figure, span);
+
+    for (i = 0, j = 0, diff = 0; i < figure.span_count && j < ref_figure.span_count;)
+    {
+        if (figure.spans[i] == ref_figure.spans[j])
+        {
+            if ((i ^ j) & 1)
+                diff += ref_figure.spans[j];
+            ++i;
+            ++j;
+        }
+        else if (figure.spans[i] > ref_figure.spans[j])
+        {
+            if ((i ^ j) & 1)
+                diff += ref_figure.spans[j];
+            figure.spans[i] -= ref_figure.spans[j];
+            ++j;
+        }
+        else
+        {
+            if ((i ^ j) & 1)
+                diff += figure.spans[i];
+            ref_figure.spans[j] -= figure.spans[i];
+            ++i;
+        }
+    }
+    if (diff > max_diff)
+        serialize_figure(&figure);
+
+    HeapFree(GetProcessHeap(), 0, ref_figure.spans);
+    HeapFree(GetProcessHeap(), 0, figure.spans);
+    ID3D10Texture2D_Unmap(texture, 0);
+
+    ID3D10Texture2D_Release(texture);
+    ID3D10Resource_Release(src_resource);
+    ID3D10Device_Release(device);
+
+    return diff <= max_diff;
+}
+
 static ID3D10Device1 *create_device(void)
 {
     ID3D10Device1 *device;
@@ -237,29 +473,34 @@ static IDXGISwapChain *create_swapchain(ID3D10Device1 *device, HWND window, BOOL
     return swapchain;
 }
 
-static ID2D1RenderTarget *create_render_target(IDXGISurface *surface)
+static ID2D1RenderTarget *create_render_target_desc(IDXGISurface *surface, const D2D1_RENDER_TARGET_PROPERTIES *desc)
 {
-    D2D1_RENDER_TARGET_PROPERTIES desc;
     ID2D1RenderTarget *render_target;
     ID2D1Factory *factory;
     HRESULT hr;
 
     hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &IID_ID2D1Factory, NULL, (void **)&factory);
     ok(SUCCEEDED(hr), "Failed to create factory, hr %#x.\n", hr);
+    hr = ID2D1Factory_CreateDxgiSurfaceRenderTarget(factory, surface, desc, &render_target);
+    ok(SUCCEEDED(hr), "Failed to create render target, hr %#x.\n", hr);
+    ID2D1Factory_Release(factory);
+
+    return render_target;
+}
+
+static ID2D1RenderTarget *create_render_target(IDXGISurface *surface)
+{
+    D2D1_RENDER_TARGET_PROPERTIES desc;
 
     desc.type = D2D1_RENDER_TARGET_TYPE_DEFAULT;
     desc.pixelFormat.format = DXGI_FORMAT_UNKNOWN;
-    desc.pixelFormat.alphaMode = D2D1_ALPHA_MODE_IGNORE;
+    desc.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
     desc.dpiX = 0.0f;
     desc.dpiY = 0.0f;
     desc.usage = D2D1_RENDER_TARGET_USAGE_NONE;
     desc.minLevel = D2D1_FEATURE_LEVEL_DEFAULT;
-    hr = ID2D1Factory_CreateDxgiSurfaceRenderTarget(factory, surface, &desc, &render_target);
-    ok(SUCCEEDED(hr), "Failed to create render target, hr %#x.\n", hr);
 
-    ID2D1Factory_Release(factory);
-
-    return render_target;
+    return create_render_target_desc(surface, &desc);
 }
 
 static void test_clip(void)
@@ -277,6 +518,7 @@ static void test_clip(void)
     D2D1_SIZE_F size;
     HWND window;
     HRESULT hr;
+    BOOL match;
     static const D2D1_MATRIX_3X2_F identity =
     {
         1.0f, 0.0f,
@@ -370,7 +612,8 @@ static void test_clip(void)
 
     hr = ID2D1RenderTarget_EndDraw(rt, NULL, NULL);
     ok(SUCCEEDED(hr), "Failed to end draw, hr %#x.\n", hr);
-    ok(compare_surface(surface, "035a44d4198d6e422e9de6185b5b2c2bac5e33c9"), "Surface does not match.\n");
+    match = compare_surface(surface, "035a44d4198d6e422e9de6185b5b2c2bac5e33c9");
+    ok(match, "Surface does not match.\n");
 
     ID2D1RenderTarget_Release(rt);
     IDXGISurface_Release(surface);
@@ -606,6 +849,7 @@ static void test_color_brush(void)
     float opacity;
     HWND window;
     HRESULT hr;
+    BOOL match;
 
     if (!(device = create_device()))
     {
@@ -681,7 +925,8 @@ static void test_color_brush(void)
 
     hr = ID2D1RenderTarget_EndDraw(rt, NULL, NULL);
     ok(SUCCEEDED(hr), "Failed to end draw, hr %#x.\n", hr);
-    ok(compare_surface(surface, "6d1218fca5e21fb7e287b3a439d60dbc251f5ceb"), "Surface does not match.\n");
+    match = compare_surface(surface, "6d1218fca5e21fb7e287b3a439d60dbc251f5ceb");
+    ok(match, "Surface does not match.\n");
 
     ID2D1SolidColorBrush_Release(brush);
     ID2D1RenderTarget_Release(rt);
@@ -711,6 +956,7 @@ static void test_bitmap_brush(void)
     float opacity;
     HWND window;
     HRESULT hr;
+    BOOL match;
 
     static const struct
     {
@@ -833,7 +1079,8 @@ static void test_bitmap_brush(void)
 
     hr = ID2D1RenderTarget_EndDraw(rt, NULL, NULL);
     ok(SUCCEEDED(hr), "Failed to end draw, hr %#x.\n", hr);
-    ok(compare_surface(surface, "393636185359a550d459e1e5f0e25411814f724c"), "Surface does not match.\n");
+    match = compare_surface(surface, "393636185359a550d459e1e5f0e25411814f724c");
+    ok(match, "Surface does not match.\n");
 
     ID2D1RenderTarget_BeginDraw(rt);
 
@@ -861,11 +1108,1097 @@ static void test_bitmap_brush(void)
 
     hr = ID2D1RenderTarget_EndDraw(rt, NULL, NULL);
     ok(SUCCEEDED(hr), "Failed to end draw, hr %#x.\n", hr);
-    ok(compare_surface(surface, "b4b775afecdae2d26642001f4faff73663bb8b31"), "Surface does not match.\n");
+    match = compare_surface(surface, "b4b775afecdae2d26642001f4faff73663bb8b31");
+    ok(match, "Surface does not match.\n");
 
     ID2D1BitmapBrush_Release(brush);
     refcount = ID2D1Bitmap_Release(bitmap);
     ok(!refcount, "Bitmap has %u references left.\n", refcount);
+    ID2D1RenderTarget_Release(rt);
+    IDXGISurface_Release(surface);
+    IDXGISwapChain_Release(swapchain);
+    ID3D10Device1_Release(device);
+    DestroyWindow(window);
+}
+
+static void fill_geometry_sink(ID2D1GeometrySink *sink)
+{
+    D2D1_POINT_2F point;
+
+    set_point(&point, 15.0f,  20.0f);
+    ID2D1GeometrySink_BeginFigure(sink, point, D2D1_FIGURE_BEGIN_FILLED);
+    set_point(&point, 55.0f,  20.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point, 55.0f, 220.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point, 25.0f, 220.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point, 25.0f, 100.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point, 75.0f, 100.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point, 75.0f, 300.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point,  5.0f, 300.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point,  5.0f,  60.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point, 45.0f,  60.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point, 45.0f, 180.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point, 35.0f, 180.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point, 35.0f, 140.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point, 65.0f, 140.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point, 65.0f, 260.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point, 15.0f, 260.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    ID2D1GeometrySink_EndFigure(sink, D2D1_FIGURE_END_CLOSED);
+
+    set_point(&point, 155.0f, 300.0f);
+    ID2D1GeometrySink_BeginFigure(sink, point, D2D1_FIGURE_BEGIN_FILLED);
+    set_point(&point, 155.0f, 160.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point,  85.0f, 160.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point,  85.0f, 300.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point, 120.0f, 300.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point, 120.0f,  20.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point, 155.0f,  20.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point, 155.0f, 160.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point,  85.0f, 160.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point,  85.0f,  20.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point, 120.0f,  20.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point, 120.0f, 300.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    ID2D1GeometrySink_EndFigure(sink, D2D1_FIGURE_END_CLOSED);
+
+    set_point(&point, 165.0f,  20.0f);
+    ID2D1GeometrySink_BeginFigure(sink, point, D2D1_FIGURE_BEGIN_FILLED);
+    set_point(&point, 165.0f, 300.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point, 235.0f, 300.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point, 235.0f,  20.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    ID2D1GeometrySink_EndFigure(sink, D2D1_FIGURE_END_CLOSED);
+    set_point(&point, 225.0f,  60.0f);
+    ID2D1GeometrySink_BeginFigure(sink, point, D2D1_FIGURE_BEGIN_FILLED);
+    set_point(&point, 225.0f, 260.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point, 175.0f, 260.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point, 175.0f,  60.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    ID2D1GeometrySink_EndFigure(sink, D2D1_FIGURE_END_CLOSED);
+    set_point(&point, 215.0f, 220.0f);
+    ID2D1GeometrySink_BeginFigure(sink, point, D2D1_FIGURE_BEGIN_FILLED);
+    set_point(&point, 185.0f, 220.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point, 185.0f, 100.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point, 215.0f, 100.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    ID2D1GeometrySink_EndFigure(sink, D2D1_FIGURE_END_CLOSED);
+    set_point(&point, 195.0f, 180.0f);
+    ID2D1GeometrySink_BeginFigure(sink, point, D2D1_FIGURE_BEGIN_FILLED);
+    set_point(&point, 205.0f, 180.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point, 205.0f, 140.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    set_point(&point, 195.0f, 140.0f);
+    ID2D1GeometrySink_AddLine(sink, point);
+    ID2D1GeometrySink_EndFigure(sink, D2D1_FIGURE_END_CLOSED);
+}
+
+static void fill_geometry_sink_bezier(ID2D1GeometrySink *sink)
+{
+    D2D1_QUADRATIC_BEZIER_SEGMENT quadratic;
+    D2D1_POINT_2F point;
+
+    set_point(&point, 5.0f, 160.0f);
+    ID2D1GeometrySink_BeginFigure(sink, point, D2D1_FIGURE_BEGIN_FILLED);
+    set_quadratic(&quadratic, 40.0f, 160.0f, 40.0f,  20.0f);
+    ID2D1GeometrySink_AddQuadraticBezier(sink, &quadratic);
+    set_quadratic(&quadratic, 40.0f, 160.0f, 75.0f, 160.0f);
+    ID2D1GeometrySink_AddQuadraticBezier(sink, &quadratic);
+    set_quadratic(&quadratic, 40.0f, 160.0f, 40.0f, 300.0f);
+    ID2D1GeometrySink_AddQuadraticBezier(sink, &quadratic);
+    set_quadratic(&quadratic, 40.0f, 160.0f,  5.0f, 160.0f);
+    ID2D1GeometrySink_AddQuadraticBezier(sink, &quadratic);
+    ID2D1GeometrySink_EndFigure(sink, D2D1_FIGURE_END_CLOSED);
+
+    set_point(&point, 20.0f, 160.0f);
+    ID2D1GeometrySink_BeginFigure(sink, point, D2D1_FIGURE_BEGIN_FILLED);
+    set_quadratic(&quadratic, 20.0f,  80.0f, 40.0f,  80.0f);
+    ID2D1GeometrySink_AddQuadraticBezier(sink, &quadratic);
+    set_quadratic(&quadratic, 60.0f,  80.0f, 60.0f, 160.0f);
+    ID2D1GeometrySink_AddQuadraticBezier(sink, &quadratic);
+    set_quadratic(&quadratic, 60.0f, 240.0f, 40.0f, 240.0f);
+    ID2D1GeometrySink_AddQuadraticBezier(sink, &quadratic);
+    set_quadratic(&quadratic, 20.0f, 240.0f, 20.0f, 160.0f);
+    ID2D1GeometrySink_AddQuadraticBezier(sink, &quadratic);
+    ID2D1GeometrySink_EndFigure(sink, D2D1_FIGURE_END_CLOSED);
+}
+
+static void test_path_geometry(void)
+{
+    ID2D1TransformedGeometry *transformed_geometry;
+    D2D1_MATRIX_3X2_F matrix, tmp_matrix;
+    ID2D1GeometrySink *sink, *tmp_sink;
+    D2D1_POINT_2F point = {0.0f, 0.0f};
+    ID2D1SolidColorBrush *brush;
+    ID2D1PathGeometry *geometry;
+    ID2D1Geometry *tmp_geometry;
+    IDXGISwapChain *swapchain;
+    ID2D1RenderTarget *rt;
+    ID3D10Device1 *device;
+    IDXGISurface *surface;
+    ID2D1Factory *factory;
+    D2D1_COLOR_F color;
+    ULONG refcount;
+    UINT32 count;
+    HWND window;
+    HRESULT hr;
+    BOOL match;
+
+    if (!(device = create_device()))
+    {
+        skip("Failed to create device, skipping tests.\n");
+        return;
+    }
+    window = CreateWindowA("static", "d2d1_test", WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+            0, 0, 640, 480, NULL, NULL, NULL, NULL);
+    swapchain = create_swapchain(device, window, TRUE);
+    hr = IDXGISwapChain_GetBuffer(swapchain, 0, &IID_IDXGISurface, (void **)&surface);
+    ok(SUCCEEDED(hr), "Failed to get buffer, hr %#x.\n", hr);
+    rt = create_render_target(surface);
+    ok(!!rt, "Failed to create render target.\n");
+    ID2D1RenderTarget_GetFactory(rt, &factory);
+
+    ID2D1RenderTarget_SetDpi(rt, 192.0f, 48.0f);
+    ID2D1RenderTarget_SetAntialiasMode(rt, D2D1_ANTIALIAS_MODE_ALIASED);
+    set_color(&color, 0.890f, 0.851f, 0.600f, 1.0f);
+    hr = ID2D1RenderTarget_CreateSolidColorBrush(rt, &color, NULL, &brush);
+    ok(SUCCEEDED(hr), "Failed to create brush, hr %#x.\n", hr);
+
+    /* Close() when closed. */
+    hr = ID2D1Factory_CreatePathGeometry(factory, &geometry);
+    ok(SUCCEEDED(hr), "Failed to create path geometry, hr %#x.\n", hr);
+    hr = ID2D1PathGeometry_GetFigureCount(geometry, &count);
+    ok(hr == D2DERR_WRONG_STATE, "Got unexpected hr %#x.\n", hr);
+    hr = ID2D1PathGeometry_GetSegmentCount(geometry, &count);
+    ok(hr == D2DERR_WRONG_STATE, "Got unexpected hr %#x.\n", hr);
+    hr = ID2D1PathGeometry_Open(geometry, &sink);
+    ok(SUCCEEDED(hr), "Failed to open geometry sink, hr %#x.\n", hr);
+    hr = ID2D1PathGeometry_GetFigureCount(geometry, &count);
+    ok(hr == D2DERR_WRONG_STATE, "Got unexpected hr %#x.\n", hr);
+    hr = ID2D1PathGeometry_GetSegmentCount(geometry, &count);
+    ok(hr == D2DERR_WRONG_STATE, "Got unexpected hr %#x.\n", hr);
+    hr = ID2D1GeometrySink_Close(sink);
+    ok(SUCCEEDED(hr), "Failed to close geometry sink, hr %#x.\n", hr);
+    hr = ID2D1PathGeometry_GetFigureCount(geometry, &count);
+    ok(SUCCEEDED(hr), "Failed to get figure count, hr %#x.\n", hr);
+    ok(!count, "Got unexpected figure count %u.\n", count);
+    hr = ID2D1PathGeometry_GetSegmentCount(geometry, &count);
+    ok(SUCCEEDED(hr), "Failed to get segment count, hr %#x.\n", hr);
+    ok(!count, "Got unexpected segment count %u.\n", count);
+    hr = ID2D1GeometrySink_Close(sink);
+    ok(hr == D2DERR_WRONG_STATE, "Got unexpected hr %#x.\n", hr);
+    ID2D1GeometrySink_Release(sink);
+    hr = ID2D1PathGeometry_GetFigureCount(geometry, &count);
+    ok(SUCCEEDED(hr), "Failed to get figure count, hr %#x.\n", hr);
+    ok(!count, "Got unexpected figure count %u.\n", count);
+    hr = ID2D1PathGeometry_GetSegmentCount(geometry, &count);
+    ok(SUCCEEDED(hr), "Failed to get segment count, hr %#x.\n", hr);
+    ok(!count, "Got unexpected segment count %u.\n", count);
+    ID2D1PathGeometry_Release(geometry);
+
+    /* Open() when closed. */
+    hr = ID2D1Factory_CreatePathGeometry(factory, &geometry);
+    ok(SUCCEEDED(hr), "Failed to create path geometry, hr %#x.\n", hr);
+    hr = ID2D1PathGeometry_Open(geometry, &sink);
+    ok(SUCCEEDED(hr), "Failed to open geometry sink, hr %#x.\n", hr);
+    hr = ID2D1GeometrySink_Close(sink);
+    ok(SUCCEEDED(hr), "Failed to close geometry sink, hr %#x.\n", hr);
+    ID2D1GeometrySink_Release(sink);
+    hr = ID2D1PathGeometry_Open(geometry, &sink);
+    ok(hr == D2DERR_WRONG_STATE, "Got unexpected hr %#x.\n", hr);
+    hr = ID2D1PathGeometry_GetFigureCount(geometry, &count);
+    ok(SUCCEEDED(hr), "Failed to get figure count, hr %#x.\n", hr);
+    ok(!count, "Got unexpected figure count %u.\n", count);
+    hr = ID2D1PathGeometry_GetSegmentCount(geometry, &count);
+    ok(SUCCEEDED(hr), "Failed to get segment count, hr %#x.\n", hr);
+    ok(!count, "Got unexpected segment count %u.\n", count);
+    ID2D1PathGeometry_Release(geometry);
+
+    /* Open() when open. */
+    hr = ID2D1Factory_CreatePathGeometry(factory, &geometry);
+    ok(SUCCEEDED(hr), "Failed to create path geometry, hr %#x.\n", hr);
+    hr = ID2D1PathGeometry_Open(geometry, &sink);
+    ok(SUCCEEDED(hr), "Failed to open geometry sink, hr %#x.\n", hr);
+    hr = ID2D1PathGeometry_Open(geometry, &tmp_sink);
+    ok(hr == D2DERR_WRONG_STATE, "Got unexpected hr %#x.\n", hr);
+    hr = ID2D1GeometrySink_Close(sink);
+    ok(SUCCEEDED(hr), "Failed to close geometry sink, hr %#x.\n", hr);
+    ID2D1GeometrySink_Release(sink);
+    hr = ID2D1PathGeometry_GetFigureCount(geometry, &count);
+    ok(SUCCEEDED(hr), "Failed to get figure count, hr %#x.\n", hr);
+    ok(!count, "Got unexpected figure count %u.\n", count);
+    hr = ID2D1PathGeometry_GetSegmentCount(geometry, &count);
+    ok(SUCCEEDED(hr), "Failed to get segment count, hr %#x.\n", hr);
+    ok(!count, "Got unexpected segment count %u.\n", count);
+    ID2D1PathGeometry_Release(geometry);
+
+    /* BeginFigure() without EndFigure(). */
+    hr = ID2D1Factory_CreatePathGeometry(factory, &geometry);
+    ok(SUCCEEDED(hr), "Failed to create path geometry, hr %#x.\n", hr);
+    hr = ID2D1PathGeometry_Open(geometry, &sink);
+    ok(SUCCEEDED(hr), "Failed to open geometry sink, hr %#x.\n", hr);
+    ID2D1GeometrySink_BeginFigure(sink, point, D2D1_FIGURE_BEGIN_FILLED);
+    hr = ID2D1GeometrySink_Close(sink);
+    ok(hr == D2DERR_WRONG_STATE, "Got unexpected hr %#x.\n", hr);
+    ID2D1GeometrySink_EndFigure(sink, D2D1_FIGURE_END_CLOSED);
+    hr = ID2D1GeometrySink_Close(sink);
+    ok(hr == D2DERR_WRONG_STATE, "Got unexpected hr %#x.\n", hr);
+    ID2D1GeometrySink_Release(sink);
+    hr = ID2D1PathGeometry_GetFigureCount(geometry, &count);
+    ok(hr == D2DERR_WRONG_STATE, "Got unexpected hr %#x.\n", hr);
+    hr = ID2D1PathGeometry_GetSegmentCount(geometry, &count);
+    ok(hr == D2DERR_WRONG_STATE, "Got unexpected hr %#x.\n", hr);
+    ID2D1PathGeometry_Release(geometry);
+
+    /* EndFigure() without BeginFigure(). */
+    hr = ID2D1Factory_CreatePathGeometry(factory, &geometry);
+    ok(SUCCEEDED(hr), "Failed to create path geometry, hr %#x.\n", hr);
+    hr = ID2D1PathGeometry_Open(geometry, &sink);
+    ok(SUCCEEDED(hr), "Failed to open geometry sink, hr %#x.\n", hr);
+    ID2D1GeometrySink_EndFigure(sink, D2D1_FIGURE_END_CLOSED);
+    hr = ID2D1GeometrySink_Close(sink);
+    ok(hr == D2DERR_WRONG_STATE, "Got unexpected hr %#x.\n", hr);
+    ID2D1GeometrySink_Release(sink);
+    hr = ID2D1PathGeometry_GetFigureCount(geometry, &count);
+    ok(hr == D2DERR_WRONG_STATE, "Got unexpected hr %#x.\n", hr);
+    hr = ID2D1PathGeometry_GetSegmentCount(geometry, &count);
+    ok(hr == D2DERR_WRONG_STATE, "Got unexpected hr %#x.\n", hr);
+    ID2D1PathGeometry_Release(geometry);
+
+    /* BeginFigure()/EndFigure() mismatch. */
+    hr = ID2D1Factory_CreatePathGeometry(factory, &geometry);
+    ok(SUCCEEDED(hr), "Failed to create path geometry, hr %#x.\n", hr);
+    hr = ID2D1PathGeometry_Open(geometry, &sink);
+    ok(SUCCEEDED(hr), "Failed to open geometry sink, hr %#x.\n", hr);
+    ID2D1GeometrySink_BeginFigure(sink, point, D2D1_FIGURE_BEGIN_FILLED);
+    ID2D1GeometrySink_BeginFigure(sink, point, D2D1_FIGURE_BEGIN_FILLED);
+    ID2D1GeometrySink_EndFigure(sink, D2D1_FIGURE_END_CLOSED);
+    ID2D1GeometrySink_EndFigure(sink, D2D1_FIGURE_END_CLOSED);
+    hr = ID2D1GeometrySink_Close(sink);
+    ok(hr == D2DERR_WRONG_STATE, "Got unexpected hr %#x.\n", hr);
+    ID2D1GeometrySink_EndFigure(sink, D2D1_FIGURE_END_CLOSED);
+    hr = ID2D1GeometrySink_Close(sink);
+    ok(hr == D2DERR_WRONG_STATE, "Got unexpected hr %#x.\n", hr);
+    ID2D1GeometrySink_Release(sink);
+    ID2D1PathGeometry_Release(geometry);
+
+    /* AddLine() outside BeginFigure()/EndFigure(). */
+    hr = ID2D1Factory_CreatePathGeometry(factory, &geometry);
+    ok(SUCCEEDED(hr), "Failed to create path geometry, hr %#x.\n", hr);
+    hr = ID2D1PathGeometry_Open(geometry, &sink);
+    ok(SUCCEEDED(hr), "Failed to open geometry sink, hr %#x.\n", hr);
+    ID2D1GeometrySink_AddLine(sink, point);
+    hr = ID2D1GeometrySink_Close(sink);
+    ok(hr == D2DERR_WRONG_STATE, "Got unexpected hr %#x.\n", hr);
+    ID2D1GeometrySink_AddLine(sink, point);
+    ID2D1GeometrySink_Release(sink);
+    hr = ID2D1PathGeometry_GetFigureCount(geometry, &count);
+    ok(hr == D2DERR_WRONG_STATE, "Got unexpected hr %#x.\n", hr);
+    hr = ID2D1PathGeometry_GetSegmentCount(geometry, &count);
+    ok(hr == D2DERR_WRONG_STATE, "Got unexpected hr %#x.\n", hr);
+    ID2D1PathGeometry_Release(geometry);
+
+    /* Empty figure. */
+    hr = ID2D1Factory_CreatePathGeometry(factory, &geometry);
+    ok(SUCCEEDED(hr), "Failed to create path geometry, hr %#x.\n", hr);
+    hr = ID2D1PathGeometry_Open(geometry, &sink);
+    ok(SUCCEEDED(hr), "Failed to open geometry sink, hr %#x.\n", hr);
+    ID2D1GeometrySink_BeginFigure(sink, point, D2D1_FIGURE_BEGIN_FILLED);
+    ID2D1GeometrySink_EndFigure(sink, D2D1_FIGURE_END_CLOSED);
+    hr = ID2D1GeometrySink_Close(sink);
+    ok(SUCCEEDED(hr), "Failed to close geometry sink, hr %#x.\n", hr);
+    ID2D1GeometrySink_Release(sink);
+    hr = ID2D1PathGeometry_GetFigureCount(geometry, &count);
+    ok(SUCCEEDED(hr), "Failed to get figure count, hr %#x.\n", hr);
+    ok(count == 1, "Got unexpected figure count %u.\n", count);
+    hr = ID2D1PathGeometry_GetSegmentCount(geometry, &count);
+    ok(SUCCEEDED(hr), "Failed to get segment count, hr %#x.\n", hr);
+    ok(count == 1, "Got unexpected segment count %u.\n", count);
+    ID2D1PathGeometry_Release(geometry);
+
+    hr = ID2D1Factory_CreatePathGeometry(factory, &geometry);
+    ok(SUCCEEDED(hr), "Failed to create path geometry, hr %#x.\n", hr);
+    hr = ID2D1PathGeometry_Open(geometry, &sink);
+    ok(SUCCEEDED(hr), "Failed to open geometry sink, hr %#x.\n", hr);
+    /* The fillmode that's used is the last one set before the sink is closed. */
+    ID2D1GeometrySink_SetFillMode(sink, D2D1_FILL_MODE_WINDING);
+    fill_geometry_sink(sink);
+    ID2D1GeometrySink_SetFillMode(sink, D2D1_FILL_MODE_ALTERNATE);
+    hr = ID2D1GeometrySink_Close(sink);
+    ok(SUCCEEDED(hr), "Failed to close geometry sink, hr %#x.\n", hr);
+    hr = ID2D1PathGeometry_GetFigureCount(geometry, &count);
+    ok(SUCCEEDED(hr), "Failed to get figure count, hr %#x.\n", hr);
+    ok(count == 6, "Got unexpected figure count %u.\n", count);
+    hr = ID2D1PathGeometry_GetSegmentCount(geometry, &count);
+    ok(SUCCEEDED(hr), "Failed to get segment count, hr %#x.\n", hr);
+    /* Intersections don't create extra segments. */
+    ok(count == 44, "Got unexpected segment count %u.\n", count);
+    ID2D1GeometrySink_SetFillMode(sink, D2D1_FILL_MODE_WINDING);
+    ID2D1GeometrySink_Release(sink);
+
+    set_matrix_identity(&matrix);
+    translate_matrix(&matrix, 80.0f, 640.0f);
+    scale_matrix(&matrix, 1.0f, -1.0f);
+    hr = ID2D1Factory_CreateTransformedGeometry(factory, (ID2D1Geometry *)geometry, &matrix, &transformed_geometry);
+    ok(SUCCEEDED(hr), "Failed to create transformed geometry, hr %#x.\n", hr);
+
+    ID2D1TransformedGeometry_GetSourceGeometry(transformed_geometry, &tmp_geometry);
+    ok(tmp_geometry == (ID2D1Geometry *)geometry,
+            "Got unexpected source geometry %p, expected %p.\n", tmp_geometry, geometry);
+    ID2D1Geometry_Release(tmp_geometry);
+    ID2D1TransformedGeometry_GetTransform(transformed_geometry, &tmp_matrix);
+    ok(!memcmp(&tmp_matrix, &matrix, sizeof(matrix)),
+            "Got unexpected matrix {%.8e, %.8e, %.8e, %.8e, %.8e, %.8e}.\n",
+            tmp_matrix._11, tmp_matrix._12, tmp_matrix._21,
+            tmp_matrix._22, tmp_matrix._31, tmp_matrix._32);
+
+    ID2D1RenderTarget_BeginDraw(rt);
+    set_color(&color, 0.396f, 0.180f, 0.537f, 1.0f);
+    ID2D1RenderTarget_Clear(rt, &color);
+    ID2D1RenderTarget_FillGeometry(rt, (ID2D1Geometry *)geometry, (ID2D1Brush *)brush, NULL);
+    ID2D1RenderTarget_FillGeometry(rt, (ID2D1Geometry *)transformed_geometry, (ID2D1Brush *)brush, NULL);
+    hr = ID2D1RenderTarget_EndDraw(rt, NULL, NULL);
+    ok(SUCCEEDED(hr), "Failed to end draw, hr %#x.\n", hr);
+    match = compare_surface(surface, "3aace1b22aae111cb577614fed16e4eb1650dba5");
+    ok(match, "Surface does not match.\n");
+    ID2D1TransformedGeometry_Release(transformed_geometry);
+    ID2D1PathGeometry_Release(geometry);
+
+    hr = ID2D1Factory_CreatePathGeometry(factory, &geometry);
+    ok(SUCCEEDED(hr), "Failed to create path geometry, hr %#x.\n", hr);
+    hr = ID2D1PathGeometry_Open(geometry, &sink);
+    ok(SUCCEEDED(hr), "Failed to open geometry sink, hr %#x.\n", hr);
+    fill_geometry_sink(sink);
+    ID2D1GeometrySink_SetFillMode(sink, D2D1_FILL_MODE_WINDING);
+    hr = ID2D1GeometrySink_Close(sink);
+    ok(SUCCEEDED(hr), "Failed to close geometry sink, hr %#x.\n", hr);
+    hr = ID2D1PathGeometry_GetFigureCount(geometry, &count);
+    ok(SUCCEEDED(hr), "Failed to get figure count, hr %#x.\n", hr);
+    ok(count == 6, "Got unexpected figure count %u.\n", count);
+    hr = ID2D1PathGeometry_GetSegmentCount(geometry, &count);
+    ok(SUCCEEDED(hr), "Failed to get segment count, hr %#x.\n", hr);
+    ok(count == 44, "Got unexpected segment count %u.\n", count);
+    ID2D1GeometrySink_Release(sink);
+
+    set_matrix_identity(&matrix);
+    translate_matrix(&matrix, 320.0f, 320.0f);
+    scale_matrix(&matrix, -1.0f, 1.0f);
+    hr = ID2D1Factory_CreateTransformedGeometry(factory, (ID2D1Geometry *)geometry, &matrix, &transformed_geometry);
+    ok(SUCCEEDED(hr), "Failed to create transformed geometry, hr %#x.\n", hr);
+
+    ID2D1RenderTarget_BeginDraw(rt);
+    ID2D1RenderTarget_Clear(rt, &color);
+    ID2D1RenderTarget_FillGeometry(rt, (ID2D1Geometry *)geometry, (ID2D1Brush *)brush, NULL);
+    ID2D1RenderTarget_FillGeometry(rt, (ID2D1Geometry *)transformed_geometry, (ID2D1Brush *)brush, NULL);
+    hr = ID2D1RenderTarget_EndDraw(rt, NULL, NULL);
+    ok(SUCCEEDED(hr), "Failed to end draw, hr %#x.\n", hr);
+    match = compare_surface(surface, "bfb40a1f007694fa07dbd3b854f3f5d9c3e1d76b");
+    ok(match, "Surface does not match.\n");
+    ID2D1TransformedGeometry_Release(transformed_geometry);
+    ID2D1PathGeometry_Release(geometry);
+
+    hr = ID2D1Factory_CreatePathGeometry(factory, &geometry);
+    ok(SUCCEEDED(hr), "Failed to create path geometry, hr %#x.\n", hr);
+    hr = ID2D1PathGeometry_Open(geometry, &sink);
+    ok(SUCCEEDED(hr), "Failed to open geometry sink, hr %#x.\n", hr);
+    fill_geometry_sink_bezier(sink);
+    hr = ID2D1GeometrySink_Close(sink);
+    ok(SUCCEEDED(hr), "Failed to close geometry sink, hr %#x.\n", hr);
+    hr = ID2D1PathGeometry_GetFigureCount(geometry, &count);
+    ok(SUCCEEDED(hr), "Failed to get figure count, hr %#x.\n", hr);
+    ok(count == 2, "Got unexpected figure count %u.\n", count);
+    hr = ID2D1PathGeometry_GetSegmentCount(geometry, &count);
+    ok(SUCCEEDED(hr), "Failed to get segment count, hr %#x.\n", hr);
+    ok(count == 10, "Got unexpected segment count %u.\n", count);
+    ID2D1GeometrySink_Release(sink);
+
+    set_matrix_identity(&matrix);
+    scale_matrix(&matrix, 0.5f, 2.0f);
+    translate_matrix(&matrix, 240.0f, -33.0f);
+    rotate_matrix(&matrix, M_PI / 4.0f);
+    scale_matrix(&matrix, 2.0f, 0.5f);
+    hr = ID2D1Factory_CreateTransformedGeometry(factory, (ID2D1Geometry *)geometry, &matrix, &transformed_geometry);
+    ok(SUCCEEDED(hr), "Failed to create transformed geometry, hr %#x.\n", hr);
+
+    ID2D1RenderTarget_BeginDraw(rt);
+    ID2D1RenderTarget_Clear(rt, &color);
+    ID2D1RenderTarget_FillGeometry(rt, (ID2D1Geometry *)geometry, (ID2D1Brush *)brush, NULL);
+    ID2D1RenderTarget_FillGeometry(rt, (ID2D1Geometry *)transformed_geometry, (ID2D1Brush *)brush, NULL);
+    hr = ID2D1RenderTarget_EndDraw(rt, NULL, NULL);
+    ok(SUCCEEDED(hr), "Failed to end draw, hr %#x.\n", hr);
+    match = compare_figure(surface, 0, 0, 160, 160, 0xff652e89, 64,
+            "7xoCngECngECngECngECngECngECngECnQEEnAEEnAEEnAEEnAEEmwEGmgEGmgEGmgEGmQEImAEI"
+            "lAEECASLAQgKCIEBDQoMew8KD3YQDBByEgwSbhMOEmwUDhRpFBAUZxUQFWUVEhVjFhIWYRYUFl8X"
+            "FBddFxYWXRYYFlsXGBdaFhoWWRYcFlgVHhVXFSAVVhQiFFUUIxRVEyYTVBIoElQRKhFUECwQUxAu"
+            "EFIOMg5SDTQNUgs4C1IJPAlRCEAIUAZEBlAESARQAU4BTgJQAkgGUAY/C1ALMhNQEyoTUBMyC1AL"
+            "PwZQBkgCUAJOAU4BUARIBFAGRAZQCEAIUQk8CVILOAtSDTQNUg4yDlIQLhBTECwQVBEqEVQSKBJU"
+            "EyYTVBQjFFYUIhRWFSAVVxUeFVgWHBZZFhoWWhcYF1sWGBZcFxYWXhcUF18WFBZhFhIWYxUSFWUV"
+            "EBVnFBAUaRQOFGsTDhJvEgwSchAMEHYPCg96DQoMggEICgiLAQQIBJQBCJgBCJkBBpoBBpoBBpoB"
+            "BpsBBJwBBJwBBJwBBJwBBJ0BAp4BAp4BAp4BAp4BAp4BAp4BAp4BAgAA");
+    todo_wine ok(match, "Figure does not match.\n");
+    match = compare_figure(surface, 160, 0, 320, 160, 0xff652e89, 64,
+            "4VIBwAIBWgHlAQFYAecBAVYB6QEBVAHrAQEjDCMB7AECHhQeAu0BAxoYGgPvAQMWHhYD8QEDFCAU"
+            "A/MBBBAkEAT0AQUOJw0F9QEGCioKBvcBBggsCAb4AQgFLgUI+QEJATIBCfsBCAIwAgj8AQcFLAUH"
+            "/QEFCCgIBf4BBAwiDAT/AQIQHBAClwISlwIBPgGAAgI8Av8BAzwD/QEEPAT7AQY6BvkBBzoH+AEI"
+            "OAj3AQk4CfYBCTgK9AELNgvzAQw2DPIBDDYM8QEONA7wAQ40DvABDjQO7wEPNA/uAQ80D+4BEDIQ"
+            "7QERMhHsAREyEewBETIR7AERMhHsAREyEewBETIR7AERMhHsAREyEewBETIR7AERMhHsAREyEewB"
+            "ETIR7AERMhHsAREyEe0BEDIQ7gEQMw/uAQ80D+4BDzQP7wEONA7wAQ40DvEBDDYM8gEMNgzzAQs2"
+            "C/QBCzcK9QEJOAn3AQg4CfcBBzoH+QEGOgb7AQU6BfwBBDwE/QEDPAP/AQE+AZkCDpkCAhIYEgKA"
+            "AgMNIA0D/wEFCSYJBf4BBgYqBgf8AQgDLgMI+wFG+gEIAzADCPkBBwYuBgf3AQYKKgoG9gEFDCgM"
+            "BfUBBBAlDwTzAQQSIhIE8QEDFh4WA/ABAhkaGQLvAQIcFhwC7QECIBAgAusBASgEKAHpAQFWAecB"
+            "AVgB5QEBWgHAAgEA");
+    todo_wine ok(match, "Figure does not match.\n");
+    ID2D1TransformedGeometry_Release(transformed_geometry);
+    ID2D1PathGeometry_Release(geometry);
+
+    hr = ID2D1Factory_CreatePathGeometry(factory, &geometry);
+    ok(SUCCEEDED(hr), "Failed to create path geometry, hr %#x.\n", hr);
+    hr = ID2D1PathGeometry_Open(geometry, &sink);
+    ok(SUCCEEDED(hr), "Failed to open geometry sink, hr %#x.\n", hr);
+    fill_geometry_sink_bezier(sink);
+    ID2D1GeometrySink_SetFillMode(sink, D2D1_FILL_MODE_WINDING);
+    hr = ID2D1GeometrySink_Close(sink);
+    ok(SUCCEEDED(hr), "Failed to close geometry sink, hr %#x.\n", hr);
+    hr = ID2D1PathGeometry_GetFigureCount(geometry, &count);
+    ok(SUCCEEDED(hr), "Failed to get figure count, hr %#x.\n", hr);
+    ok(count == 2, "Got unexpected figure count %u.\n", count);
+    hr = ID2D1PathGeometry_GetSegmentCount(geometry, &count);
+    ok(SUCCEEDED(hr), "Failed to get segment count, hr %#x.\n", hr);
+    ok(count == 10, "Got unexpected segment count %u.\n", count);
+    ID2D1GeometrySink_Release(sink);
+
+    set_matrix_identity(&matrix);
+    scale_matrix(&matrix, 0.5f, 2.0f);
+    translate_matrix(&matrix, 127.0f, 80.0f);
+    rotate_matrix(&matrix, M_PI / -4.0f);
+    scale_matrix(&matrix, 2.0f, 0.5f);
+    hr = ID2D1Factory_CreateTransformedGeometry(factory, (ID2D1Geometry *)geometry, &matrix, &transformed_geometry);
+    ok(SUCCEEDED(hr), "Failed to create transformed geometry, hr %#x.\n", hr);
+
+    ID2D1RenderTarget_BeginDraw(rt);
+    ID2D1RenderTarget_Clear(rt, &color);
+    ID2D1RenderTarget_FillGeometry(rt, (ID2D1Geometry *)geometry, (ID2D1Brush *)brush, NULL);
+    ID2D1RenderTarget_FillGeometry(rt, (ID2D1Geometry *)transformed_geometry, (ID2D1Brush *)brush, NULL);
+    hr = ID2D1RenderTarget_EndDraw(rt, NULL, NULL);
+    ok(SUCCEEDED(hr), "Failed to end draw, hr %#x.\n", hr);
+    match = compare_figure(surface, 0, 0, 160, 160, 0xff652e89, 64,
+            "7xoCngECngECngECngECngECngECngECnQEEnAEEnAEEnAEEnAEEmwEGmgEGmgEGmgEGmQEImAEI"
+            "lAEQiwEagQEjeyh2LHIwbjNsNmk4ZzplPGM+YUBfQl1DXURbRlpGWUhYSFdKVkpVS1VMVExUTFRM"
+            "U05STlJOUk5STlFQUFBQUFBQTlRIXD9mMnYqdjJmP1xIVE5QUFBQUFBQUU5STlJOUk5STlNMVExU"
+            "TFRMVEtWSlZKV0hYSFlGWkZbRFxDXkJfQGE+YzxlOmc4aTZrM28wcix2KHojggEaiwEQlAEImAEI"
+            "mQEGmgEGmgEGmgEGmwEEnAEEnAEEnAEEnAEEnQECngECngECngECngECngECngECngEC");
+    ok(match, "Figure does not match.\n");
+    match = compare_figure(surface, 160, 0, 320, 160, 0xff652e89, 64,
+            "4VIBwAIBWgHlAQFYAecBAVYB6QEBVAHrAQIhDiIB7QECHRUdAu4BAhkaGQPvAQMWHhYD8QEEEyET"
+            "A/MBBBAkEAT1AQUMKA0F9QEGCioKBvcBBwctBwb5AQgELwQI+QEJATIBCfsBRP0BQ/0BQv8BQf8B"
+            "QIECP4ACQIACQf4BQ/wBRPsBRvoBR/gBSPcBSvYBS/QBTPMBTvIBTvIBT/ABUPABUe4BUu4BUu4B"
+            "U+0BU+wBVOwBVOwBVOwBVOwBVesBVesBVesBVesBVOwBVOwBVOwBVO0BU+0BU+0BUu4BUu8BUe8B"
+            "UPEBT/EBTvIBTvMBTPUBS/UBSvcBSfcBSPkBRvsBRP0BQ/4BQf8BQIECP4ACQIACQf4BQv4BQ/wB"
+            "RPsBCQEyAQn6AQgELwQI+AEHBy0GB/cBBgoqCgb2AQUMKA0F9AEEECUPBPMBBBIiEwPxAQMWHhYD"
+            "8AECGRoZA+4BAh0VHQLsAQIhDiIB6wEBVAHpAQFWAecBAVgB5QEBWgHAAgEA");
+    ok(match, "Figure does not match.\n");
+    ID2D1TransformedGeometry_Release(transformed_geometry);
+    ID2D1PathGeometry_Release(geometry);
+
+    ID2D1SolidColorBrush_Release(brush);
+    ID2D1RenderTarget_Release(rt);
+    refcount = ID2D1Factory_Release(factory);
+    ok(!refcount, "Factory has %u references left.\n", refcount);
+    IDXGISurface_Release(surface);
+    IDXGISwapChain_Release(swapchain);
+    ID3D10Device1_Release(device);
+    DestroyWindow(window);
+}
+
+static void test_bitmap_formats(void)
+{
+    D2D1_BITMAP_PROPERTIES bitmap_desc;
+    IDXGISwapChain *swapchain;
+    D2D1_SIZE_U size = {4, 4};
+    ID2D1RenderTarget *rt;
+    ID3D10Device1 *device;
+    IDXGISurface *surface;
+    ID2D1Bitmap *bitmap;
+    unsigned int i, j;
+    HWND window;
+    HRESULT hr;
+
+    static const struct
+    {
+        DXGI_FORMAT format;
+        DWORD mask;
+    }
+    bitmap_formats[] =
+    {
+        {DXGI_FORMAT_R32G32B32A32_FLOAT,    0x8a},
+        {DXGI_FORMAT_R16G16B16A16_FLOAT,    0x8a},
+        {DXGI_FORMAT_R16G16B16A16_UNORM,    0x8a},
+        {DXGI_FORMAT_R8G8B8A8_TYPELESS,     0x00},
+        {DXGI_FORMAT_R8G8B8A8_UNORM,        0x0a},
+        {DXGI_FORMAT_R8G8B8A8_UNORM_SRGB,   0x8a},
+        {DXGI_FORMAT_R8G8B8A8_UINT,         0x00},
+        {DXGI_FORMAT_R8G8B8A8_SNORM,        0x00},
+        {DXGI_FORMAT_R8G8B8A8_SINT,         0x00},
+        {DXGI_FORMAT_A8_UNORM,              0x06},
+        {DXGI_FORMAT_B8G8R8A8_UNORM,        0x0a},
+        {DXGI_FORMAT_B8G8R8X8_UNORM,        0x88},
+        {DXGI_FORMAT_B8G8R8A8_TYPELESS,     0x00},
+        {DXGI_FORMAT_B8G8R8A8_UNORM_SRGB,   0x8a},
+    };
+
+    if (!(device = create_device()))
+    {
+        skip("Failed to create device, skipping tests.\n");
+        return;
+    }
+    window = CreateWindowA("static", "d2d1_test", WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+            0, 0, 640, 480, NULL, NULL, NULL, NULL);
+    swapchain = create_swapchain(device, window, TRUE);
+    hr = IDXGISwapChain_GetBuffer(swapchain, 0, &IID_IDXGISurface, (void **)&surface);
+    ok(SUCCEEDED(hr), "Failed to get buffer, hr %#x.\n", hr);
+    rt = create_render_target(surface);
+    ok(!!rt, "Failed to create render target.\n");
+
+    bitmap_desc.dpiX = 96.0f;
+    bitmap_desc.dpiY = 96.0f;
+    for (i = 0; i < sizeof(bitmap_formats) / sizeof(*bitmap_formats); ++i)
+    {
+        for (j = 0; j < 4; ++j)
+        {
+            if ((bitmap_formats[i].mask & (0x80 | (1u << j))) == (0x80 | (1u << j)))
+                continue;
+
+            bitmap_desc.pixelFormat.format = bitmap_formats[i].format;
+            bitmap_desc.pixelFormat.alphaMode = j;
+            hr = ID2D1RenderTarget_CreateBitmap(rt, size, NULL, 0, &bitmap_desc, &bitmap);
+            if (bitmap_formats[i].mask & (1u << j))
+                ok(hr == S_OK, "Got unexpected hr %#x, for format %#x/%#x.\n",
+                        hr, bitmap_formats[i].format, j);
+            else
+                ok(hr == D2DERR_UNSUPPORTED_PIXEL_FORMAT, "Got unexpected hr %#x, for format %#x/%#x.\n",
+                        hr, bitmap_formats[i].format, j);
+            if (SUCCEEDED(hr))
+                ID2D1Bitmap_Release(bitmap);
+        }
+    }
+
+    ID2D1RenderTarget_Release(rt);
+    IDXGISurface_Release(surface);
+    IDXGISwapChain_Release(swapchain);
+    ID3D10Device1_Release(device);
+    DestroyWindow(window);
+}
+
+static void test_alpha_mode(void)
+{
+    D2D1_RENDER_TARGET_PROPERTIES rt_desc;
+    D2D1_BITMAP_PROPERTIES bitmap_desc;
+    ID2D1SolidColorBrush *color_brush;
+    ID2D1BitmapBrush *bitmap_brush;
+    IDXGISwapChain *swapchain;
+    ID2D1RenderTarget *rt;
+    ID3D10Device1 *device;
+    IDXGISurface *surface;
+    ID2D1Bitmap *bitmap;
+    D2D1_COLOR_F color;
+    D2D1_RECT_F rect;
+    D2D1_SIZE_U size;
+    ULONG refcount;
+    HWND window;
+    HRESULT hr;
+    BOOL match;
+
+    static const DWORD bitmap_data[] =
+    {
+        0x7f7f0000, 0x7f7f7f00, 0x7f007f00, 0x7f007f7f,
+        0x7f00007f, 0x7f7f007f, 0x7f000000, 0x7f404040,
+        0x7f7f7f7f, 0x7f7f7f7f, 0x7f7f7f7f, 0x7f000000,
+        0x7f7f7f7f, 0x7f000000, 0x7f000000, 0x7f000000,
+    };
+
+    if (!(device = create_device()))
+    {
+        skip("Failed to create device, skipping tests.\n");
+        return;
+    }
+    window = CreateWindowA("static", "d2d1_test", WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+            0, 0, 640, 480, NULL, NULL, NULL, NULL);
+    swapchain = create_swapchain(device, window, TRUE);
+    hr = IDXGISwapChain_GetBuffer(swapchain, 0, &IID_IDXGISurface, (void **)&surface);
+    ok(SUCCEEDED(hr), "Failed to get buffer, hr %#x.\n", hr);
+    rt = create_render_target(surface);
+    ok(!!rt, "Failed to create render target.\n");
+
+    ID2D1RenderTarget_SetAntialiasMode(rt, D2D1_ANTIALIAS_MODE_ALIASED);
+
+    set_size_u(&size, 4, 4);
+    bitmap_desc.pixelFormat.format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    bitmap_desc.pixelFormat.alphaMode = D2D1_ALPHA_MODE_IGNORE;
+    bitmap_desc.dpiX = 96.0f / 40.0f;
+    bitmap_desc.dpiY = 96.0f / 30.0f;
+    hr = ID2D1RenderTarget_CreateBitmap(rt, size, bitmap_data, 4 * sizeof(*bitmap_data), &bitmap_desc, &bitmap);
+    ok(SUCCEEDED(hr), "Failed to create bitmap, hr %#x.\n", hr);
+
+    hr = ID2D1RenderTarget_CreateBitmapBrush(rt, bitmap, NULL, NULL, &bitmap_brush);
+    ok(SUCCEEDED(hr), "Failed to create brush, hr %#x.\n", hr);
+    ID2D1BitmapBrush_SetInterpolationMode(bitmap_brush, D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR);
+    ID2D1BitmapBrush_SetExtendModeX(bitmap_brush, D2D1_EXTEND_MODE_WRAP);
+    ID2D1BitmapBrush_SetExtendModeY(bitmap_brush, D2D1_EXTEND_MODE_WRAP);
+
+    set_color(&color, 0.0f, 1.0f, 0.0f, 0.75f);
+    hr = ID2D1RenderTarget_CreateSolidColorBrush(rt, &color, NULL, &color_brush);
+    ok(SUCCEEDED(hr), "Failed to create brush, hr %#x.\n", hr);
+
+    ID2D1RenderTarget_BeginDraw(rt);
+    ID2D1RenderTarget_Clear(rt, NULL);
+    hr = ID2D1RenderTarget_EndDraw(rt, NULL, NULL);
+    ok(SUCCEEDED(hr), "Failed to end draw, hr %#x.\n", hr);
+    match = compare_surface(surface, "48c41aff3a130a17ee210866b2ab7d36763934d5");
+    ok(match, "Surface does not match.\n");
+
+    ID2D1RenderTarget_BeginDraw(rt);
+    set_color(&color, 1.0f, 0.0f, 0.0f, 0.25f);
+    ID2D1RenderTarget_Clear(rt, &color);
+    hr = ID2D1RenderTarget_EndDraw(rt, NULL, NULL);
+    ok(SUCCEEDED(hr), "Failed to end draw, hr %#x.\n", hr);
+    match = compare_surface(surface, "6487e683730fb5a77c1911388d00b04664c5c4e4");
+    ok(match, "Surface does not match.\n");
+
+    ID2D1RenderTarget_BeginDraw(rt);
+    set_color(&color, 0.0f, 0.0f, 1.0f, 0.75f);
+    ID2D1RenderTarget_Clear(rt, &color);
+    hr = ID2D1RenderTarget_EndDraw(rt, NULL, NULL);
+    ok(SUCCEEDED(hr), "Failed to end draw, hr %#x.\n", hr);
+    match = compare_surface(surface, "7a35ba09e43cbaf591388ff1ef8de56157630c98");
+    ok(match, "Surface does not match.\n");
+
+    ID2D1RenderTarget_BeginDraw(rt);
+
+    set_rect(&rect,   0.0f,   0.0f, 160.0f, 120.0f);
+    ID2D1RenderTarget_FillRectangle(rt, &rect, (ID2D1Brush *)bitmap_brush);
+    set_rect(&rect, 160.0f,   0.0f, 320.0f, 120.0f);
+    ID2D1BitmapBrush_SetOpacity(bitmap_brush, 0.75f);
+    ID2D1RenderTarget_FillRectangle(rt, &rect, (ID2D1Brush *)bitmap_brush);
+    set_rect(&rect, 320.0f,   0.0f, 480.0f, 120.0f);
+    ID2D1BitmapBrush_SetOpacity(bitmap_brush, 0.25f);
+    ID2D1RenderTarget_FillRectangle(rt, &rect, (ID2D1Brush *)bitmap_brush);
+
+    ID2D1Bitmap_Release(bitmap);
+    bitmap_desc.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
+    hr = ID2D1RenderTarget_CreateBitmap(rt, size, bitmap_data, 4 * sizeof(*bitmap_data), &bitmap_desc, &bitmap);
+    ok(SUCCEEDED(hr), "Failed to create bitmap, hr %#x.\n", hr);
+    ID2D1BitmapBrush_SetBitmap(bitmap_brush, bitmap);
+
+    set_rect(&rect,   0.0f, 120.0f, 160.0f, 240.0f);
+    ID2D1BitmapBrush_SetOpacity(bitmap_brush, 1.0f);
+    ID2D1RenderTarget_FillRectangle(rt, &rect, (ID2D1Brush *)bitmap_brush);
+    set_rect(&rect, 160.0f, 120.0f, 320.0f, 240.0f);
+    ID2D1BitmapBrush_SetOpacity(bitmap_brush, 0.75f);
+    ID2D1RenderTarget_FillRectangle(rt, &rect, (ID2D1Brush *)bitmap_brush);
+    set_rect(&rect, 320.0f, 120.0f, 480.0f, 240.0f);
+    ID2D1BitmapBrush_SetOpacity(bitmap_brush, 0.25f);
+    ID2D1RenderTarget_FillRectangle(rt, &rect, (ID2D1Brush *)bitmap_brush);
+
+    set_rect(&rect,   0.0f, 240.0f, 160.0f, 360.0f);
+    ID2D1RenderTarget_FillRectangle(rt, &rect, (ID2D1Brush *)color_brush);
+    set_rect(&rect, 160.0f, 240.0f, 320.0f, 360.0f);
+    ID2D1SolidColorBrush_SetOpacity(color_brush, 0.75f);
+    ID2D1RenderTarget_FillRectangle(rt, &rect, (ID2D1Brush *)color_brush);
+    set_rect(&rect, 320.0f, 240.0f, 480.0f, 360.0f);
+    ID2D1SolidColorBrush_SetOpacity(color_brush, 0.25f);
+    ID2D1RenderTarget_FillRectangle(rt, &rect, (ID2D1Brush *)color_brush);
+
+    hr = ID2D1RenderTarget_EndDraw(rt, NULL, NULL);
+    ok(SUCCEEDED(hr), "Failed to end draw, hr %#x.\n", hr);
+    match = compare_surface(surface, "14f8ac64b70966c7c3c6281c59aaecdb17c3b16a");
+    ok(match, "Surface does not match.\n");
+
+    ID2D1RenderTarget_Release(rt);
+    rt_desc.type = D2D1_RENDER_TARGET_TYPE_DEFAULT;
+    rt_desc.pixelFormat.format = DXGI_FORMAT_UNKNOWN;
+    rt_desc.pixelFormat.alphaMode = D2D1_ALPHA_MODE_IGNORE;
+    rt_desc.dpiX = 0.0f;
+    rt_desc.dpiY = 0.0f;
+    rt_desc.usage = D2D1_RENDER_TARGET_USAGE_NONE;
+    rt_desc.minLevel = D2D1_FEATURE_LEVEL_DEFAULT;
+    rt = create_render_target_desc(surface, &rt_desc);
+    ok(!!rt, "Failed to create render target.\n");
+
+    ID2D1RenderTarget_SetAntialiasMode(rt, D2D1_ANTIALIAS_MODE_ALIASED);
+
+    ID2D1Bitmap_Release(bitmap);
+    bitmap_desc.pixelFormat.alphaMode = D2D1_ALPHA_MODE_IGNORE;
+    hr = ID2D1RenderTarget_CreateBitmap(rt, size, bitmap_data, 4 * sizeof(*bitmap_data), &bitmap_desc, &bitmap);
+    ok(SUCCEEDED(hr), "Failed to create bitmap, hr %#x.\n", hr);
+    ID2D1BitmapBrush_SetBitmap(bitmap_brush, bitmap);
+
+    ID2D1BitmapBrush_Release(bitmap_brush);
+    hr = ID2D1RenderTarget_CreateBitmapBrush(rt, bitmap, NULL, NULL, &bitmap_brush);
+    ok(SUCCEEDED(hr), "Failed to create brush, hr %#x.\n", hr);
+    ID2D1BitmapBrush_SetInterpolationMode(bitmap_brush, D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR);
+    ID2D1BitmapBrush_SetExtendModeX(bitmap_brush, D2D1_EXTEND_MODE_WRAP);
+    ID2D1BitmapBrush_SetExtendModeY(bitmap_brush, D2D1_EXTEND_MODE_WRAP);
+
+    ID2D1SolidColorBrush_Release(color_brush);
+    set_color(&color, 0.0f, 1.0f, 0.0f, 0.75f);
+    hr = ID2D1RenderTarget_CreateSolidColorBrush(rt, &color, NULL, &color_brush);
+    ok(SUCCEEDED(hr), "Failed to create brush, hr %#x.\n", hr);
+
+    ID2D1RenderTarget_BeginDraw(rt);
+    ID2D1RenderTarget_Clear(rt, NULL);
+    hr = ID2D1RenderTarget_EndDraw(rt, NULL, NULL);
+    ok(SUCCEEDED(hr), "Failed to end draw, hr %#x.\n", hr);
+    match = compare_surface(surface, "b44510bf2d2e61a8d7c0ad862de49a471f1fd13f");
+    ok(match, "Surface does not match.\n");
+
+    ID2D1RenderTarget_BeginDraw(rt);
+    set_color(&color, 1.0f, 0.0f, 0.0f, 0.25f);
+    ID2D1RenderTarget_Clear(rt, &color);
+    hr = ID2D1RenderTarget_EndDraw(rt, NULL, NULL);
+    ok(SUCCEEDED(hr), "Failed to end draw, hr %#x.\n", hr);
+    match = compare_surface(surface, "2184f4a9198fc1de09ac85301b7a03eebadd9b81");
+    ok(match, "Surface does not match.\n");
+
+    ID2D1RenderTarget_BeginDraw(rt);
+    set_color(&color, 0.0f, 0.0f, 1.0f, 0.75f);
+    ID2D1RenderTarget_Clear(rt, &color);
+    hr = ID2D1RenderTarget_EndDraw(rt, NULL, NULL);
+    ok(SUCCEEDED(hr), "Failed to end draw, hr %#x.\n", hr);
+    match = compare_surface(surface, "6527ec83b4039c895b50f9b3e144fe0cf90d1889");
+    ok(match, "Surface does not match.\n");
+
+    ID2D1RenderTarget_BeginDraw(rt);
+
+    set_rect(&rect,   0.0f,   0.0f, 160.0f, 120.0f);
+    ID2D1RenderTarget_FillRectangle(rt, &rect, (ID2D1Brush *)bitmap_brush);
+    set_rect(&rect, 160.0f,   0.0f, 320.0f, 120.0f);
+    ID2D1BitmapBrush_SetOpacity(bitmap_brush, 0.75f);
+    ID2D1RenderTarget_FillRectangle(rt, &rect, (ID2D1Brush *)bitmap_brush);
+    set_rect(&rect, 320.0f,   0.0f, 480.0f, 120.0f);
+    ID2D1BitmapBrush_SetOpacity(bitmap_brush, 0.25f);
+    ID2D1RenderTarget_FillRectangle(rt, &rect, (ID2D1Brush *)bitmap_brush);
+
+    ID2D1Bitmap_Release(bitmap);
+    bitmap_desc.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
+    hr = ID2D1RenderTarget_CreateBitmap(rt, size, bitmap_data, 4 * sizeof(*bitmap_data), &bitmap_desc, &bitmap);
+    ok(SUCCEEDED(hr), "Failed to create bitmap, hr %#x.\n", hr);
+    ID2D1BitmapBrush_SetBitmap(bitmap_brush, bitmap);
+
+    set_rect(&rect,   0.0f, 120.0f, 160.0f, 240.0f);
+    ID2D1BitmapBrush_SetOpacity(bitmap_brush, 1.0f);
+    ID2D1RenderTarget_FillRectangle(rt, &rect, (ID2D1Brush *)bitmap_brush);
+    set_rect(&rect, 160.0f, 120.0f, 320.0f, 240.0f);
+    ID2D1BitmapBrush_SetOpacity(bitmap_brush, 0.75f);
+    ID2D1RenderTarget_FillRectangle(rt, &rect, (ID2D1Brush *)bitmap_brush);
+    set_rect(&rect, 320.0f, 120.0f, 480.0f, 240.0f);
+    ID2D1BitmapBrush_SetOpacity(bitmap_brush, 0.25f);
+    ID2D1RenderTarget_FillRectangle(rt, &rect, (ID2D1Brush *)bitmap_brush);
+
+    set_rect(&rect,   0.0f, 240.0f, 160.0f, 360.0f);
+    ID2D1RenderTarget_FillRectangle(rt, &rect, (ID2D1Brush *)color_brush);
+    set_rect(&rect, 160.0f, 240.0f, 320.0f, 360.0f);
+    ID2D1SolidColorBrush_SetOpacity(color_brush, 0.75f);
+    ID2D1RenderTarget_FillRectangle(rt, &rect, (ID2D1Brush *)color_brush);
+    set_rect(&rect, 320.0f, 240.0f, 480.0f, 360.0f);
+    ID2D1SolidColorBrush_SetOpacity(color_brush, 0.25f);
+    ID2D1RenderTarget_FillRectangle(rt, &rect, (ID2D1Brush *)color_brush);
+
+    hr = ID2D1RenderTarget_EndDraw(rt, NULL, NULL);
+    ok(SUCCEEDED(hr), "Failed to end draw, hr %#x.\n", hr);
+    match = compare_surface(surface, "465f5a3190d7bde408b3206b4be939fb22f8a3d6");
+    ok(match, "Surface does not match.\n");
+
+    refcount = ID2D1Bitmap_Release(bitmap);
+    ok(refcount == 1, "Bitmap has %u references left.\n", refcount);
+    ID2D1SolidColorBrush_Release(color_brush);
+    ID2D1BitmapBrush_Release(bitmap_brush);
+    ID2D1RenderTarget_Release(rt);
+    IDXGISurface_Release(surface);
+    IDXGISwapChain_Release(swapchain);
+    ID3D10Device1_Release(device);
+    DestroyWindow(window);
+}
+
+static void test_shared_bitmap(void)
+{
+    IDXGISwapChain *swapchain1, *swapchain2;
+    IWICBitmap *wic_bitmap1, *wic_bitmap2;
+    D2D1_RENDER_TARGET_PROPERTIES desc;
+    D2D1_BITMAP_PROPERTIES bitmap_desc;
+    IDXGISurface *surface1, *surface2;
+    ID2D1Factory *factory1, *factory2;
+    ID3D10Device1 *device1, *device2;
+    IWICImagingFactory *wic_factory;
+    ID2D1Bitmap *bitmap1, *bitmap2;
+    ID2D1RenderTarget *rt1, *rt2;
+    D2D1_SIZE_U size = {4, 4};
+    HWND window1, window2;
+    HRESULT hr;
+
+    if (!(device1 = create_device()))
+    {
+        skip("Failed to create device, skipping tests.\n");
+        return;
+    }
+
+    window1 = CreateWindowA("static", "d2d1_test", WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+            0, 0, 640, 480, NULL, NULL, NULL, NULL);
+    window2 = CreateWindowA("static", "d2d1_test", WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+            0, 0, 640, 480, NULL, NULL, NULL, NULL);
+    swapchain1 = create_swapchain(device1, window1, TRUE);
+    swapchain2 = create_swapchain(device1, window2, TRUE);
+    hr = IDXGISwapChain_GetBuffer(swapchain1, 0, &IID_IDXGISurface, (void **)&surface1);
+    ok(SUCCEEDED(hr), "Failed to get buffer, hr %#x.\n", hr);
+    hr = IDXGISwapChain_GetBuffer(swapchain2, 0, &IID_IDXGISurface, (void **)&surface2);
+    ok(SUCCEEDED(hr), "Failed to get buffer, hr %#x.\n", hr);
+
+    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+    hr = CoCreateInstance(&CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER,
+            &IID_IWICImagingFactory, (void **)&wic_factory);
+    ok(SUCCEEDED(hr), "Failed to create WIC imaging factory, hr %#x.\n", hr);
+    hr = IWICImagingFactory_CreateBitmap(wic_factory, 640, 480,
+            &GUID_WICPixelFormat32bppPBGRA, WICBitmapCacheOnDemand, &wic_bitmap1);
+    ok(SUCCEEDED(hr), "Failed to create bitmap, hr %#x.\n", hr);
+    hr = IWICImagingFactory_CreateBitmap(wic_factory, 640, 480,
+            &GUID_WICPixelFormat32bppPBGRA, WICBitmapCacheOnDemand, &wic_bitmap2);
+    ok(SUCCEEDED(hr), "Failed to create bitmap, hr %#x.\n", hr);
+    IWICImagingFactory_Release(wic_factory);
+
+    desc.type = D2D1_RENDER_TARGET_TYPE_DEFAULT;
+    desc.pixelFormat.format = DXGI_FORMAT_UNKNOWN;
+    desc.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
+    desc.dpiX = 0.0f;
+    desc.dpiY = 0.0f;
+    desc.usage = D2D1_RENDER_TARGET_USAGE_NONE;
+    desc.minLevel = D2D1_FEATURE_LEVEL_DEFAULT;
+
+    bitmap_desc.pixelFormat.format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    bitmap_desc.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
+    bitmap_desc.dpiX = 96.0f;
+    bitmap_desc.dpiY = 96.0f;
+
+    hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &IID_ID2D1Factory, NULL, (void **)&factory1);
+    ok(SUCCEEDED(hr), "Failed to create factory, hr %#x.\n", hr);
+    hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &IID_ID2D1Factory, NULL, (void **)&factory2);
+    ok(SUCCEEDED(hr), "Failed to create factory, hr %#x.\n", hr);
+
+    /* DXGI surface render targets with the same device and factory. */
+    hr = ID2D1Factory_CreateDxgiSurfaceRenderTarget(factory1, surface1, &desc, &rt1);
+    ok(SUCCEEDED(hr), "Failed to create render target, hr %#x.\n", hr);
+    hr = ID2D1RenderTarget_CreateBitmap(rt1, size, NULL, 0, &bitmap_desc, &bitmap1);
+    ok(SUCCEEDED(hr), "Failed to create bitmap, hr %#x.\n", hr);
+
+    hr = ID2D1Factory_CreateDxgiSurfaceRenderTarget(factory1, surface2, &desc, &rt2);
+    ok(SUCCEEDED(hr), "Failed to create render target, hr %#x.\n", hr);
+    hr = ID2D1RenderTarget_CreateSharedBitmap(rt2, &IID_ID2D1Bitmap, bitmap1, NULL, &bitmap2);
+    ok(SUCCEEDED(hr), "Failed to create bitmap, hr %#x.\n", hr);
+    ID2D1Bitmap_Release(bitmap2);
+    hr = ID2D1RenderTarget_CreateSharedBitmap(rt2, &IID_IUnknown, bitmap1, NULL, &bitmap2);
+    ok(hr == E_INVALIDARG, "Got unexpected hr %#x.\n", hr);
+    ID2D1RenderTarget_Release(rt2);
+
+    /* DXGI surface render targets with the same device but different factories. */
+    hr = ID2D1Factory_CreateDxgiSurfaceRenderTarget(factory2, surface2, &desc, &rt2);
+    ok(SUCCEEDED(hr), "Failed to create render target, hr %#x.\n", hr);
+    hr = ID2D1RenderTarget_CreateSharedBitmap(rt2, &IID_ID2D1Bitmap, bitmap1, NULL, &bitmap2);
+    ok(hr == D2DERR_WRONG_FACTORY, "Got unexpected hr %#x.\n", hr);
+    ID2D1RenderTarget_Release(rt2);
+
+    /* DXGI surface render targets with different devices but the same factory. */
+    IDXGISurface_Release(surface2);
+    IDXGISwapChain_Release(swapchain2);
+    device2 = create_device();
+    ok(!!device2, "Failed to create device.\n");
+    swapchain2 = create_swapchain(device2, window2, TRUE);
+    hr = IDXGISwapChain_GetBuffer(swapchain2, 0, &IID_IDXGISurface, (void **)&surface2);
+    ok(SUCCEEDED(hr), "Failed to get buffer, hr %#x.\n", hr);
+
+    hr = ID2D1Factory_CreateDxgiSurfaceRenderTarget(factory1, surface2, &desc, &rt2);
+    ok(SUCCEEDED(hr), "Failed to create render target, hr %#x.\n", hr);
+    hr = ID2D1RenderTarget_CreateSharedBitmap(rt2, &IID_ID2D1Bitmap, bitmap1, NULL, &bitmap2);
+    ok(hr == D2DERR_UNSUPPORTED_OPERATION, "Got unexpected hr %#x.\n", hr);
+    ID2D1RenderTarget_Release(rt2);
+
+    /* DXGI surface render targets with different devices and different factories. */
+    hr = ID2D1Factory_CreateDxgiSurfaceRenderTarget(factory2, surface2, &desc, &rt2);
+    ok(SUCCEEDED(hr), "Failed to create render target, hr %#x.\n", hr);
+    hr = ID2D1RenderTarget_CreateSharedBitmap(rt2, &IID_ID2D1Bitmap, bitmap1, NULL, &bitmap2);
+    ok(hr == D2DERR_WRONG_FACTORY, "Got unexpected hr %#x.\n", hr);
+    ID2D1RenderTarget_Release(rt2);
+
+    /* DXGI surface render target and WIC bitmap render target, same factory. */
+    hr = ID2D1Factory_CreateWicBitmapRenderTarget(factory1, wic_bitmap2, &desc, &rt2);
+    ok(SUCCEEDED(hr), "Failed to create render target, hr %#x.\n", hr);
+    hr = ID2D1RenderTarget_CreateSharedBitmap(rt2, &IID_ID2D1Bitmap, bitmap1, NULL, &bitmap2);
+    ok(hr == D2DERR_UNSUPPORTED_OPERATION, "Got unexpected hr %#x.\n", hr);
+    ID2D1RenderTarget_Release(rt2);
+
+    /* WIC bitmap render targets on different D2D factories. */
+    ID2D1Bitmap_Release(bitmap1);
+    ID2D1RenderTarget_Release(rt1);
+    hr = ID2D1Factory_CreateWicBitmapRenderTarget(factory1, wic_bitmap1, &desc, &rt1);
+    ok(SUCCEEDED(hr), "Failed to create render target, hr %#x.\n", hr);
+    hr = ID2D1RenderTarget_CreateBitmap(rt1, size, NULL, 0, &bitmap_desc, &bitmap1);
+    ok(SUCCEEDED(hr), "Failed to create bitmap, hr %#x.\n", hr);
+
+    hr = ID2D1Factory_CreateWicBitmapRenderTarget(factory2, wic_bitmap2, &desc, &rt2);
+    ok(SUCCEEDED(hr), "Failed to create render target, hr %#x.\n", hr);
+    hr = ID2D1RenderTarget_CreateSharedBitmap(rt2, &IID_ID2D1Bitmap, bitmap1, NULL, &bitmap2);
+    ok(hr == D2DERR_WRONG_FACTORY, "Got unexpected hr %#x.\n", hr);
+    ID2D1RenderTarget_Release(rt2);
+
+    /* WIC bitmap render targets on the same D2D factory. */
+    hr = ID2D1Factory_CreateWicBitmapRenderTarget(factory1, wic_bitmap2, &desc, &rt2);
+    ok(SUCCEEDED(hr), "Failed to create render target, hr %#x.\n", hr);
+    hr = ID2D1RenderTarget_CreateSharedBitmap(rt2, &IID_ID2D1Bitmap, bitmap1, NULL, &bitmap2);
+    ok(SUCCEEDED(hr), "Failed to create bitmap, hr %#x.\n", hr);
+    ID2D1Bitmap_Release(bitmap2);
+    ID2D1RenderTarget_Release(rt2);
+
+    ID2D1Bitmap_Release(bitmap1);
+    ID2D1RenderTarget_Release(rt1);
+    ID2D1Factory_Release(factory2);
+    ID2D1Factory_Release(factory1);
+    IWICBitmap_Release(wic_bitmap2);
+    IWICBitmap_Release(wic_bitmap1);
+    IDXGISurface_Release(surface2);
+    IDXGISurface_Release(surface1);
+    IDXGISwapChain_Release(swapchain2);
+    IDXGISwapChain_Release(swapchain1);
+    ID3D10Device1_Release(device2);
+    ID3D10Device1_Release(device1);
+    DestroyWindow(window2);
+    DestroyWindow(window1);
+    CoUninitialize();
+}
+
+static void test_bitmap_updates(void)
+{
+    D2D1_BITMAP_PROPERTIES bitmap_desc;
+    IDXGISwapChain *swapchain;
+    ID2D1RenderTarget *rt;
+    ID3D10Device1 *device;
+    IDXGISurface *surface;
+    D2D1_RECT_U dst_rect;
+    ID2D1Bitmap *bitmap;
+    D2D1_COLOR_F color;
+    D2D1_RECT_F rect;
+    D2D1_SIZE_U size;
+    HWND window;
+    HRESULT hr;
+    BOOL match;
+
+    static const DWORD bitmap_data[] =
+    {
+        0xffff0000, 0xffffff00, 0xff00ff00, 0xff00ffff,
+        0xff0000ff, 0xffff00ff, 0xff000000, 0xff7f7f7f,
+        0xffffffff, 0xffffffff, 0xffffffff, 0xff000000,
+        0xffffffff, 0xff000000, 0xff000000, 0xff000000,
+    };
+
+    if (!(device = create_device()))
+    {
+        skip("Failed to create device, skipping tests.\n");
+        return;
+    }
+    window = CreateWindowA("static", "d2d1_test", WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+            0, 0, 640, 480, NULL, NULL, NULL, NULL);
+    swapchain = create_swapchain(device, window, TRUE);
+    hr = IDXGISwapChain_GetBuffer(swapchain, 0, &IID_IDXGISurface, (void **)&surface);
+    ok(SUCCEEDED(hr), "Failed to get buffer, hr %#x.\n", hr);
+    rt = create_render_target(surface);
+    ok(!!rt, "Failed to create render target.\n");
+
+    ID2D1RenderTarget_SetAntialiasMode(rt, D2D1_ANTIALIAS_MODE_ALIASED);
+
+    ID2D1RenderTarget_BeginDraw(rt);
+    set_color(&color, 0.0f, 0.0f, 1.0f, 1.0f);
+    ID2D1RenderTarget_Clear(rt, &color);
+
+    set_size_u(&size, 4, 4);
+    bitmap_desc.pixelFormat.format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    bitmap_desc.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
+    bitmap_desc.dpiX = 96.0f;
+    bitmap_desc.dpiY = 96.0f;
+    hr = ID2D1RenderTarget_CreateBitmap(rt, size, NULL, 0, &bitmap_desc, &bitmap);
+    ok(SUCCEEDED(hr), "Failed to create bitmap, hr %#x.\n", hr);
+
+    set_rect(&rect, 0.0f, 0.0f, 320.0f, 240.0f);
+    ID2D1RenderTarget_DrawBitmap(rt, bitmap, &rect, 1.0f,
+            D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR, NULL);
+
+    ID2D1Bitmap_Release(bitmap);
+
+    bitmap_desc.pixelFormat.alphaMode = D2D1_ALPHA_MODE_IGNORE;
+    hr = ID2D1RenderTarget_CreateBitmap(rt, size, NULL, 0, &bitmap_desc, &bitmap);
+    ok(SUCCEEDED(hr), "Failed to create bitmap, hr %#x.\n", hr);
+
+    set_rect(&rect, 0.0f, 240.0f, 320.0f, 480.0f);
+    ID2D1RenderTarget_DrawBitmap(rt, bitmap, &rect, 1.0f,
+            D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR, NULL);
+
+    set_rect_u(&dst_rect, 1, 1, 3, 3);
+    hr = ID2D1Bitmap_CopyFromMemory(bitmap, &dst_rect, bitmap_data, 4 * sizeof(*bitmap_data));
+    ok(SUCCEEDED(hr), "Failed to update bitmap, hr %#x.\n", hr);
+    set_rect_u(&dst_rect, 0, 3, 3, 4);
+    hr = ID2D1Bitmap_CopyFromMemory(bitmap, &dst_rect, &bitmap_data[6], 4 * sizeof(*bitmap_data));
+    ok(SUCCEEDED(hr), "Failed to update bitmap, hr %#x.\n", hr);
+    set_rect_u(&dst_rect, 0, 0, 4, 1);
+    hr = ID2D1Bitmap_CopyFromMemory(bitmap, &dst_rect, &bitmap_data[10], 4 * sizeof(*bitmap_data));
+    ok(SUCCEEDED(hr), "Failed to update bitmap, hr %#x.\n", hr);
+    set_rect_u(&dst_rect, 0, 1, 1, 3);
+    hr = ID2D1Bitmap_CopyFromMemory(bitmap, &dst_rect, &bitmap_data[2], sizeof(*bitmap_data));
+    ok(SUCCEEDED(hr), "Failed to update bitmap, hr %#x.\n", hr);
+    set_rect_u(&dst_rect, 4, 4, 3, 1);
+    hr = ID2D1Bitmap_CopyFromMemory(bitmap, &dst_rect, bitmap_data, sizeof(*bitmap_data));
+    ok(SUCCEEDED(hr), "Failed to update bitmap, hr %#x.\n", hr);
+    set_rect(&rect, 320.0f, 240.0f, 640.0f, 480.0f);
+    ID2D1RenderTarget_DrawBitmap(rt, bitmap, &rect, 1.0f,
+            D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR, NULL);
+
+    hr = ID2D1Bitmap_CopyFromMemory(bitmap, NULL, bitmap_data, 4 * sizeof(*bitmap_data));
+    ok(SUCCEEDED(hr), "Failed to update bitmap, hr %#x.\n", hr);
+    set_rect(&rect, 320.0f, 0.0f, 640.0f, 240.0f);
+    ID2D1RenderTarget_DrawBitmap(rt, bitmap, &rect, 1.0f,
+            D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR, NULL);
+
+    hr = ID2D1RenderTarget_EndDraw(rt, NULL, NULL);
+    ok(SUCCEEDED(hr), "Failed to end draw, hr %#x.\n", hr);
+
+    match = compare_surface(surface, "cb8136c91fbbdc76bb83b8c09edc1907b0a5d0a6");
+    ok(match, "Surface does not match.\n");
+
+    ID2D1Bitmap_Release(bitmap);
     ID2D1RenderTarget_Release(rt);
     IDXGISurface_Release(surface);
     IDXGISwapChain_Release(swapchain);
@@ -879,4 +2212,9 @@ START_TEST(d2d1)
     test_state_block();
     test_color_brush();
     test_bitmap_brush();
+    test_path_geometry();
+    test_bitmap_formats();
+    test_alpha_mode();
+    test_shared_bitmap();
+    test_bitmap_updates();
 }

@@ -533,7 +533,7 @@
 @ stub ?_Get@_CurrentScheduler@details@Concurrency@@SA?AV_Scheduler@23@XZ
 @ stub -arch=win32 ?_GetConcRTTraceInfo@Concurrency@@YAPBU_CONCRT_TRACE_INFO@details@1@XZ
 @ stub -arch=win64 ?_GetConcRTTraceInfo@Concurrency@@YAPEBU_CONCRT_TRACE_INFO@details@1@XZ
-@ stub ?_GetConcurrency@details@Concurrency@@YAIXZ
+@ cdecl ?_GetConcurrency@details@Concurrency@@YAIXZ() _GetConcurrency
 @ stub -arch=win32 ?_GetCurrentInlineDepth@_StackGuard@details@Concurrency@@CAAAIXZ
 @ stub -arch=win64 ?_GetCurrentInlineDepth@_StackGuard@details@Concurrency@@CAAEA_KXZ
 @ stub ?_GetNumberOfVirtualProcessors@_CurrentScheduler@details@Concurrency@@SAIXZ
@@ -864,8 +864,8 @@
 @ stub -arch=win64 _SetThrowImageBase
 @ cdecl _Strftime(str long str ptr ptr)
 @ stub _Unlock_shared_ptr_spin_lock
-@ stub _W_Getdays
-@ stub _W_Getmonths
+@ cdecl _W_Getdays()
+@ cdecl _W_Getmonths()
 @ stub _W_Gettnames
 @ stub _Wcsftime
 @ cdecl _XcptFilter(long ptr)
@@ -875,7 +875,7 @@
 @ stdcall -arch=x86_64 __C_specific_handler(ptr long ptr ptr) ntdll.__C_specific_handler
 @ cdecl -arch=i386,x86_64,arm __CppXcptFilter(long ptr)
 @ cdecl -arch=i386,x86_64,arm __CxxDetectRethrow(ptr)
-@ stub __CxxExceptionFilter
+@ cdecl -arch=i386,x86_64,arm __CxxExceptionFilter(ptr ptr long ptr)
 @ cdecl -arch=i386,x86_64,arm -norelay __CxxFrameHandler(ptr ptr ptr ptr)
 @ cdecl -arch=i386,x86_64,arm -norelay __CxxFrameHandler2(ptr ptr ptr ptr) __CxxFrameHandler
 @ cdecl -arch=i386,x86_64,arm -norelay __CxxFrameHandler3(ptr ptr ptr ptr) __CxxFrameHandler
@@ -893,7 +893,7 @@
 @ stub __TypeMatch
 @ cdecl ___lc_codepage_func()
 @ cdecl ___lc_collate_cp_func()
-@ stub ___lc_locale_name_func
+@ cdecl ___lc_locale_name_func()
 @ cdecl ___mb_cur_max_func() MSVCRT____mb_cur_max_func
 @ cdecl ___mb_cur_max_l_func(ptr)
 @ cdecl ___setlc_active_func() MSVCRT____setlc_active_func
@@ -917,7 +917,7 @@
 @ stub -arch=i386,win64 __crtFlsGetValue
 @ stub -arch=i386,win64 __crtFlsSetValue
 @ stub -arch=i386,win64 __crtGetDateFormatEx
-@ stub -arch=i386,win64 __crtGetLocaleInfoEx
+@ cdecl -arch=i386,win64 __crtGetLocaleInfoEx(wstr long ptr long)
 @ cdecl __crtGetShowWindowMode() MSVCR110__crtGetShowWindowMode
 @ stub -arch=i386,win64 __crtGetTimeFormatEx
 @ stub -arch=i386,win64 __crtGetUserDefaultLocaleName
@@ -1005,7 +1005,7 @@
 @ extern __setlc_active MSVCRT___setlc_active
 @ cdecl __setusermatherr(ptr) MSVCRT___setusermatherr
 @ stub __strncnt
-@ stub __swprintf_l
+@ varargs  __swprintf_l(ptr wstr ptr) MSVCRT___swprintf_l
 @ cdecl __sys_errlist()
 @ cdecl __sys_nerr()
 @ cdecl __threadhandle() kernel32.GetCurrentThread
@@ -1238,9 +1238,9 @@
 @ cdecl _get_wpgmptr(ptr)
 @ cdecl _getc_nolock(ptr) MSVCRT__fgetc_nolock
 @ cdecl _getch()
-@ stub _getch_nolock
+@ cdecl _getch_nolock()
 @ cdecl _getche()
-@ stub _getche_nolock
+@ cdecl _getche_nolock()
 @ cdecl _getcwd(str long) MSVCRT__getcwd
 @ cdecl _getdcwd(long str long) MSVCRT__getdcwd
 @ cdecl _getdiskfree(long ptr) MSVCRT__getdiskfree
@@ -1254,10 +1254,10 @@
 @ stub _getsystime(ptr)
 @ cdecl _getw(ptr) MSVCRT__getw
 @ cdecl _getwc_nolock(ptr) MSVCRT__fgetwc_nolock
-@ stub _getwch
-@ stub _getwch_nolock
-@ stub _getwche
-@ stub _getwche_nolock
+@ cdecl _getwch()
+@ cdecl _getwch_nolock()
+@ cdecl _getwche()
+@ cdecl _getwche_nolock()
 @ cdecl _getws(ptr) MSVCRT__getws
 @ stub _getws_s
 @ cdecl -arch=i386 _global_unwind2(ptr)
@@ -1313,7 +1313,7 @@
 @ stub _ismbbkpunct(long)
 @ stub _ismbbkpunct_l
 @ cdecl _ismbblead(long)
-@ stub _ismbblead_l
+@ cdecl _ismbblead_l(long ptr)
 @ stub _ismbbprint(long)
 @ stub _ismbbprint_l
 @ stub _ismbbpunct(long)
@@ -1454,8 +1454,8 @@
 @ stub _mblen_l
 @ cdecl _mbsbtype(str long)
 @ stub _mbsbtype_l
-@ stub _mbscat_s
-@ stub _mbscat_s_l
+@ cdecl _mbscat_s(ptr long str)
+@ cdecl _mbscat_s_l(ptr long str ptr)
 @ cdecl _mbschr(str long)
 @ stub _mbschr_l
 @ cdecl _mbscmp(str str)
@@ -1592,13 +1592,13 @@
 @ cdecl _purecall()
 @ cdecl _putc_nolock(long ptr) MSVCRT__fputc_nolock
 @ cdecl _putch(long)
-@ stub _putch_nolock
+@ cdecl _putch_nolock(long)
 @ cdecl _putenv(str)
 @ cdecl _putenv_s(str str)
 @ cdecl _putw(long ptr) MSVCRT__putw
 @ cdecl _putwc_nolock(long ptr) MSVCRT__fputwc_nolock
-@ cdecl _putwch(long) MSVCRT__putwch
-@ stub _putwch_nolock
+@ cdecl _putwch(long)
+@ cdecl _putwch_nolock(long)
 @ cdecl _putws(wstr) MSVCRT__putws
 # extern _pwctype
 @ cdecl _read(long ptr long) MSVCRT__read
@@ -1768,10 +1768,10 @@
 @ stub _umask_s
 @ cdecl _ungetc_nolock(long ptr) MSVCRT__ungetc_nolock
 @ cdecl _ungetch(long)
-@ stub _ungetch_nolock
+@ cdecl _ungetch_nolock(long)
 @ cdecl _ungetwc_nolock(long ptr) MSVCRT__ungetwc_nolock
-@ stub _ungetwch
-@ stub _ungetwch_nolock
+@ cdecl _ungetwch(long)
+@ cdecl _ungetwch_nolock(long)
 @ cdecl _unlink(str) MSVCRT__unlink
 @ cdecl _unloaddll(long)
 @ cdecl _unlock(long)
@@ -1884,9 +1884,9 @@
 @ cdecl _wcsupr_s_l(wstr long ptr) MSVCRT__wcsupr_s_l
 @ cdecl _wcsxfrm_l(ptr wstr long ptr) MSVCRT__wcsxfrm_l
 @ cdecl _wctime32(ptr) MSVCRT__wctime32
-@ stub _wctime32_s
+@ cdecl _wctime32_s(ptr long ptr) MSVCRT__wctime32_s
 @ cdecl _wctime64(ptr) MSVCRT__wctime64
-@ stub _wctime64_s
+@ cdecl _wctime64_s(ptr long ptr) MSVCRT__wctime64_s
 @ cdecl _wctomb_l(ptr long ptr) MSVCRT__wctomb_l
 @ cdecl _wctomb_s_l(ptr ptr long long ptr) MSVCRT__wctomb_s_l
 # extern _wctype

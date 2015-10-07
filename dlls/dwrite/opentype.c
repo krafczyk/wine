@@ -21,6 +21,7 @@
 #define COBJMACROS
 
 #include "dwrite_private.h"
+#include "winternl.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(dwrite);
 
@@ -32,13 +33,14 @@ WINE_DEFAULT_DEBUG_CHANNEL(dwrite);
 #define MS_TTCF_TAG DWRITE_MAKE_OPENTYPE_TAG('t','t','c','f')
 #define MS_GPOS_TAG DWRITE_MAKE_OPENTYPE_TAG('G','P','O','S')
 #define MS_GSUB_TAG DWRITE_MAKE_OPENTYPE_TAG('G','S','U','B')
+#define MS_NAME_TAG DWRITE_MAKE_OPENTYPE_TAG('n','a','m','e')
 
 #ifdef WORDS_BIGENDIAN
 #define GET_BE_WORD(x) (x)
 #define GET_BE_DWORD(x) (x)
 #else
-#define GET_BE_WORD(x) MAKEWORD(HIBYTE(x), LOBYTE(x))
-#define GET_BE_DWORD(x) MAKELONG(GET_BE_WORD(HIWORD(x)), GET_BE_WORD(LOWORD(x)))
+#define GET_BE_WORD(x)  RtlUshortByteSwap(x)
+#define GET_BE_DWORD(x) RtlUlongByteSwap(x)
 #endif
 
 typedef struct {
@@ -129,6 +131,17 @@ typedef struct
     SHORT index_format;
     SHORT glyphdata_format;
 } TT_HEAD;
+
+enum TT_HEAD_MACSTYLE
+{
+    TT_HEAD_MACSTYLE_BOLD      = 1 << 0,
+    TT_HEAD_MACSTYLE_ITALIC    = 1 << 1,
+    TT_HEAD_MACSTYLE_UNDERLINE = 1 << 2,
+    TT_HEAD_MACSTYLE_OUTLINE   = 1 << 3,
+    TT_HEAD_MACSTYLE_SHADOW    = 1 << 4,
+    TT_HEAD_MACSTYLE_CONDENSED = 1 << 5,
+    TT_HEAD_MACSTYLE_EXTENDED  = 1 << 6,
+};
 
 typedef struct
 {
@@ -237,6 +250,35 @@ typedef struct {
     WORD stringOffset;
     TT_NameRecord nameRecord[1];
 } TT_NAME_V0;
+
+struct VDMX_Header
+{
+    WORD version;
+    WORD numRecs;
+    WORD numRatios;
+};
+
+struct VDMX_Ratio
+{
+    BYTE bCharSet;
+    BYTE xRatio;
+    BYTE yStartRatio;
+    BYTE yEndRatio;
+};
+
+struct VDMX_group
+{
+    WORD recs;
+    BYTE startsz;
+    BYTE endsz;
+};
+
+struct VDMX_vTable
+{
+    WORD yPelHeight;
+    SHORT yMax;
+    SHORT yMin;
+};
 
 typedef struct {
     CHAR FeatureTag[4];
@@ -638,6 +680,33 @@ static const UINT16 dwriteid_to_opentypeid[DWRITE_INFORMATIONAL_STRING_POSTSCRIP
     OPENTYPE_STRING_POSTSCRIPT_CID_NAME
 };
 
+/* CPAL table */
+struct CPAL_Header_0
+{
+    USHORT version;
+    USHORT numPaletteEntries;
+    USHORT numPalette;
+    USHORT numColorRecords;
+    ULONG  offsetFirstColorRecord;
+    USHORT colorRecordIndices[1];
+};
+
+/* for version == 1, this comes after full CPAL_Header_0 */
+struct CPAL_SubHeader_1
+{
+    ULONG  offsetPaletteTypeArray;
+    ULONG  offsetPaletteLabelArray;
+    ULONG  offsetPaletteEntryLabelArray;
+};
+
+struct CPAL_ColorRecord
+{
+    BYTE blue;
+    BYTE green;
+    BYTE red;
+    BYTE alpha;
+};
+
 BOOL is_face_type_supported(DWRITE_FONT_FACE_TYPE type)
 {
     return (type == DWRITE_FONT_FACE_TYPE_CFF) ||
@@ -711,11 +780,12 @@ HRESULT opentype_get_font_table(IDWriteFontFileStream *stream, DWRITE_FONT_FACE_
         void * ttc_context;
         hr = IDWriteFontFileStream_ReadFileFragment(stream, (const void**)&ttc_header, 0, sizeof(*ttc_header), &ttc_context);
         if (SUCCEEDED(hr)) {
-            table_offset = GET_BE_DWORD(ttc_header->OffsetTable[0]);
             if (font_index >= GET_BE_DWORD(ttc_header->numFonts))
                 hr = E_INVALIDARG;
-            else
+            else {
+                table_offset = GET_BE_DWORD(ttc_header->OffsetTable[font_index]);
                 hr = IDWriteFontFileStream_ReadFileFragment(stream, (const void**)&font_header, table_offset, sizeof(*font_header), &sfnt_context);
+            }
             IDWriteFontFileStream_ReleaseFileFragment(stream, ttc_context);
         }
     }
@@ -890,7 +960,9 @@ void opentype_get_font_metrics(IDWriteFontFileStream *stream, DWRITE_FONT_FACE_T
         USHORT version = GET_BE_WORD(tt_os2->version);
 
         metrics->ascent  = GET_BE_WORD(tt_os2->usWinAscent);
-        metrics->descent = GET_BE_WORD(tt_os2->usWinDescent);
+        /* Some fonts have usWinDescent value stored as signed short, which could be wrongly
+           interpreted as large unsigned value. */
+        metrics->descent = abs((SHORT)GET_BE_WORD(tt_os2->usWinDescent));
 
         /* line gap is estimated using two sets of ascender/descender values and 'hhea' line gap */
         if (tt_hhea) {
@@ -954,7 +1026,7 @@ void opentype_get_font_metrics(IDWriteFontFileStream *stream, DWRITE_FONT_FACE_T
 }
 
 void opentype_get_font_properties(IDWriteFontFileStream *stream, DWRITE_FONT_FACE_TYPE type, UINT32 index,
-    DWRITE_FONT_STRETCH *stretch, DWRITE_FONT_WEIGHT *weight, DWRITE_FONT_STYLE *style)
+    struct dwrite_font_props *props)
 {
     void *os2_context, *head_context;
     const TT_OS2_V2 *tt_os2;
@@ -964,24 +1036,50 @@ void opentype_get_font_properties(IDWriteFontFileStream *stream, DWRITE_FONT_FAC
     opentype_get_font_table(stream, type, index, MS_HEAD_TAG, (const void**)&tt_head, &head_context, NULL, NULL);
 
     /* default stretch, weight and style to normal */
-    *stretch = DWRITE_FONT_STRETCH_NORMAL;
-    *weight = DWRITE_FONT_WEIGHT_NORMAL;
-    *style = DWRITE_FONT_STYLE_NORMAL;
+    props->stretch = DWRITE_FONT_STRETCH_NORMAL;
+    props->weight = DWRITE_FONT_WEIGHT_NORMAL;
+    props->style = DWRITE_FONT_STYLE_NORMAL;
+    memset(&props->panose, 0, sizeof(props->panose));
 
     /* DWRITE_FONT_STRETCH enumeration values directly match font data values */
     if (tt_os2) {
+        USHORT version = GET_BE_WORD(tt_os2->version);
+        USHORT fsSelection = GET_BE_WORD(tt_os2->fsSelection);
+        USHORT usWeightClass = GET_BE_WORD(tt_os2->usWeightClass);
+
         if (GET_BE_WORD(tt_os2->usWidthClass) <= DWRITE_FONT_STRETCH_ULTRA_EXPANDED)
-            *stretch = GET_BE_WORD(tt_os2->usWidthClass);
+            props->stretch = GET_BE_WORD(tt_os2->usWidthClass);
 
-        *weight = GET_BE_WORD(tt_os2->usWeightClass);
-        TRACE("stretch=%d, weight=%d\n", *stretch, *weight);
+        if (usWeightClass >= 1 && usWeightClass <= 9)
+            usWeightClass *= 100;
+
+        if (usWeightClass > DWRITE_FONT_WEIGHT_ULTRA_BLACK)
+            props->weight = DWRITE_FONT_WEIGHT_ULTRA_BLACK;
+        else
+            props->weight = usWeightClass;
+
+        if (version >= 4 && (fsSelection & OS2_FSSELECTION_OBLIQUE))
+            props->style = DWRITE_FONT_STYLE_OBLIQUE;
+        else if (fsSelection & OS2_FSSELECTION_ITALIC)
+            props->style = DWRITE_FONT_STYLE_ITALIC;
+        memcpy(&props->panose, &tt_os2->panose, sizeof(props->panose));
     }
-
-    if (tt_head) {
+    else if (tt_head) {
         USHORT macStyle = GET_BE_WORD(tt_head->macStyle);
-        if (macStyle & 0x0002)
-            *style = DWRITE_FONT_STYLE_ITALIC;
+
+        if (macStyle & TT_HEAD_MACSTYLE_CONDENSED)
+            props->stretch = DWRITE_FONT_STRETCH_CONDENSED;
+        else if (macStyle & TT_HEAD_MACSTYLE_EXTENDED)
+            props->stretch = DWRITE_FONT_STRETCH_EXPANDED;
+
+        if (macStyle & TT_HEAD_MACSTYLE_BOLD)
+            props->weight = DWRITE_FONT_WEIGHT_BOLD;
+
+        if (macStyle & TT_HEAD_MACSTYLE_ITALIC)
+            props->style = DWRITE_FONT_STYLE_ITALIC;
     }
+
+    TRACE("stretch=%d, weight=%d, style %d\n", props->stretch, props->weight, props->style);
 
     if (tt_os2)
         IDWriteFontFileStream_ReleaseFileFragment(stream, os2_context);
@@ -1100,12 +1198,12 @@ static void get_name_record_locale(enum OPENTYPE_PLATFORM_ID platform, USHORT la
     }
 }
 
-HRESULT opentype_get_font_strings_from_id(const void *table_data, DWRITE_INFORMATIONAL_STRING_ID id, IDWriteLocalizedStrings **strings)
+static HRESULT opentype_get_font_strings_from_id(const void *table_data, enum OPENTYPE_STRING_ID id, IDWriteLocalizedStrings **strings)
 {
     const TT_NAME_V0 *header;
     BYTE *storage_area = 0;
     USHORT count = 0;
-    UINT16 name_id;
+    WORD format;
     BOOL exists;
     HRESULT hr;
     int i;
@@ -1117,25 +1215,26 @@ HRESULT opentype_get_font_strings_from_id(const void *table_data, DWRITE_INFORMA
     if (FAILED(hr)) return hr;
 
     header = table_data;
+    format = GET_BE_WORD(header->format);
 
-    switch (header->format) {
+    switch (format) {
     case 0:
+    case 1:
         break;
     default:
-        FIXME("unsupported NAME format %d\n", header->format);
+        FIXME("unsupported NAME format %d\n", format);
     }
+
 
     storage_area = (LPBYTE)table_data + GET_BE_WORD(header->stringOffset);
     count = GET_BE_WORD(header->count);
-
-    name_id = dwriteid_to_opentypeid[id];
 
     exists = FALSE;
     for (i = 0; i < count; i++) {
         const TT_NameRecord *record = &header->nameRecord[i];
         USHORT lang_id, length, offset, encoding, platform;
 
-        if (GET_BE_WORD(record->nameID) != name_id)
+        if (GET_BE_WORD(record->nameID) != id)
             continue;
 
         exists = TRUE;
@@ -1198,6 +1297,80 @@ HRESULT opentype_get_font_strings_from_id(const void *table_data, DWRITE_INFORMA
         IDWriteLocalizedStrings_Release(*strings);
         *strings = NULL;
     }
+
+    return exists ? S_OK : E_FAIL;
+}
+
+/* Provides a conversion from DWRITE to OpenType name ids, input id be valid, it's not checked. */
+HRESULT opentype_get_font_info_strings(const void *table_data, DWRITE_INFORMATIONAL_STRING_ID id, IDWriteLocalizedStrings **strings)
+{
+    return opentype_get_font_strings_from_id(table_data, dwriteid_to_opentypeid[id], strings);
+}
+
+/* FamilyName locating order is WWS Family Name -> Preferred Family Name -> Family Name. If font claims to
+   have 'Preferred Family Name' in WWS format, then WWS name is not used. */
+HRESULT opentype_get_font_familyname(IDWriteFontFileStream *stream, DWRITE_FONT_FACE_TYPE facetype, UINT32 index,
+    IDWriteLocalizedStrings **names)
+{
+    const TT_OS2_V2 *tt_os2;
+    void *os2_context, *name_context;
+    const void *name_table;
+    HRESULT hr;
+
+    opentype_get_font_table(stream, facetype, index, MS_OS2_TAG,  (const void**)&tt_os2, &os2_context, NULL, NULL);
+    opentype_get_font_table(stream, facetype, index, MS_NAME_TAG, &name_table, &name_context, NULL, NULL);
+
+    *names = NULL;
+
+    /* if Preferred Family doesn't conform to WWS model try WWS name */
+    if (tt_os2 && !(GET_BE_WORD(tt_os2->fsSelection) & OS2_FSSELECTION_WWS))
+        hr = opentype_get_font_strings_from_id(name_table, OPENTYPE_STRING_WWS_FAMILY_NAME, names);
+    else
+        hr = E_FAIL;
+
+    if (FAILED(hr))
+        hr = opentype_get_font_strings_from_id(name_table, OPENTYPE_STRING_PREFERRED_FAMILY_NAME, names);
+    if (FAILED(hr))
+        hr = opentype_get_font_strings_from_id(name_table, OPENTYPE_STRING_FAMILY_NAME, names);
+
+    if (tt_os2)
+        IDWriteFontFileStream_ReleaseFileFragment(stream, os2_context);
+    if (name_context)
+        IDWriteFontFileStream_ReleaseFileFragment(stream, name_context);
+
+    return hr;
+}
+
+/* FaceName locating order is WWS Face Name -> Preferred Face Name -> Face Name. If font claims to
+   have 'Preferred Face Name' in WWS format, then WWS name is not used. */
+HRESULT opentype_get_font_facename(IDWriteFontFileStream *stream, DWRITE_FONT_FACE_TYPE facetype, UINT32 index,
+    IDWriteLocalizedStrings **names)
+{
+    const TT_OS2_V2 *tt_os2;
+    void *os2_context, *name_context;
+    const void *name_table;
+    HRESULT hr;
+
+    opentype_get_font_table(stream, facetype, index, MS_OS2_TAG,  (const void**)&tt_os2, &os2_context, NULL, NULL);
+    opentype_get_font_table(stream, facetype, index, MS_NAME_TAG, &name_table, &name_context, NULL, NULL);
+
+    *names = NULL;
+
+    /* if Preferred Family doesn't conform to WWS model try WWS name */
+    if (tt_os2 && !(GET_BE_WORD(tt_os2->fsSelection) & OS2_FSSELECTION_WWS))
+        hr = opentype_get_font_strings_from_id(name_table, OPENTYPE_STRING_WWS_SUBFAMILY_NAME, names);
+    else
+        hr = E_FAIL;
+
+    if (FAILED(hr))
+        hr = opentype_get_font_strings_from_id(name_table, OPENTYPE_STRING_PREFERRED_SUBFAMILY_NAME, names);
+    if (FAILED(hr))
+        hr = opentype_get_font_strings_from_id(name_table, OPENTYPE_STRING_SUBFAMILY_NAME, names);
+
+    if (tt_os2)
+        IDWriteFontFileStream_ReleaseFileFragment(stream, os2_context);
+    if (name_context)
+        IDWriteFontFileStream_ReleaseFileFragment(stream, name_context);
 
     return hr;
 }
@@ -1284,4 +1457,131 @@ HRESULT opentype_get_typographic_features(IDWriteFontFace *fontface, UINT32 scri
     }
 
     return *count > max_tagcount ? E_NOT_SUFFICIENT_BUFFER : S_OK;
+}
+
+static const struct VDMX_group *find_vdmx_group(const struct VDMX_Header *hdr)
+{
+    WORD num_ratios, i, group_offset = 0;
+    struct VDMX_Ratio *ratios = (struct VDMX_Ratio*)(hdr + 1);
+    BYTE dev_x_ratio = 1, dev_y_ratio = 1;
+
+    num_ratios = GET_BE_WORD(hdr->numRatios);
+
+    for (i = 0; i < num_ratios; i++) {
+
+        if (!ratios[i].bCharSet) continue;
+
+        if ((ratios[i].xRatio == 0 && ratios[i].yStartRatio == 0 &&
+             ratios[i].yEndRatio == 0) ||
+	   (ratios[i].xRatio == dev_x_ratio && ratios[i].yStartRatio <= dev_y_ratio &&
+            ratios[i].yEndRatio >= dev_y_ratio))
+        {
+            group_offset = GET_BE_WORD(*((WORD *)(ratios + num_ratios) + i));
+            break;
+        }
+    }
+    if (group_offset)
+        return (const struct VDMX_group *)((BYTE *)hdr + group_offset);
+    return NULL;
+}
+
+BOOL opentype_get_vdmx_size(const void *data, INT emsize, UINT16 *ascent, UINT16 *descent)
+{
+    const struct VDMX_Header *hdr = (const struct VDMX_Header*)data;
+    const struct VDMX_group *group;
+    const struct VDMX_vTable *tables;
+    WORD recs, i;
+
+    if (!data)
+        return FALSE;
+
+    group = find_vdmx_group(hdr);
+    if (!group)
+        return FALSE;
+
+    recs = GET_BE_WORD(group->recs);
+    if (emsize < group->startsz || emsize >= group->endsz) return FALSE;
+
+    tables = (const struct VDMX_vTable *)(group + 1);
+    for (i = 0; i < recs; i++) {
+        WORD ppem = GET_BE_WORD(tables[i].yPelHeight);
+        if (ppem > emsize) {
+            FIXME("interpolate %d\n", emsize);
+            return FALSE;
+        }
+
+        if (ppem == emsize) {
+            *ascent = (SHORT)GET_BE_WORD(tables[i].yMax);
+            *descent = -(SHORT)GET_BE_WORD(tables[i].yMin);
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+WORD opentype_get_gasp_flags(const WORD *ptr, UINT32 size, INT emsize)
+{
+    WORD num_recs, version;
+    WORD flags = 0;
+
+    if (!ptr)
+        return 0;
+
+    version  = GET_BE_WORD( *ptr++ );
+    num_recs = GET_BE_WORD( *ptr++ );
+    if (version > 1 || size < (num_recs * 2 + 2) * sizeof(WORD)) {
+        ERR("unsupported gasp table: ver %d size %d recs %d\n", version, size, num_recs);
+        goto done;
+    }
+
+    while (num_recs--) {
+        flags = GET_BE_WORD( *(ptr + 1) );
+        if (emsize <= GET_BE_WORD( *ptr )) break;
+        ptr += 2;
+    }
+
+done:
+    return flags;
+}
+
+UINT32 opentype_get_cpal_palettecount(const void *cpal)
+{
+    const struct CPAL_Header_0 *header = (const struct CPAL_Header_0*)cpal;
+    return header ? GET_BE_WORD(header->numPalette) : 0;
+}
+
+UINT32 opentype_get_cpal_paletteentrycount(const void *cpal)
+{
+    const struct CPAL_Header_0 *header = (const struct CPAL_Header_0*)cpal;
+    return header ? GET_BE_WORD(header->numPaletteEntries) : 0;
+}
+
+HRESULT opentype_get_cpal_entries(const void *cpal, UINT32 palette, UINT32 first_entry_index, UINT32 entry_count,
+    DWRITE_COLOR_F *entries)
+{
+    const struct CPAL_Header_0 *header = (const struct CPAL_Header_0*)cpal;
+    const struct CPAL_ColorRecord *records;
+    UINT32 palettecount, entrycount, i;
+
+    if (!header) return DWRITE_E_NOCOLOR;
+
+    palettecount = GET_BE_WORD(header->numPalette);
+    if (palette >= palettecount)
+        return DWRITE_E_NOCOLOR;
+
+    entrycount = GET_BE_WORD(header->numPaletteEntries);
+    if (first_entry_index + entry_count > entrycount)
+        return E_INVALIDARG;
+
+    records = (const struct CPAL_ColorRecord*)((BYTE*)cpal + GET_BE_DWORD(header->offsetFirstColorRecord));
+    first_entry_index += GET_BE_WORD(header->colorRecordIndices[palette]);
+
+    for (i = 0; i < entry_count; i++) {
+        entries[i].r = records[first_entry_index + i].red   / 255.0f;
+        entries[i].g = records[first_entry_index + i].green / 255.0f;
+        entries[i].b = records[first_entry_index + i].blue  / 255.0f;
+        entries[i].a = records[first_entry_index + i].alpha / 255.0f;
+    }
+
+    return S_OK;
 }

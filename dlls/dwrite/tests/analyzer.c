@@ -22,6 +22,8 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <limits.h>
+#include <math.h>
 
 #include "initguid.h"
 #include "windows.h"
@@ -258,7 +260,6 @@ static HRESULT WINAPI analysissink_SetScriptAnalysis(IDWriteTextAnalysisSink *if
     UINT32 position, UINT32 length, DWRITE_SCRIPT_ANALYSIS const* sa)
 {
     struct call_entry entry;
-
     entry.kind = ScriptAnalysis;
     entry.sa.pos = position;
     entry.sa.len = length;
@@ -524,8 +525,8 @@ static struct sa_test sa_tests[] = {
     },
     {
       /* Arabic */
-      {0x064a,0x064f,0x0633,0x0627,0x0648,0x0650,0x064a,0}, 1,
-          { { 0, 7, DWRITE_SCRIPT_SHAPES_DEFAULT }}
+      {0x064a,0x064f,0x0633,0x0627,0x0648,0x0650,0x064a,0x0661,0}, 1,
+          { { 0, 8, DWRITE_SCRIPT_SHAPES_DEFAULT }}
     },
     {
       /* Arabic */
@@ -886,6 +887,13 @@ static struct sa_test sa_tests[] = {
             { 2, 3, DWRITE_SCRIPT_SHAPES_DEFAULT   },
             { 5, 1, DWRITE_SCRIPT_SHAPES_NO_VISUAL } }
     },
+    {
+      /* LRE/PDF and other visual and non-visual codes from Common script range */
+      {0x202a,0x202c,'r','!',0x200b,'\r',0}, 3,
+          { { 0, 2, DWRITE_SCRIPT_SHAPES_NO_VISUAL },
+            { 2, 2, DWRITE_SCRIPT_SHAPES_DEFAULT   },
+            { 4, 2, DWRITE_SCRIPT_SHAPES_NO_VISUAL } }
+    },
     /* keep this as end marker */
     { {0} }
 };
@@ -1189,6 +1197,35 @@ static void test_numbersubstitution(void)
     IDWriteNumberSubstitution_Release(substitution);
 }
 
+static void get_fontface_glyphs(IDWriteFontFace *fontface, const WCHAR *str, UINT16 *glyphs)
+{
+    while (*str) {
+        UINT32 codepoint = *str;
+        HRESULT hr;
+
+        hr = IDWriteFontFace_GetGlyphIndices(fontface, &codepoint, 1, glyphs++);
+        ok(hr == S_OK, "got 0x%08x\n", hr);
+        str++;
+    }
+}
+
+static void get_fontface_advances(IDWriteFontFace *fontface, FLOAT emsize, const UINT16 *glyphs, FLOAT *advances, UINT32 count)
+{
+    DWRITE_FONT_METRICS fontmetrics;
+    UINT32 i;
+
+    IDWriteFontFace_GetMetrics(fontface, &fontmetrics);
+    for (i = 0; i < count; i++) {
+        DWRITE_GLYPH_METRICS metrics;
+        HRESULT hr;
+
+        hr = IDWriteFontFace_GetDesignGlyphMetrics(fontface, glyphs + i, 1, &metrics, FALSE);
+        ok(hr == S_OK, "got 0x%08x\n", hr);
+
+        advances[i] = (FLOAT)metrics.advanceWidth * emsize / (FLOAT)fontmetrics.designUnitsPerEm;
+    }
+}
+
 static void test_GetGlyphs(void)
 {
     static const WCHAR test1W[] = {'<','B',' ','C',0};
@@ -1197,6 +1234,7 @@ static void test_GetGlyphs(void)
     DWRITE_SHAPING_GLYPH_PROPERTIES shapingprops[20];
     DWRITE_SHAPING_TEXT_PROPERTIES props[20];
     UINT32 maxglyphcount, actual_count;
+    FLOAT advances[10], advances2[10];
     IDWriteTextAnalyzer *analyzer;
     IDWriteFontFace *fontface;
     DWRITE_SCRIPT_ANALYSIS sa;
@@ -1204,7 +1242,6 @@ static void test_GetGlyphs(void)
     UINT16 clustermap[10];
     UINT16 glyphs1[10];
     UINT16 glyphs2[10];
-    FLOAT advances[10];
     HRESULT hr;
 
     hr = IDWriteFactory_CreateTextAnalyzer(factory, &analyzer);
@@ -1267,13 +1304,16 @@ if (0) {
     ok(glyphs1[0] != glyphs2[0], "got %d\n", glyphs1[0]);
 
     /* embedded control codes, with unknown script id 0 */
+    get_fontface_glyphs(fontface, test3W, glyphs2);
+    get_fontface_advances(fontface, 10.0, glyphs2, advances2, 2);
+
     actual_count = 0;
     hr = IDWriteTextAnalyzer_GetGlyphs(analyzer, test3W, lstrlenW(test3W), fontface, FALSE, TRUE, &sa, NULL,
         NULL, NULL, NULL, 0, maxglyphcount, clustermap, props, glyphs1, shapingprops, &actual_count);
     ok(hr == S_OK, "got 0x%08x\n", hr);
     ok(actual_count == 2, "got %d\n", actual_count);
-    ok(glyphs1[0] == 0, "got %d\n", glyphs1[0]);
-    ok(glyphs1[1] == 0, "got %d\n", glyphs1[1]);
+    ok(glyphs1[0] == glyphs2[0], "got %u, expected %u\n", glyphs1[0], glyphs2[0]);
+    ok(glyphs1[1] == glyphs2[1], "got %u, expected %u\n", glyphs1[1], glyphs2[1]);
     ok(shapingprops[0].isClusterStart == 1, "got %d\n", shapingprops[0].isClusterStart);
     ok(shapingprops[0].isZeroWidthSpace == 0, "got %d\n", shapingprops[0].isZeroWidthSpace);
     ok(shapingprops[1].isClusterStart == 1, "got %d\n", shapingprops[1].isClusterStart);
@@ -1286,8 +1326,8 @@ if (0) {
         glyphs1, shapingprops, actual_count, fontface, 10.0, FALSE, FALSE, &sa, NULL, NULL,
         NULL, 0, advances, offsets);
     ok(hr == S_OK, "got 0x%08x\n", hr);
-    ok(advances[0] == 10.0, "got %.2f\n", advances[0]);
-    ok(advances[1] == 10.0, "got %.2f\n", advances[1]);
+    ok(advances[0] == advances2[0], "got %.2f, expected %.2f\n", advances[0], advances2[0]);
+    ok(advances[1] == advances2[1], "got %.2f, expected %.2f\n", advances[1], advances2[1]);
 
     /* embedded control codes with proper script */
     sa.script = 0;
@@ -1298,8 +1338,8 @@ if (0) {
         NULL, NULL, NULL, 0, maxglyphcount, clustermap, props, glyphs1, shapingprops, &actual_count);
     ok(hr == S_OK, "got 0x%08x\n", hr);
     ok(actual_count == 2, "got %d\n", actual_count);
-    ok(glyphs1[0] == 0, "got %d\n", glyphs1[0]);
-    ok(glyphs1[1] == 0, "got %d\n", glyphs1[1]);
+    ok(glyphs1[0] == glyphs2[0], "got %u, expected %u\n", glyphs1[0], glyphs2[0]);
+    ok(glyphs1[1] == glyphs2[1], "got %u, expected %u\n", glyphs1[1], glyphs2[1]);
     ok(shapingprops[0].isClusterStart == 1, "got %d\n", shapingprops[0].isClusterStart);
     ok(shapingprops[0].isZeroWidthSpace == 0, "got %d\n", shapingprops[0].isZeroWidthSpace);
     ok(shapingprops[1].isClusterStart == 1, "got %d\n", shapingprops[1].isClusterStart);
@@ -1312,8 +1352,8 @@ if (0) {
         glyphs1, shapingprops, actual_count, fontface, 10.0, FALSE, FALSE, &sa, NULL, NULL,
         NULL, 0, advances, offsets);
     ok(hr == S_OK, "got 0x%08x\n", hr);
-    ok(advances[0] == 10.0, "got %.2f\n", advances[0]);
-    ok(advances[1] == 10.0, "got %.2f\n", advances[1]);
+    ok(advances[0] == advances2[0], "got %.2f, expected %.2f\n", advances[0], advances2[0]);
+    ok(advances[1] == advances2[1], "got %.2f, expected %.2f\n", advances[1], advances2[1]);
 
     IDWriteTextAnalyzer_Release(analyzer);
     IDWriteFontFace_Release(fontface);
@@ -1813,6 +1853,152 @@ static void test_GetGlyphOrientationTransform(void)
     IDWriteTextAnalyzer2_Release(analyzer2);
 }
 
+static void test_GetBaseline(void)
+{
+    DWRITE_SCRIPT_ANALYSIS sa = { 0 };
+    IDWriteTextAnalyzer1 *analyzer1;
+    IDWriteTextAnalyzer *analyzer;
+    IDWriteFontFace *fontface;
+    INT32 baseline;
+    BOOL exists;
+    HRESULT hr;
+
+    hr = IDWriteFactory_CreateTextAnalyzer(factory, &analyzer);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+
+    hr = IDWriteTextAnalyzer_QueryInterface(analyzer, &IID_IDWriteTextAnalyzer1, (void**)&analyzer1);
+    IDWriteTextAnalyzer_Release(analyzer);
+    if (hr != S_OK) {
+        win_skip("GetBaseline() is not supported.\n");
+        return;
+    }
+
+    fontface = create_fontface();
+
+    /* Tahoma doesn't have BASE table, it doesn't work even with simulation enabled */
+    exists = TRUE;
+    baseline = 456;
+    hr = IDWriteTextAnalyzer1_GetBaseline(analyzer1,
+       fontface,
+       DWRITE_BASELINE_DEFAULT,
+       FALSE,
+       TRUE,
+       sa,
+       NULL,
+       &baseline,
+       &exists);
+todo_wine {
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    ok(baseline == 0, "got %d\n", baseline);
+    ok(exists == FALSE, "got %d\n", exists);
+}
+    exists = TRUE;
+    baseline = 456;
+    hr = IDWriteTextAnalyzer1_GetBaseline(analyzer1,
+       fontface,
+       DWRITE_BASELINE_ROMAN,
+       FALSE,
+       TRUE,
+       sa,
+       NULL,
+       &baseline,
+       &exists);
+todo_wine {
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    ok(baseline == 0, "got %d\n", baseline);
+    ok(exists == FALSE, "got %d\n", exists);
+}
+    IDWriteFontFace_Release(fontface);
+    IDWriteTextAnalyzer1_Release(analyzer1);
+}
+
+static inline BOOL float_eq(FLOAT left, FLOAT right)
+{
+    int x = *(int *)&left;
+    int y = *(int *)&right;
+
+    if (x < 0)
+        x = INT_MIN - x;
+    if (y < 0)
+        y = INT_MIN - y;
+
+    return abs(x - y) <= 8;
+}
+
+static void test_GetGdiCompatibleGlyphPlacements(void)
+{
+    static const WCHAR strW[] = {'A',0};
+    DWRITE_SHAPING_GLYPH_PROPERTIES glyphprops[1];
+    DWRITE_SHAPING_TEXT_PROPERTIES textprops[1];
+    DWRITE_SCRIPT_ANALYSIS sa = { 0 };
+    IDWriteTextAnalyzer *analyzer;
+    IDWriteFontFace *fontface;
+    UINT16 clustermap[1];
+    HRESULT hr;
+    UINT32 count;
+    UINT16 glyphs[1];
+    FLOAT advance;
+    DWRITE_GLYPH_OFFSET offsets[1];
+    DWRITE_FONT_METRICS fontmetrics;
+    FLOAT emsize;
+
+    hr = IDWriteFactory_CreateTextAnalyzer(factory, &analyzer);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+
+    fontface = create_fontface();
+
+    IDWriteFontFace_GetMetrics(fontface, &fontmetrics);
+
+    count = 0;
+    hr = IDWriteTextAnalyzer_GetGlyphs(analyzer, strW, 1, fontface,
+        FALSE, FALSE, &sa, NULL, NULL, NULL, NULL, 0, 1, clustermap,
+        textprops, glyphs, glyphprops, &count);
+    ok(hr == S_OK, "got 0x%08x\n", hr);
+    ok(count == 1, "got %u\n", count);
+
+    for (emsize = 12.0; emsize <= 20.0; emsize += 1.0) {
+        FLOAT compatadvance, expected, ppdip;
+        DWRITE_GLYPH_METRICS metrics;
+
+        hr = IDWriteTextAnalyzer_GetGlyphPlacements(analyzer, strW, clustermap,
+            textprops, 1, glyphs, glyphprops, count, fontface, emsize, FALSE, FALSE,
+            &sa, NULL, NULL, NULL, 0, &advance, offsets);
+        ok(hr == S_OK, "got 0x%08x\n", hr);
+        ok(advance > 0.0, "got %f\n", advance);
+
+        /* 1 ppdip, no transform */
+        ppdip = 1.0;
+        hr = IDWriteFontFace_GetGdiCompatibleGlyphMetrics(fontface, emsize, ppdip, NULL, FALSE,
+            glyphs, 1, &metrics, FALSE);
+        ok(hr == S_OK, "got 0x%08x\n", hr);
+
+        expected = floorf(metrics.advanceWidth * emsize * ppdip / fontmetrics.designUnitsPerEm + 0.5f) / ppdip;
+        hr = IDWriteTextAnalyzer_GetGdiCompatibleGlyphPlacements(analyzer, strW,
+            clustermap, textprops, 1, glyphs, glyphprops, count, fontface, emsize,
+            ppdip, NULL, FALSE, FALSE, FALSE, &sa, NULL, NULL, NULL, 0, &compatadvance, offsets);
+        ok(hr == S_OK, "got 0x%08x\n", hr);
+        ok(compatadvance == expected, "%.0f: got advance %f, expected %f, natural %f\n", emsize,
+            compatadvance, expected, advance);
+
+        /* 1.2 ppdip, no transform */
+        ppdip = 1.2;
+        hr = IDWriteFontFace_GetGdiCompatibleGlyphMetrics(fontface, emsize, ppdip, NULL, FALSE,
+            glyphs, 1, &metrics, FALSE);
+        ok(hr == S_OK, "got 0x%08x\n", hr);
+
+        expected = floorf(metrics.advanceWidth * emsize * ppdip / fontmetrics.designUnitsPerEm + 0.5f) / ppdip;
+        hr = IDWriteTextAnalyzer_GetGdiCompatibleGlyphPlacements(analyzer, strW,
+            clustermap, textprops, 1, glyphs, glyphprops, count, fontface, emsize,
+            ppdip, NULL, FALSE, FALSE, FALSE, &sa, NULL, NULL, NULL, 0, &compatadvance, offsets);
+        ok(hr == S_OK, "got 0x%08x\n", hr);
+        ok(float_eq(compatadvance, expected), "%.0f: got advance %f, expected %f, natural %f\n", emsize,
+            compatadvance, expected, advance);
+    }
+
+    IDWriteFontFace_Release(fontface);
+    IDWriteTextAnalyzer_Release(analyzer);
+}
+
 START_TEST(analyzer)
 {
     HRESULT hr;
@@ -1838,6 +2024,8 @@ START_TEST(analyzer)
     test_GetGlyphPlacements();
     test_ApplyCharacterSpacing();
     test_GetGlyphOrientationTransform();
+    test_GetBaseline();
+    test_GetGdiCompatibleGlyphPlacements();
 
     IDWriteFactory_Release(factory);
 }

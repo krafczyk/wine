@@ -50,6 +50,24 @@ my @dll_groups =
   "msvcr120_app",
  ],
  [
+  "ucrtbase",
+  "api-ms-win-crt-conio-l1-1-0",
+  "api-ms-win-crt-convert-l1-1-0",
+  "api-ms-win-crt-environment-l1-1-0",
+  "api-ms-win-crt-filesystem-l1-1-0",
+  "api-ms-win-crt-heap-l1-1-0",
+  "api-ms-win-crt-locale-l1-1-0",
+  "api-ms-win-crt-math-l1-1-0",
+  "api-ms-win-crt-multibyte-l1-1-0",
+  "api-ms-win-crt-private-l1-1-0",
+  "api-ms-win-crt-process-l1-1-0",
+  "api-ms-win-crt-runtime-l1-1-0",
+  "api-ms-win-crt-stdio-l1-1-0",
+  "api-ms-win-crt-string-l1-1-0",
+  "api-ms-win-crt-time-l1-1-0",
+  "api-ms-win-crt-utility-l1-1-0",
+ ],
+ [
   "msvcp120",
   "msvcp120_app",
  ],
@@ -94,6 +112,8 @@ my @dll_groups =
  ],
  [
   "d3dcompiler_43",
+  "d3dcompiler_47",
+  "d3dcompiler_46",
   "d3dcompiler_42",
   "d3dcompiler_41",
   "d3dcompiler_40",
@@ -118,6 +138,7 @@ my @dll_groups =
  ],
  [
   "vcomp",
+  "vcomp110",
   "vcomp100",
   "vcomp90",
  ],
@@ -139,7 +160,6 @@ my @dll_groups =
   "kernel32",
   "api-ms-win-downlevel-normaliz-l1-1-0",
   "api-ms-win-core-processthreads-l1-1-0",
-  "api-ms-win-core-processthreads-l1-1-1",
   "api-ms-win-core-debug-l1-1-0",
   "api-ms-win-core-debug-l1-1-1",
   "api-ms-win-core-errorhandling-l1-1-0",
@@ -195,6 +215,7 @@ my @dll_groups =
   "advapi32",
   "api-ms-win-core-namedpipe-l1-1-0",
   "api-ms-win-core-namedpipe-l1-2-0",
+  "api-ms-win-core-processthreads-l1-1-1",
  ],
  [
   "ole32",
@@ -356,7 +377,7 @@ sub update_spec_file($)
         if ($parent{callconv} ne "stub" || $parent{args})
         {
             my $callconv = $parent{callconv} ne "stub" ? $parent{callconv} :
-                           $parent{spec} =~ /msvc/ ? "cdecl" : "stdcall";  # hack
+                           $parent{spec} =~ /(msvc|ucrtbase)/ ? "cdecl" : "stdcall";  # hack
             $_ = sprintf "$descr{ordinal} %s %s%s", $callconv, $flags, $func;
 
             if ($parent{target} =~ /$group_head\./)  # use the same forward as parent if possible

@@ -3149,7 +3149,7 @@ HANDLE WINAPI AddPrinterW(LPWSTR pName, DWORD Level, LPBYTE pPrinter)
 
     TRACE("(%s,%d,%p)\n", debugstr_w(pName), Level, pPrinter);
 
-    if(pName != NULL) {
+    if(pName && *pName) {
         ERR("pName = %s - unsupported\n", debugstr_w(pName));
 	SetLastError(ERROR_INVALID_PARAMETER);
 	return 0;
@@ -8431,6 +8431,11 @@ BOOL WINAPI ScheduleJob( HANDLE hPrinter, DWORD dwJobID )
             else if(!strncmpW(portname, FILE_Port, strlenW(FILE_Port)))
             {
                 ret = schedule_file(job->filename);
+            }
+            else if(isalpha(portname[0]) && portname[1] == ':')
+            {
+                TRACE("copying to %s\n", debugstr_w(portname));
+                ret = CopyFileW(job->filename, portname, FALSE);
             }
             else
             {

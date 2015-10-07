@@ -177,6 +177,7 @@ static inline void init_thread_structure( struct thread *thread )
     thread->context         = NULL;
     thread->suspend_context = NULL;
     thread->teb             = 0;
+    thread->entry_point     = 0;
     thread->debug_ctx       = NULL;
     thread->debug_event     = NULL;
     thread->debug_break     = 0;
@@ -344,11 +345,15 @@ static int thread_signaled( struct object *obj, struct wait_queue_entry *entry )
 
 static unsigned int thread_map_access( struct object *obj, unsigned int access )
 {
-    if (access & GENERIC_READ)    access |= STANDARD_RIGHTS_READ | THREAD_QUERY_INFORMATION | THREAD_GET_CONTEXT | THREAD_QUERY_LIMITED_INFORMATION;
+    if (access & GENERIC_READ)    access |= STANDARD_RIGHTS_READ | THREAD_QUERY_INFORMATION | THREAD_GET_CONTEXT;
     if (access & GENERIC_WRITE)   access |= STANDARD_RIGHTS_WRITE | THREAD_SET_INFORMATION | THREAD_SET_CONTEXT |
-                                            THREAD_TERMINATE | THREAD_SUSPEND_RESUME | THREAD_SET_LIMITED_INFORMATION;
+                                            THREAD_TERMINATE | THREAD_SUSPEND_RESUME;
     if (access & GENERIC_EXECUTE) access |= STANDARD_RIGHTS_EXECUTE | SYNCHRONIZE | THREAD_QUERY_LIMITED_INFORMATION;
     if (access & GENERIC_ALL)     access |= THREAD_ALL_ACCESS;
+
+    if (access & THREAD_QUERY_INFORMATION) access |= THREAD_QUERY_LIMITED_INFORMATION;
+    if (access & THREAD_SET_INFORMATION) access |= THREAD_SET_LIMITED_INFORMATION;
+
     return access & ~(GENERIC_READ | GENERIC_WRITE | GENERIC_EXECUTE | GENERIC_ALL);
 }
 
@@ -527,6 +532,8 @@ static void set_thread_info( struct thread *thread,
     }
     if (req->mask & SET_THREAD_INFO_TOKEN)
         security_set_thread_token( thread, req->token );
+    if (req->mask & SET_THREAD_INFO_ENTRYPOINT)
+        thread->entry_point = req->entry_point;
 }
 
 /* stop a thread (at the Unix level) */
@@ -631,6 +638,7 @@ static int wait_on( const select_op_t *select_op, unsigned int count, struct obj
     wait->count   = count;
     wait->flags   = flags;
     wait->select  = select_op->op;
+    wait->cookie  = 0;
     wait->user    = NULL;
     wait->timeout = timeout;
     wait->abandoned = 0;
@@ -749,7 +757,7 @@ int wake_thread( struct thread *thread )
         cookie = thread->wait->cookie;
         if (debug_level) fprintf( stderr, "%04x: *wakeup* signaled=%d\n", thread->id, signaled );
         end_wait( thread );
-        if (send_thread_wakeup( thread, cookie, signaled ) == -1) /* error */
+        if (cookie && send_thread_wakeup( thread, cookie, signaled ) == -1) /* error */
         {
             if (!count) count = -1;
             break;
@@ -779,7 +787,7 @@ int wake_thread_queue_entry( struct wait_queue_entry *entry )
     if (debug_level) fprintf( stderr, "%04x: *wakeup* signaled=%d\n", thread->id, signaled );
     end_wait( thread );
 
-    if (send_thread_wakeup( thread, cookie, signaled ) != -1)
+    if (!cookie || send_thread_wakeup( thread, cookie, signaled ) != -1)
         wake_thread( thread );  /* check other waits too */
 
     return 1;
@@ -798,6 +806,8 @@ static void thread_timeout( void *ptr )
 
     if (debug_level) fprintf( stderr, "%04x: *wakeup* signaled=TIMEOUT\n", thread->id );
     end_wait( thread );
+
+    assert( cookie );
     if (send_thread_wakeup( thread, cookie, STATUS_TIMEOUT ) == -1) return;
     /* check if other objects have become signaled in the meantime */
     wake_thread( thread );
@@ -1311,6 +1321,7 @@ DECL_HANDLER(init_thread)
     current->unix_pid = req->unix_pid;
     current->unix_tid = req->unix_tid;
     current->teb      = req->teb;
+    current->entry_point = process->peb ? req->entry : 0;
 
     if (!process->peb)  /* first thread, initialize the process too */
     {
@@ -1395,19 +1406,32 @@ DECL_HANDLER(get_thread_info)
     obj_handle_t handle = req->handle;
 
     if (!handle) thread = get_thread_from_id( req->tid_in );
-    else thread = get_thread_from_handle( req->handle, THREAD_QUERY_INFORMATION );
+    else thread = get_thread_from_handle( req->handle, THREAD_QUERY_LIMITED_INFORMATION );
 
     if (thread)
     {
         reply->pid            = get_process_id( thread->process );
         reply->tid            = get_thread_id( thread );
         reply->teb            = thread->teb;
+        reply->entry_point    = thread->entry_point;
         reply->exit_code      = (thread->state == TERMINATED) ? thread->exit_code : STATUS_PENDING;
         reply->priority       = thread->priority;
         reply->affinity       = thread->affinity;
+        reply->last           = thread->process->running_threads == 1;
+
+        release_object( thread );
+    }
+}
+
+/* fetch information about thread times */
+DECL_HANDLER(get_thread_times)
+{
+    struct thread *thread;
+
+    if ((thread = get_thread_from_handle( req->handle, THREAD_QUERY_INFORMATION )))
+    {
         reply->creation_time  = thread->creation_time;
         reply->exit_time      = thread->exit_time;
-        reply->last           = thread->process->running_threads == 1;
 
         release_object( thread );
     }
@@ -1463,6 +1487,12 @@ DECL_HANDLER(select)
         set_error( STATUS_INVALID_PARAMETER );
         return;
     }
+    if (!req->cookie)
+    {
+        set_error( STATUS_INVALID_PARAMETER );
+        return;
+    }
+
     op_size = min( get_req_data_size() - sizeof(*result), sizeof(select_op) );
     memset( &select_op, 0, sizeof(select_op) );
     memcpy( &select_op, result + 1, op_size );

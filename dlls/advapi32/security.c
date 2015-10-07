@@ -133,6 +133,7 @@ static const WELLKNOWNSID WellKnownSids[] =
     { {'M','E'}, WinMediumLabelSid, { SID_REVISION, 1, { SECURITY_MANDATORY_LABEL_AUTHORITY}, { SECURITY_MANDATORY_MEDIUM_RID } } },
     { {'H','I'}, WinHighLabelSid, { SID_REVISION, 1, { SECURITY_MANDATORY_LABEL_AUTHORITY}, { SECURITY_MANDATORY_HIGH_RID } } },
     { {'S','I'}, WinSystemLabelSid, { SID_REVISION, 1, { SECURITY_MANDATORY_LABEL_AUTHORITY}, { SECURITY_MANDATORY_SYSTEM_RID } } },
+    { {0,0}, WinBuiltinAnyPackageSid, { SID_REVISION, 2, { SECURITY_APP_PACKAGE_AUTHORITY }, { SECURITY_APP_PACKAGE_BASE_RID, SECURITY_BUILTIN_PACKAGE_ANY_PACKAGE } } },
 };
 
 /* these SIDs must be constructed as relative to some domain - only the RID is well-known */
@@ -147,16 +148,16 @@ static const WELLKNOWNRID WellKnownRids[] = {
     { {'L','A'}, WinAccountAdministratorSid,    DOMAIN_USER_RID_ADMIN },
     { {'L','G'}, WinAccountGuestSid,            DOMAIN_USER_RID_GUEST },
     { {0,0}, WinAccountKrbtgtSid,           DOMAIN_USER_RID_KRBTGT },
-    { {0,0}, WinAccountDomainAdminsSid,     DOMAIN_GROUP_RID_ADMINS },
-    { {0,0}, WinAccountDomainUsersSid,      DOMAIN_GROUP_RID_USERS },
-    { {0,0}, WinAccountDomainGuestsSid,     DOMAIN_GROUP_RID_GUESTS },
-    { {0,0}, WinAccountComputersSid,        DOMAIN_GROUP_RID_COMPUTERS },
-    { {0,0}, WinAccountControllersSid,      DOMAIN_GROUP_RID_CONTROLLERS },
-    { {0,0}, WinAccountCertAdminsSid,       DOMAIN_GROUP_RID_CERT_ADMINS },
-    { {0,0}, WinAccountSchemaAdminsSid,     DOMAIN_GROUP_RID_SCHEMA_ADMINS },
-    { {0,0}, WinAccountEnterpriseAdminsSid, DOMAIN_GROUP_RID_ENTERPRISE_ADMINS },
-    { {0,0}, WinAccountPolicyAdminsSid,     DOMAIN_GROUP_RID_POLICY_ADMINS },
-    { {0,0}, WinAccountRasAndIasServersSid, DOMAIN_ALIAS_RID_RAS_SERVERS },
+    { {'D','A'}, WinAccountDomainAdminsSid,     DOMAIN_GROUP_RID_ADMINS },
+    { {'D','U'}, WinAccountDomainUsersSid,      DOMAIN_GROUP_RID_USERS },
+    { {'D','G'}, WinAccountDomainGuestsSid,     DOMAIN_GROUP_RID_GUESTS },
+    { {'D','C'}, WinAccountComputersSid,        DOMAIN_GROUP_RID_COMPUTERS },
+    { {'D','D'}, WinAccountControllersSid,      DOMAIN_GROUP_RID_CONTROLLERS },
+    { {'C','A'}, WinAccountCertAdminsSid,       DOMAIN_GROUP_RID_CERT_ADMINS },
+    { {'S','A'}, WinAccountSchemaAdminsSid,     DOMAIN_GROUP_RID_SCHEMA_ADMINS },
+    { {'E','A'}, WinAccountEnterpriseAdminsSid, DOMAIN_GROUP_RID_ENTERPRISE_ADMINS },
+    { {'P','A'}, WinAccountPolicyAdminsSid,     DOMAIN_GROUP_RID_POLICY_ADMINS },
+    { {'R','S'}, WinAccountRasAndIasServersSid, DOMAIN_ALIAS_RID_RAS_SERVERS },
 };
 
 
@@ -173,7 +174,9 @@ typedef struct _AccountSid {
 static const WCHAR Account_Operators[] = { 'A','c','c','o','u','n','t',' ','O','p','e','r','a','t','o','r','s',0 };
 static const WCHAR Administrator[] = {'A','d','m','i','n','i','s','t','r','a','t','o','r',0 };
 static const WCHAR Administrators[] = { 'A','d','m','i','n','i','s','t','r','a','t','o','r','s',0 };
+static const WCHAR ALL_APPLICATION_PACKAGES[] = { 'A','L','L',' ','A','P','P','L','I','C','A','T','I','O','N',' ','P','A','C','K','A','G','E','S',0 };
 static const WCHAR ANONYMOUS_LOGON[] = { 'A','N','O','N','Y','M','O','U','S',' ','L','O','G','O','N',0 };
+static const WCHAR APPLICATION_PACKAGE_AUTHORITY[] = { 'A','P','P','L','I','C','A','T','I','O','N',' ','P','A','C','K','A','G','E',' ','A','U','T','H','O','R','I','T','Y',0 };
 static const WCHAR Authenticated_Users[] = { 'A','u','t','h','e','n','t','i','c','a','t','e','d',' ','U','s','e','r','s',0 };
 static const WCHAR Backup_Operators[] = { 'B','a','c','k','u','p',' ','O','p','e','r','a','t','o','r','s',0 };
 static const WCHAR BATCH[] = { 'B','A','T','C','H',0 };
@@ -277,6 +280,7 @@ static const AccountSid ACCOUNT_SIDS[] = {
     { WinOtherOrganizationSid, Other_Organization, NT_AUTHORITY, SidTypeWellKnownGroup },
     { WinBuiltinPerfMonitoringUsersSid, Performance_Monitor_Users, BUILTIN, SidTypeAlias },
     { WinBuiltinPerfLoggingUsersSid, Performance_Log_Users, BUILTIN, SidTypeAlias },
+    { WinBuiltinAnyPackageSid, ALL_APPLICATION_PACKAGES, APPLICATION_PACKAGE_AUTHORITY, SidTypeWellKnownGroup },
 };
 /*
  * ACE access rights
@@ -431,8 +435,10 @@ static inline DWORD get_security_service( LPWSTR full_service_name, DWORD access
 
     err = SERV_OpenSCManagerW( NULL, NULL, access, (SC_HANDLE *)&manager );
     if (err == ERROR_SUCCESS)
+    {
         err = SERV_OpenServiceW( manager, full_service_name, access, (SC_HANDLE *)service );
-    CloseServiceHandle( manager );
+        CloseServiceHandle( manager );
+    }
     return err;
 }
 
@@ -1538,6 +1544,52 @@ BOOL WINAPI SetSecurityDescriptorControl( PSECURITY_DESCRIPTOR pSecurityDescript
         pSecurityDescriptor, ControlBitsOfInterest, ControlBitsToSet ) );
 }
 
+/******************************************************************************
+ * GetWindowsAccountDomainSid         [ADVAPI32.@]
+ */
+BOOL WINAPI GetWindowsAccountDomainSid( PSID sid, PSID domain_sid, DWORD *size )
+{
+    SID_IDENTIFIER_AUTHORITY domain_ident = { SECURITY_NT_AUTHORITY };
+    DWORD required_size;
+    int i;
+
+    FIXME( "(%p %p %p): semi-stub\n", sid, domain_sid, size );
+
+    if (!sid || !IsValidSid( sid ))
+    {
+        SetLastError( ERROR_INVALID_SID );
+        return FALSE;
+    }
+
+    if (!size)
+    {
+        SetLastError( ERROR_INVALID_PARAMETER );
+        return FALSE;
+    }
+
+    if (*GetSidSubAuthorityCount( sid ) < 4)
+    {
+        SetLastError( ERROR_INVALID_SID );
+        return FALSE;
+    }
+
+    required_size = GetSidLengthRequired( 4 );
+    if (*size < required_size || !domain_sid)
+    {
+        *size = required_size;
+        SetLastError( domain_sid ? ERROR_INSUFFICIENT_BUFFER :
+                                   ERROR_INVALID_PARAMETER );
+        return FALSE;
+    }
+
+    InitializeSid( domain_sid, &domain_ident, 4 );
+    for (i = 0; i < 4; i++)
+        *GetSidSubAuthority( domain_sid, i ) = *GetSidSubAuthority( sid, i );
+
+    *size = required_size;
+    return TRUE;
+}
+
 /*	##############################
 	######	ACL FUNCTIONS	######
 	##############################
@@ -2160,7 +2212,7 @@ LookupAccountSidW(
     }
 
     /* check the well known SIDs first */
-    for (i = 0; i <= 60; i++) {
+    for (i = 0; i <= WinAccountProtectedUsersSid; i++) {
         if (IsWellKnownSid(sid, i)) {
             for (j = 0; j < (sizeof(ACCOUNT_SIDS) / sizeof(ACCOUNT_SIDS[0])); j++) {
                 if (ACCOUNT_SIDS[j].type == i) {
@@ -4464,12 +4516,14 @@ static BOOL ParseStringSecurityDescriptorToSecurityDescriptor(
 {
     BOOL bret = FALSE;
     WCHAR toktype;
-    WCHAR tok[MAX_PATH];
+    WCHAR *tok;
     LPCWSTR lptoken;
     LPBYTE lpNext = NULL;
     DWORD len;
 
     *cBytes = sizeof(SECURITY_DESCRIPTOR);
+
+    tok = heap_alloc( (lstrlenW(StringSecurityDescriptor) + 1) * sizeof(WCHAR));
 
     if (SecurityDescriptor)
         lpNext = (LPBYTE)(SecurityDescriptor + 1);
@@ -4592,6 +4646,7 @@ static BOOL ParseStringSecurityDescriptorToSecurityDescriptor(
     bret = TRUE;
 
 lend:
+    heap_free(tok);
     return bret;
 }
 

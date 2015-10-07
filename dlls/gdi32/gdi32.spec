@@ -279,7 +279,9 @@
 @ stdcall GetEnhMetaFileW(wstr)
 # @ stub GetFontAssocStatus
 @ stdcall GetFontData(long long long ptr long)
+@ stdcall GetFontFileInfo(long long ptr long ptr)
 @ stdcall GetFontLanguageInfo(long)
+@ stdcall GetFontRealizationInfo(long ptr)
 @ stub GetFontResourceInfo
 @ stdcall GetFontResourceInfoW(wstr ptr ptr long)
 @ stdcall GetFontUnicodeRanges(ptr ptr)

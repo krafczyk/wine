@@ -140,6 +140,7 @@ static void job_dump( struct object *obj, int verbose );
 static struct object_type *job_get_type( struct object *obj );
 static int job_signaled( struct object *obj, struct wait_queue_entry *entry );
 static unsigned int job_map_access( struct object *obj, unsigned int access );
+static int job_close_handle( struct object *obj, struct process *process, obj_handle_t handle );
 static void job_destroy( struct object *obj );
 
 struct job
@@ -170,7 +171,7 @@ static const struct object_ops job_ops =
     default_set_sd,                /* set_sd */
     no_lookup_name,                /* lookup_name */
     no_open_file,                  /* open_file */
-    no_close_handle,               /* close_handle */
+    job_close_handle,              /* close_handle */
     job_destroy                    /* destroy */
 };
 
@@ -285,6 +286,19 @@ static void terminate_job( struct job *job, int exit_code )
     job->terminating = 0;
     job->signaled = 1;
     wake_up( &job->obj, 0 );
+}
+
+static int job_close_handle( struct object *obj, struct process *process, obj_handle_t handle )
+{
+    struct job *job = (struct job *)obj;
+    assert( obj->ops == &job_ops );
+
+    if (obj->handle_count == 1)  /* last handle */
+    {
+        if (job->limit_flags & JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE)
+            terminate_job( job, 0 );
+    }
+    return 1;
 }
 
 static void job_destroy( struct object *obj )
@@ -637,6 +651,10 @@ static unsigned int process_map_access( struct object *obj, unsigned int access 
                                             PROCESS_VM_WRITE | PROCESS_DUP_HANDLE | PROCESS_CREATE_PROCESS | PROCESS_CREATE_THREAD | PROCESS_VM_OPERATION;
     if (access & GENERIC_EXECUTE) access |= STANDARD_RIGHTS_EXECUTE | SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE;
     if (access & GENERIC_ALL)     access |= PROCESS_ALL_ACCESS;
+
+    if (access & PROCESS_QUERY_INFORMATION) access |= PROCESS_QUERY_LIMITED_INFORMATION;
+    if (access & PROCESS_SET_INFORMATION) access |= PROCESS_SET_LIMITED_INFORMATION;
+
     return access & ~(GENERIC_READ | GENERIC_WRITE | GENERIC_EXECUTE | GENERIC_ALL);
 }
 
@@ -1163,8 +1181,6 @@ DECL_HANDLER(new_process)
 
     if (!(thread = create_process( socket_fd, current, req->inherit_all ))) goto done;
     process = thread->process;
-    process->debug_children = (req->create_flags & DEBUG_PROCESS)
-        && !(req->create_flags & DEBUG_ONLY_THIS_PROCESS);
     process->startup_info = (struct startup_info *)grab_object( info );
 
     if (parent->job
@@ -1205,9 +1221,15 @@ DECL_HANDLER(new_process)
 
     /* attach to the debugger if requested */
     if (req->create_flags & (DEBUG_PROCESS | DEBUG_ONLY_THIS_PROCESS))
+    {
         set_process_debugger( process, current );
+        process->debug_children = !(req->create_flags & DEBUG_ONLY_THIS_PROCESS);
+    }
     else if (parent->debugger && parent->debug_children)
+    {
         set_process_debugger( process, parent->debugger );
+        process->debug_children = 1;
+    }
 
     if (!(req->create_flags & CREATE_NEW_PROCESS_GROUP))
         process->group_id = parent->group_id;
@@ -1281,6 +1303,7 @@ DECL_HANDLER(init_process_done)
 
     process->ldt_copy = req->ldt_copy;
     process->start_time = current_time;
+    current->entry_point = req->entry;
 
     generate_startup_debug_events( process, req->entry );
     set_process_startup_state( process, STARTUP_DONE );
@@ -1324,7 +1347,7 @@ DECL_HANDLER(get_process_info)
 {
     struct process *process;
 
-    if ((process = get_process_from_handle( req->handle, PROCESS_QUERY_INFORMATION )))
+    if ((process = get_process_from_handle( req->handle, PROCESS_QUERY_LIMITED_INFORMATION )))
     {
         reply->pid              = get_process_id( process );
         reply->ppid             = process->parent ? get_process_id( process->parent ) : 0;

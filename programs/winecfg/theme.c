@@ -1094,7 +1094,7 @@ static void on_draw_item(HWND hDlg, WPARAM wParam, LPARAM lParam)
         HTHEME theme;
         RECT buttonrect;
 
-        theme = OpenThemeData(draw_info->hwndItem, WC_BUTTONW);
+        theme = OpenThemeData(NULL, WC_BUTTONW);
 
         if (theme) {
             MARGINS margins;
@@ -1166,7 +1166,8 @@ static void on_select_font(HWND hDlg)
     cf.lpLogFont = &(metrics[index].lf);
     cf.Flags = CF_SCREENFONTS | CF_INITTOLOGFONTSTRUCT | CF_NOSCRIPTSEL | CF_NOVERTFONTS;
 
-    ChooseFontW(&cf);
+    if (ChooseFontW(&cf))
+        SendMessageW(GetParent(hDlg), PSM_CHANGED, 0, 0);
 }
 
 INT_PTR CALLBACK

@@ -652,20 +652,43 @@ typedef union
     unsigned int         major;     /* irp major function */
     struct
     {
+        unsigned int     major;     /* IRP_MJ_CREATE */
+        unsigned int     access;    /* access rights */
+        unsigned int     sharing;   /* sharing flags */
+        unsigned int     options;   /* file options */
+        client_ptr_t     device;    /* opaque ptr for the device */
+    } create;
+    struct
+    {
+        unsigned int     major;     /* IRP_MJ_CLOSE */
+        int              __pad;
+        client_ptr_t     file;      /* opaque ptr for the file object */
+    } close;
+    struct
+    {
         unsigned int     major;     /* IRP_MJ_READ */
         unsigned int     key;       /* driver key */
+        client_ptr_t     file;      /* opaque ptr for the file object */
         file_pos_t       pos;       /* file position */
     } read;
     struct
     {
         unsigned int     major;     /* IRP_MJ_WRITE */
         unsigned int     key;       /* driver key */
+        client_ptr_t     file;      /* opaque ptr for the file object */
         file_pos_t       pos;       /* file position */
     } write;
     struct
     {
+        unsigned int     major;     /* IRP_MJ_FLUSH_BUFFERS */
+        int              __pad;
+        client_ptr_t     file;      /* opaque ptr for the file object */
+    } flush;
+    struct
+    {
         unsigned int     major;     /* IRP_MJ_DEVICE_CONTROL */
         ioctl_code_t     code;      /* ioctl code */
+        client_ptr_t     file;      /* opaque ptr for the file object */
     } ioctl;
 } irp_params_t;
 
@@ -818,12 +841,20 @@ struct rawinput_device
     process_id_t pid;           /* server process id */
     thread_id_t  tid;           /* server thread id */
     client_ptr_t teb;           /* thread teb pointer */
+    client_ptr_t entry_point;   /* thread entry point */
     affinity_t   affinity;      /* thread affinity mask */
-    timeout_t    creation_time; /* thread creation time */
-    timeout_t    exit_time;     /* thread exit time */
     int          exit_code;     /* thread exit code */
     int          priority;      /* thread priority level */
     int          last;          /* last thread in process */
+@END
+
+
+/* Retrieve information about thread times */
+@REQ(get_thread_times)
+    obj_handle_t handle;        /* thread handle */
+@REPLY
+    timeout_t    creation_time; /* thread creation time */
+    timeout_t    exit_time;     /* thread exit time */
 @END
 
 
@@ -833,11 +864,13 @@ struct rawinput_device
     int          mask;         /* setting mask (see below) */
     int          priority;     /* priority class */
     affinity_t   affinity;     /* affinity mask */
+    client_ptr_t entry_point;  /* thread entry point */
     obj_handle_t token;        /* impersonation token */
 @END
-#define SET_THREAD_INFO_PRIORITY 0x01
-#define SET_THREAD_INFO_AFFINITY 0x02
-#define SET_THREAD_INFO_TOKEN    0x04
+#define SET_THREAD_INFO_PRIORITY   0x01
+#define SET_THREAD_INFO_AFFINITY   0x02
+#define SET_THREAD_INFO_TOKEN      0x04
+#define SET_THREAD_INFO_ENTRYPOINT 0x08
 
 
 /* Retrieve information about a module */
@@ -2315,6 +2348,7 @@ enum message_type
     obj_handle_t manager;         /* handle to the device manager */
     obj_handle_t handle;          /* handle to the irp */
     unsigned int status;          /* status of the irp */
+    client_ptr_t file_ptr;        /* opaque pointer to the file object */
     data_size_t  size;            /* result size (input or output depending on the operation) */
     VARARG(data,bytes);           /* output data of the irp */
 @END
@@ -3087,7 +3121,6 @@ enum coords_relative
 @END
 
 #define SET_CB_OPEN      0x001
-#define SET_CB_OWNER     0x002
 #define SET_CB_VIEWER    0x004
 #define SET_CB_SEQNO     0x008
 #define SET_CB_RELOWNER  0x010
@@ -3095,6 +3128,11 @@ enum coords_relative
 #define CB_OPEN          0x040
 #define CB_OWNER         0x080
 #define CB_PROCESS       0x100
+
+
+/* Empty the clipboard and grab ownership */
+@REQ(empty_clipboard)
+@END
 
 
 /* Open a security token */
@@ -3325,6 +3363,15 @@ enum coords_relative
 @END
 
 
+/* Query object type name information */
+@REQ(get_object_type)
+    obj_handle_t   handle;        /* handle to the object */
+@REPLY
+    data_size_t    total;         /* needed size for type name */
+    VARARG(type,unicode_str);     /* type name */
+@END
+
+
 /* Unlink a named object */
 @REQ(unlink_object)
     obj_handle_t   handle;        /* handle to the object */
@@ -3379,7 +3426,6 @@ enum coords_relative
     obj_handle_t prev;            /* handle to the previous irp */
     unsigned int status;          /* status of the previous irp */
 @REPLY
-    client_ptr_t user_ptr;        /* opaque ptr for the device */
     irp_params_t params;          /* irp parameters */
     obj_handle_t next;            /* handle to the next irp */
     process_id_t client_pid;      /* pid of process calling irp */
@@ -3476,6 +3522,22 @@ enum coords_relative
     apc_param_t    cvalue;        /* completion value */
     apc_param_t    information;   /* IO_STATUS_BLOCK Information */
     unsigned int   status;        /* completion status */
+@END
+
+
+/* set fd disposition information */
+@REQ(set_fd_disp_info)
+    obj_handle_t handle;          /* handle to a file or directory */
+    int          unlink;          /* whether to unlink file on close */
+@END
+
+
+/* set fd name information */
+@REQ(set_fd_name_info)
+    obj_handle_t handle;          /* handle to a file or directory */
+    obj_handle_t rootdir;         /* root directory */
+    int          link;            /* link instead of renaming */
+    VARARG(filename,string);      /* new file name */
 @END
 
 

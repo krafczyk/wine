@@ -150,6 +150,11 @@ static inline NSUInteger adjusted_modifiers_for_option_behavior(NSUInteger modif
 }
 
 
+@interface NSWindow (WineAccessPrivateMethods)
+    - (id) _displayChanged;
+@end
+
+
 @interface WineContentView : NSView <NSTextInputClient>
 {
     NSMutableArray* glContexts;
@@ -198,6 +203,7 @@ static inline NSUInteger adjusted_modifiers_for_option_behavior(NSUInteger modif
 @property (readonly, copy, nonatomic) NSArray* childWineWindows;
 
     - (void) updateColorSpace;
+    - (void) updateForGLSubviews;
 
     - (BOOL) becameEligibleParentOrChild;
     - (void) becameIneligibleChild;
@@ -334,14 +340,14 @@ static inline NSUInteger adjusted_modifiers_for_option_behavior(NSUInteger modif
             [self setNeedsDisplay:YES];
         }
 
-        [(WineWindow*)[self window] updateColorSpace];
+        [(WineWindow*)[self window] updateForGLSubviews];
     }
 
     - (void) removeGLContext:(WineOpenGLContext*)context
     {
         [glContexts removeObjectIdenticalTo:context];
         [pendingGlContexts removeObjectIdenticalTo:context];
-        [(WineWindow*)[self window] updateColorSpace];
+        [(WineWindow*)[self window] updateForGLSubviews];
     }
 
     - (void) updateGLContexts
@@ -1402,7 +1408,8 @@ static inline NSUInteger adjusted_modifiers_for_option_behavior(NSUInteger modif
 
     - (BOOL) needsTransparency
     {
-        return self.shape || self.colorKeyed || self.usePerPixelAlpha;
+        return self.shape || self.colorKeyed || self.usePerPixelAlpha ||
+                (gl_surface_mode == GL_SURFACE_BEHIND && [[self.contentView valueForKeyPath:@"subviews.@max.hasGLContext"] boolValue]);
     }
 
     - (void) checkTransparency
@@ -1591,6 +1598,38 @@ static inline NSUInteger adjusted_modifiers_for_option_behavior(NSUInteger modif
         return frameRect;
     }
 
+    // This private method of NSWindow is called as Cocoa reacts to the display
+    // configuration changing.  Among other things, it adjusts the window's
+    // frame based on how the screen(s) changed size.  That tells Wine that the
+    // window has been moved.  We don't want that.  Rather, we want to make
+    // sure that the WinAPI notion of the window position is maintained/
+    // restored, possibly undoing or overriding Cocoa's adjustment.
+    //
+    // So, we queue a REASSERT_WINDOW_POSITION event to the back end before
+    // Cocoa has a chance to adjust the frame, thus preceding any resulting
+    // WINDOW_FRAME_CHANGED event that may get queued.  The back end will
+    // reassert its notion of the position.  That call won't get processed
+    // until after this method returns, so it will override whatever this
+    // method does to the window position.  It will also discard any pending
+    // WINDOW_FRAME_CHANGED events.
+    //
+    // Unfortunately, the only way I've found to know when Cocoa is _about to_
+    // adjust the window's position due to a display change is to hook into
+    // this private method.  This private method has remained stable from 10.6
+    // through 10.11.  If it does change, the most likely thing is that it
+    // will be removed and no longer called and this fix will simply stop
+    // working.  The only real danger would be if Apple changed the return type
+    // to a struct or floating-point type, which would change the calling
+    // convention.
+    - (id) _displayChanged
+    {
+        macdrv_event* event = macdrv_create_event(REASSERT_WINDOW_POSITION, self);
+        [queue postEvent:event];
+        macdrv_release_event(event);
+
+        return [super _displayChanged];
+    }
+
     - (BOOL) isExcludedFromWindowsMenu
     {
         return !([self collectionBehavior] & NSWindowCollectionBehaviorParticipatesInCycle);
@@ -1773,6 +1812,13 @@ static inline NSUInteger adjusted_modifiers_for_option_behavior(NSUInteger modif
             [self setColorSpace:nil];
         else
             [self setColorSpace:[NSColorSpace genericRGBColorSpace]];
+    }
+
+    - (void) updateForGLSubviews
+    {
+        [self updateColorSpace];
+        if (gl_surface_mode == GL_SURFACE_BEHIND)
+            [self checkTransparency];
     }
 
 
@@ -2683,7 +2729,7 @@ macdrv_view macdrv_create_view(macdrv_window w, CGRect rect)
                    name:NSApplicationDidChangeScreenParametersNotification
                  object:NSApp];
         [[window contentView] addSubview:view];
-        [window updateColorSpace];
+        [window updateForGLSubviews];
     });
 
     [pool release];
@@ -2712,7 +2758,7 @@ void macdrv_dispose_view(macdrv_view v)
                     object:NSApp];
         [view removeFromSuperview];
         [view release];
-        [window updateColorSpace];
+        [window updateForGLSubviews];
     });
 
     [pool release];
@@ -2737,15 +2783,15 @@ void macdrv_set_view_window_and_frame(macdrv_view v, macdrv_window w, CGRect rec
         BOOL changedWindow = (window && window != [view window]);
         NSRect newFrame = NSRectFromCGRect(rect);
         NSRect oldFrame = [view frame];
-        BOOL needUpdateWindowColorSpace = FALSE;
+        BOOL needUpdateWindowForGLSubviews = FALSE;
 
         if (changedWindow)
         {
             WineWindow* oldWindow = (WineWindow*)[view window];
             [view removeFromSuperview];
-            [oldWindow updateColorSpace];
+            [oldWindow updateForGLSubviews];
             [[window contentView] addSubview:view];
-            needUpdateWindowColorSpace = TRUE;
+            needUpdateWindowForGLSubviews = TRUE;
         }
 
         if (!NSEqualRects(oldFrame, newFrame))
@@ -2759,11 +2805,11 @@ void macdrv_set_view_window_and_frame(macdrv_view v, macdrv_window w, CGRect rec
             else
                 [view setFrame:newFrame];
             [view setNeedsDisplay:YES];
-            needUpdateWindowColorSpace = TRUE;
+            needUpdateWindowForGLSubviews = TRUE;
         }
 
-        if (needUpdateWindowColorSpace)
-            [(WineWindow*)[view window] updateColorSpace];
+        if (needUpdateWindowForGLSubviews)
+            [(WineWindow*)[view window] updateForGLSubviews];
     });
 
     [pool release];

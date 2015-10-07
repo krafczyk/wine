@@ -140,121 +140,7 @@ static const struct {
     BOOL wine_extra;
     BOOL optional; /* fails on wine if missing */
     BOOL broken;
-} renderstream_cat_media[] = {
-    {BASEFILTER_QUERYINTERFACE, SOURCE_FILTER},
-    {BASEFILTER_ENUMPINS, SOURCE_FILTER},
-    {ENUMPINS_NEXT, SOURCE_FILTER},
-    {PIN_QUERYDIRECTION, SOURCE_FILTER},
-    {PIN_CONNECTEDTO, SOURCE_FILTER},
-    {PIN_QUERYPININFO, SOURCE_FILTER, TRUE},
-    {KSPROPERTYSET_GET, SOURCE_FILTER},
-    {PIN_ENUMMEDIATYPES, SOURCE_FILTER},
-    {ENUMMEDIATYPES_RESET, SOURCE_FILTER},
-    {ENUMMEDIATYPES_NEXT, SOURCE_FILTER},
-    {BASEFILTER_QUERYINTERFACE, SOURCE_FILTER},
-    {BASEFILTER_ENUMPINS, SOURCE_FILTER},
-    {ENUMPINS_NEXT, SOURCE_FILTER},
-    {PIN_QUERYDIRECTION, SOURCE_FILTER},
-    {PIN_CONNECTEDTO, SOURCE_FILTER},
-    {PIN_QUERYPININFO, SOURCE_FILTER, TRUE},
-    {KSPROPERTYSET_GET, SOURCE_FILTER},
-    {ENUMPINS_NEXT, SOURCE_FILTER},
-    {BASEFILTER_QUERYINTERFACE, SOURCE_FILTER, TRUE},
-    {BASEFILTER_ENUMPINS, SOURCE_FILTER, TRUE},
-    {ENUMPINS_NEXT, SOURCE_FILTER, TRUE},
-    {PIN_QUERYDIRECTION, SOURCE_FILTER, TRUE},
-    {PIN_CONNECTEDTO, SOURCE_FILTER, TRUE},
-    {PIN_QUERYPININFO, SOURCE_FILTER, TRUE},
-    {KSPROPERTYSET_GET, SOURCE_FILTER, TRUE},
-    {ENUMPINS_NEXT, SOURCE_FILTER, TRUE},
-    {BASEFILTER_QUERYINTERFACE, SOURCE_FILTER, TRUE},
-    {BASEFILTER_ENUMPINS, SOURCE_FILTER, TRUE},
-    {ENUMPINS_NEXT, SOURCE_FILTER, TRUE},
-    {PIN_QUERYDIRECTION, SOURCE_FILTER, TRUE},
-    {PIN_CONNECTEDTO, SOURCE_FILTER, TRUE},
-    {PIN_QUERYPININFO, SOURCE_FILTER, TRUE},
-    {KSPROPERTYSET_GET, SOURCE_FILTER, TRUE},
-    {ENUMPINS_NEXT, SOURCE_FILTER, TRUE},
-    {PIN_ENUMMEDIATYPES, SOURCE_FILTER, TRUE, FALSE, TRUE},
-    {ENUMMEDIATYPES_NEXT, SOURCE_FILTER, TRUE, FALSE, TRUE},
-    {BASEFILTER_QUERYINTERFACE, SINK_FILTER, FALSE, TRUE},
-    {BASEFILTER_ENUMPINS, SINK_FILTER},
-    {ENUMPINS_NEXT, SINK_FILTER},
-    {PIN_QUERYDIRECTION, SINK_FILTER},
-    {PIN_CONNECTEDTO, SINK_FILTER},
-    {GRAPHBUILDER_CONNECT, NOT_FILTER},
-    {BASEFILTER_GETSTATE, SOURCE_FILTER, TRUE, FALSE, TRUE},
-    {BASEFILTER_ENUMPINS, SOURCE_FILTER, FALSE, FALSE, FALSE, TRUE},
-    {ENUMPINS_NEXT, SOURCE_FILTER, FALSE, FALSE, FALSE, TRUE},
-    {PIN_QUERYDIRECTION, SOURCE_FILTER, FALSE, FALSE, FALSE, TRUE},
-    {PIN_CONNECTEDTO, SOURCE_FILTER, FALSE, FALSE, FALSE, TRUE},
-    {ENUMPINS_NEXT, SOURCE_FILTER, FALSE, FALSE, FALSE, TRUE},
-    {END, NOT_FILTER}
-}, renderstream_intermediate[] = {
-    {BASEFILTER_QUERYINTERFACE, SOURCE_FILTER},
-    {BASEFILTER_ENUMPINS, SOURCE_FILTER},
-    {ENUMPINS_NEXT, SOURCE_FILTER},
-    {PIN_QUERYDIRECTION, SOURCE_FILTER},
-    {PIN_CONNECTEDTO, SOURCE_FILTER},
-    {PIN_QUERYPININFO, SOURCE_FILTER, TRUE},
-    {KSPROPERTYSET_GET, SOURCE_FILTER},
-    {PIN_ENUMMEDIATYPES, SOURCE_FILTER},
-    {ENUMMEDIATYPES_RESET, SOURCE_FILTER},
-    {ENUMMEDIATYPES_NEXT, SOURCE_FILTER},
-    {BASEFILTER_QUERYINTERFACE, SOURCE_FILTER},
-    {BASEFILTER_ENUMPINS, SOURCE_FILTER},
-    {ENUMPINS_NEXT, SOURCE_FILTER},
-    {PIN_QUERYDIRECTION, SOURCE_FILTER},
-    {PIN_CONNECTEDTO, SOURCE_FILTER},
-    {PIN_QUERYPININFO, SOURCE_FILTER, TRUE},
-    {KSPROPERTYSET_GET, SOURCE_FILTER},
-    {ENUMPINS_NEXT, SOURCE_FILTER},
-    {BASEFILTER_QUERYINTERFACE, SOURCE_FILTER, TRUE},
-    {BASEFILTER_ENUMPINS, SOURCE_FILTER, TRUE},
-    {ENUMPINS_NEXT, SOURCE_FILTER, TRUE},
-    {PIN_QUERYDIRECTION, SOURCE_FILTER, TRUE},
-    {PIN_CONNECTEDTO, SOURCE_FILTER, TRUE},
-    {PIN_QUERYPININFO, SOURCE_FILTER, TRUE},
-    {KSPROPERTYSET_GET, SOURCE_FILTER, TRUE},
-    {ENUMPINS_NEXT, SOURCE_FILTER, TRUE},
-    {BASEFILTER_QUERYINTERFACE, SOURCE_FILTER, TRUE},
-    {BASEFILTER_ENUMPINS, SOURCE_FILTER, TRUE},
-    {ENUMPINS_NEXT, SOURCE_FILTER, TRUE},
-    {PIN_QUERYDIRECTION, SOURCE_FILTER, TRUE},
-    {PIN_CONNECTEDTO, SOURCE_FILTER, TRUE},
-    {PIN_QUERYPININFO, SOURCE_FILTER, TRUE},
-    {KSPROPERTYSET_GET, SOURCE_FILTER, TRUE},
-    {ENUMPINS_NEXT, SOURCE_FILTER, TRUE},
-    {PIN_ENUMMEDIATYPES, SOURCE_FILTER, TRUE, FALSE, TRUE},
-    {ENUMMEDIATYPES_NEXT, SOURCE_FILTER, TRUE, FALSE, TRUE},
-    {BASEFILTER_QUERYINTERFACE, SINK_FILTER, FALSE, TRUE},
-    {BASEFILTER_ENUMPINS, SINK_FILTER},
-    {ENUMPINS_NEXT, SINK_FILTER},
-    {PIN_QUERYDIRECTION, SINK_FILTER},
-    {PIN_CONNECTEDTO, SINK_FILTER},
-    {BASEFILTER_QUERYINTERFACE, INTERMEDIATE_FILTER, FALSE, TRUE},
-    {BASEFILTER_ENUMPINS, INTERMEDIATE_FILTER},
-    {ENUMPINS_NEXT, INTERMEDIATE_FILTER},
-    {PIN_QUERYDIRECTION, INTERMEDIATE_FILTER},
-    {PIN_CONNECTEDTO, INTERMEDIATE_FILTER},
-    {ENUMPINS_NEXT, INTERMEDIATE_FILTER},
-    {PIN_QUERYDIRECTION, INTERMEDIATE_FILTER},
-    {PIN_CONNECTEDTO, INTERMEDIATE_FILTER},
-    {GRAPHBUILDER_CONNECT, NOT_FILTER},
-    {BASEFILTER_QUERYINTERFACE, INTERMEDIATE_FILTER, FALSE, TRUE},
-    {BASEFILTER_ENUMPINS, INTERMEDIATE_FILTER},
-    {ENUMPINS_NEXT, INTERMEDIATE_FILTER},
-    {PIN_QUERYDIRECTION, INTERMEDIATE_FILTER},
-    {PIN_CONNECTEDTO, INTERMEDIATE_FILTER},
-    {GRAPHBUILDER_CONNECT, NOT_FILTER},
-    {BASEFILTER_GETSTATE, SOURCE_FILTER, TRUE, FALSE, TRUE},
-    {BASEFILTER_ENUMPINS, SOURCE_FILTER, FALSE, FALSE, FALSE, TRUE},
-    {ENUMPINS_NEXT, SOURCE_FILTER, FALSE, FALSE, FALSE, TRUE},
-    {PIN_QUERYDIRECTION, SOURCE_FILTER, FALSE, FALSE, FALSE, TRUE},
-    {PIN_CONNECTEDTO, SOURCE_FILTER, FALSE, FALSE, FALSE, TRUE},
-    {ENUMPINS_NEXT, SOURCE_FILTER, FALSE, FALSE, FALSE, TRUE},
-    {END, NOT_FILTER}
-}, *current_calls_list;
+} *current_calls_list;
 int call_no;
 
 static void check_calls_list(const char *func, call_id id, filter_type type)
@@ -1268,49 +1154,6 @@ static void init_test_filter(test_filter *This, PIN_DIRECTION dir, filter_type t
     This->filter_type = type;
 }
 
-static void test_CaptureGraphBuilder_RenderStream(void)
-{
-    test_filter source_filter, sink_filter, intermediate_filter;
-    ICaptureGraphBuilder2 *cgb;
-    HRESULT hr;
-
-    init_test_filter(&source_filter, PINDIR_OUTPUT, SOURCE_FILTER);
-    init_test_filter(&sink_filter, PINDIR_INPUT, SINK_FILTER);
-    init_test_filter(&intermediate_filter, PINDIR_OUTPUT, INTERMEDIATE_FILTER);
-
-    hr = CoCreateInstance(&CLSID_CaptureGraphBuilder2, NULL, CLSCTX_INPROC_SERVER,
-            &IID_ICaptureGraphBuilder2, (void**)&cgb);
-    ok(hr == S_OK || broken(hr == REGDB_E_CLASSNOTREG),
-            "couldn't create CaptureGraphBuilder, hr = %08x\n", hr);
-    if(hr != S_OK) {
-        win_skip("CaptureGraphBuilder is not registered\n");
-        return;
-    }
-
-    hr = ICaptureGraphBuilder2_SetFiltergraph(cgb, &GraphBuilder);
-    ok(hr == S_OK, "SetFiltergraph failed: %08x\n", hr);
-
-    trace("RenderStream with category and mediatype test\n");
-    current_calls_list = renderstream_cat_media;
-    call_no = 0;
-    hr = ICaptureGraphBuilder2_RenderStream(cgb, &PIN_CATEGORY_EDS,
-            &MEDIATYPE_Video, (IUnknown*)&source_filter.IBaseFilter_iface,
-            NULL, &sink_filter.IBaseFilter_iface);
-    ok(hr == S_OK, "RenderStream failed: %08x\n", hr);
-    check_calls_list("test_CaptureGraphBuilder_RenderStream", END, NOT_FILTER);
-
-    trace("RenderStream with intermediate filter\n");
-    current_calls_list = renderstream_intermediate;
-    call_no = 0;
-    hr = ICaptureGraphBuilder2_RenderStream(cgb, &PIN_CATEGORY_EDS,
-            &MEDIATYPE_Video, (IUnknown*)&source_filter.IBaseFilter_iface,
-            &intermediate_filter.IBaseFilter_iface, &sink_filter.IBaseFilter_iface);
-    ok(hr == S_OK, "RenderStream failed: %08x\n", hr);
-    check_calls_list("test_CaptureGraphBuilder_RenderStream", END, NOT_FILTER);
-
-    ICaptureGraphBuilder2_Release(cgb);
-}
-
 static void test_AviMux_QueryInterface(void)
 {
     IUnknown *avimux, *unk;
@@ -2007,6 +1850,150 @@ static void test_AviCo(void)
     IBaseFilter_Release(avico);
 }
 
+/* Outer IUnknown for COM aggregation tests */
+struct unk_impl {
+    IUnknown IUnknown_iface;
+    LONG ref;
+    IUnknown *inner_unk;
+};
+
+static inline struct unk_impl *impl_from_IUnknown(IUnknown *iface)
+{
+    return CONTAINING_RECORD(iface, struct unk_impl, IUnknown_iface);
+}
+
+static HRESULT WINAPI unk_QueryInterface(IUnknown *iface, REFIID riid, void **ret_iface)
+{
+    struct unk_impl *This = impl_from_IUnknown(iface);
+
+    return IUnknown_QueryInterface(This->inner_unk, riid, ret_iface);
+}
+
+static ULONG WINAPI unk_AddRef(IUnknown *iface)
+{
+    struct unk_impl *This = impl_from_IUnknown(iface);
+
+    return InterlockedIncrement(&This->ref);
+}
+
+static ULONG WINAPI unk_Release(IUnknown *iface)
+{
+    struct unk_impl *This = impl_from_IUnknown(iface);
+
+    return InterlockedDecrement(&This->ref);
+}
+
+static const IUnknownVtbl unk_vtbl =
+{
+    unk_QueryInterface,
+    unk_AddRef,
+    unk_Release
+};
+
+static void test_COM_vfwcapture(void)
+{
+    struct unk_impl unk_obj = {{&unk_vtbl}, 19, NULL};
+    IBaseFilter *bf;
+    IMediaFilter *mf;
+    IPersist *p;
+    IPersistPropertyBag *ppb;
+    IAMVfwCaptureDialogs *amvcd;
+    IAMFilterMiscFlags *amfmf;
+    ISpecifyPropertyPages *spp;
+    IUnknown *unk;
+    ULONG refcount;
+    HRESULT hr;
+
+    /* COM aggregation */
+    hr = CoCreateInstance(&CLSID_VfwCapture, &unk_obj.IUnknown_iface, CLSCTX_INPROC_SERVER,
+            &IID_IUnknown, (void**)&unk_obj.inner_unk);
+    if (hr == REGDB_E_CLASSNOTREG)
+    {
+        win_skip("CLSID_VfwCapture not registered\n");
+        return;
+    }
+    ok(hr == S_OK, "VfwCapture create failed: %08x\n", hr);
+    hr = IUnknown_QueryInterface(unk_obj.inner_unk, &IID_IBaseFilter, (void**)&bf);
+    ok(hr == S_OK, "QueryInterface for IID_IBaseFilter  failed: %08x\n", hr);
+    refcount = IBaseFilter_AddRef(bf);
+    ok(refcount == unk_obj.ref, "VfwCapture just pretends to support COM aggregation\n");
+    refcount = IBaseFilter_Release(bf);
+    ok(refcount == unk_obj.ref, "VfwCapture just pretends to support COM aggregation\n");
+    refcount = IBaseFilter_Release(bf);
+    ok(refcount == 19, "Refcount should be back at 19 but is %u\n", refcount);
+    IUnknown_Release(unk_obj.inner_unk);
+
+    /* Invalid RIID */
+    hr = CoCreateInstance(&CLSID_VfwCapture, NULL, CLSCTX_INPROC_SERVER, &IID_IClassFactory,
+            (void**)&bf);
+    ok(hr == E_NOINTERFACE, "VfwCapture create failed: %08x, expected E_NOINTERFACE\n", hr);
+
+    /* Same refcount for all VfwCapture interfaces */
+    hr = CoCreateInstance(&CLSID_VfwCapture, NULL, CLSCTX_INPROC_SERVER, &IID_IBaseFilter,
+            (void**)&bf);
+    ok(hr == S_OK, "VfwCapture create failed: %08x, expected S_OK\n", hr);
+    refcount = IBaseFilter_AddRef(bf);
+    ok(refcount == 2, "refcount == %u, expected 2\n", refcount);
+
+    hr = IBaseFilter_QueryInterface(bf, &IID_IMediaFilter, (void**)&mf);
+    ok(hr == S_OK, "QueryInterface for IID_IMediaFilter failed: %08x\n", hr);
+    refcount = IMediaFilter_AddRef(mf);
+    ok(refcount == 4, "refcount == %u, expected 4\n", refcount);
+    refcount = IMediaFilter_Release(mf);
+
+    hr = IBaseFilter_QueryInterface(bf, &IID_IPersist, (void**)&p);
+    ok(hr == S_OK, "QueryInterface for IID_IPersist failed: %08x\n", hr);
+    refcount = IPersist_AddRef(p);
+    ok(refcount == 5, "refcount == %u, expected 5\n", refcount);
+    refcount = IPersist_Release(p);
+
+    hr = IBaseFilter_QueryInterface(bf, &IID_IPersistPropertyBag, (void**)&ppb);
+    ok(hr == S_OK, "QueryInterface for IID_IPersistPropertyBag failed: %08x\n", hr);
+    refcount = IPersistPropertyBag_AddRef(ppb);
+    ok(refcount == 6, "refcount == %u, expected 6\n", refcount);
+    refcount = IPersistPropertyBag_Release(ppb);
+
+    hr = IBaseFilter_QueryInterface(bf, &IID_IAMVfwCaptureDialogs, (void**)&amvcd);
+    todo_wine ok(hr == S_OK, "QueryInterface for IID_IAMVfwCaptureDialogs failed: %08x\n", hr);
+    if (hr == S_OK) {
+        refcount = IAMVfwCaptureDialogs_AddRef(amvcd);
+        ok(refcount == 7, "refcount == %u, expected 7\n", refcount);
+        refcount = IAMVfwCaptureDialogs_Release(amvcd);
+    }
+
+    hr = IBaseFilter_QueryInterface(bf, &IID_IAMFilterMiscFlags, (void**)&amfmf);
+    todo_wine ok(hr == S_OK, "QueryInterface for IID_IAMFilterMiscFlags failed: %08x\n", hr);
+    if (hr == S_OK) {
+        refcount = IAMFilterMiscFlags_AddRef(amfmf);
+        ok(refcount == 8, "refcount == %u, expected 8\n", refcount);
+        refcount = IAMFilterMiscFlags_Release(amfmf);
+    }
+
+    hr = IBaseFilter_QueryInterface(bf, &IID_ISpecifyPropertyPages, (void**)&spp);
+    todo_wine ok(hr == S_OK, "QueryInterface for IID_ISpecifyPropertyPages failed: %08x\n", hr);
+    if (hr == S_OK) {
+        refcount = ISpecifyPropertyPages_AddRef(spp);
+        ok(refcount == 9, "refcount == %u, expected 9\n", refcount);
+        refcount = ISpecifyPropertyPages_Release(spp);
+    }
+
+    hr = IBaseFilter_QueryInterface(bf, &IID_IUnknown, (void**)&unk);
+    ok(hr == S_OK, "QueryInterface for IID_IUnknown failed: %08x\n", hr);
+    refcount = IUnknown_AddRef(unk);
+    todo_wine ok(refcount == 10, "refcount == %u, expected 10\n", refcount);
+    refcount = IUnknown_Release(unk);
+
+    /* Unsupported interfaces */
+    hr = IBaseFilter_QueryInterface(bf, &IID_IAMStreamConfig, (void**)&unk);
+    todo_wine ok(hr == E_NOINTERFACE, "QueryInterface for IID_IAMStreamConfig failed: %08x\n", hr);
+    hr = IBaseFilter_QueryInterface(bf, &IID_IAMVideoProcAmp, (void**)&unk);
+    todo_wine ok(hr == E_NOINTERFACE, "QueryInterface for IID_IAMVideoProcAmp failed: %08x\n", hr);
+    hr = IBaseFilter_QueryInterface(bf, &IID_IOverlayNotify, (void**)&unk);
+    ok(hr == E_NOINTERFACE, "QueryInterface for IID_IOverlayNotify failed: %08x\n", hr);
+
+    while (IBaseFilter_Release(bf));
+}
+
 START_TEST(qcap)
 {
     if (SUCCEEDED(CoInitialize(NULL)))
@@ -2016,10 +2003,10 @@ START_TEST(qcap)
 
         arg_c = winetest_get_mainargs(&arg_v);
 
-        test_CaptureGraphBuilder_RenderStream();
         test_AviMux_QueryInterface();
         test_AviMux(arg_c>2 ? arg_v[2] : NULL);
         test_AviCo();
+        test_COM_vfwcapture();
 
         CoUninitialize();
     }

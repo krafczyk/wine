@@ -310,6 +310,7 @@
 @ stdcall FindExecutableW(wstr wstr ptr)
 @ stub FixupOptionalComponents
 @ stdcall FreeIconList(long)
+@ stdcall GetCurrentProcessExplicitAppUserModelID(ptr)
 @ stdcall InitNetworkAddressControl()
 @ stub InternalExtractIconListA
 @ stub InternalExtractIconListW
@@ -408,6 +409,7 @@
 @ stdcall SHPathPrepareForWriteW(long ptr wstr long)
 @ stdcall SHQueryRecycleBinA(str ptr)
 @ stdcall SHQueryRecycleBinW(wstr ptr)
+@ stdcall SHQueryUserNotificationState(ptr)
 @ stdcall SHSetLocalizedName(wstr wstr long)
 @ stdcall SHSetUnreadMailCountW(wstr long wstr)
 @ stdcall SHUpdateRecycleBinIcon()

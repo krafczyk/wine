@@ -5,7 +5,7 @@ msgstr ""
 "Project-Id-Version: Wine\n"
 "Report-Msgid-Bugs-To: http://bugs.winehq.org\n"
 "POT-Creation-Date: N/A\n"
-"PO-Revision-Date: 2015-05-28 15:57+0200\n"
+"PO-Revision-Date: 2015-08-19 13:56+0200\n"
 "Last-Translator: Andrey Gusev <andrey.goosev@gmail.com>\n"
 "Language-Team: Ukrainian\n"
 "Language: uk\n"
@@ -56,20 +56,19 @@ msgid "Support Information"
 msgstr "Дані підтримки"
 
 #: appwiz.rc:78 avifil32.rc:54 comctl32.rc:55 comdlg32.rc:231 comdlg32.rc:261
-#: comdlg32.rc:304 comdlg32.rc:358 comdlg32.rc:397 comdlg32.rc:451
-#: credui.rc:52 cryptui.rc:263 cryptui.rc:275 cryptui.rc:365 dinput.rc:46
-#: ieframe.rc:96 localui.rc:44 localui.rc:57 mpr.rc:49 msacm32.rc:53
-#: mshtml.rc:47 mshtml.rc:57 msvfw32.rc:36 oledlg.rc:60 oledlg.rc:92
-#: serialui.rc:41 setupapi.rc:59 shell32.rc:276 shell32.rc:300 shell32.rc:322
-#: shell32.rc:340 shlwapi.rc:44 user32.rc:80 user32.rc:98 wininet.rc:51
-#: wininet.rc:71 winspool.rc:42 net.rc:47 notepad.rc:117 oleview.rc:162
-#: oleview.rc:175 progman.rc:106 progman.rc:124 progman.rc:142 progman.rc:158
-#: progman.rc:180 progman.rc:199 progman.rc:216 regedit.rc:247 regedit.rc:258
-#: regedit.rc:271 regedit.rc:287 regedit.rc:300 regedit.rc:313 taskmgr.rc:442
-#: taskmgr.rc:517 winecfg.rc:214 winecfg.rc:224 wineconsole.rc:134
-#: winefile.rc:131 winefile.rc:154 winefile.rc:184 winemine.rc:71
-#: winemine.rc:81 winemine.rc:95 wordpad.rc:207 wordpad.rc:218 wordpad.rc:236
-#: wordpad.rc:249
+#: comdlg32.rc:304 comdlg32.rc:358 comdlg32.rc:397 comdlg32.rc:451 credui.rc:52
+#: cryptui.rc:263 cryptui.rc:275 cryptui.rc:365 dinput.rc:46 ieframe.rc:96
+#: localui.rc:44 localui.rc:57 mpr.rc:49 msacm32.rc:53 mshtml.rc:47
+#: mshtml.rc:57 msvfw32.rc:36 oledlg.rc:62 oledlg.rc:94 serialui.rc:41
+#: setupapi.rc:59 shell32.rc:276 shell32.rc:300 shell32.rc:322 shell32.rc:340
+#: shlwapi.rc:44 user32.rc:80 user32.rc:98 wininet.rc:51 wininet.rc:71
+#: winspool.rc:42 net.rc:47 notepad.rc:117 oleview.rc:162 oleview.rc:175
+#: progman.rc:106 progman.rc:124 progman.rc:142 progman.rc:158 progman.rc:180
+#: progman.rc:199 progman.rc:216 regedit.rc:247 regedit.rc:258 regedit.rc:271
+#: regedit.rc:287 regedit.rc:300 regedit.rc:313 taskmgr.rc:442 taskmgr.rc:517
+#: winecfg.rc:214 winecfg.rc:224 wineconsole.rc:135 winefile.rc:131
+#: winefile.rc:154 winefile.rc:184 winemine.rc:71 winemine.rc:81 winemine.rc:95
+#: wordpad.rc:207 wordpad.rc:218 wordpad.rc:236 wordpad.rc:249
 msgid "OK"
 msgstr "OK"
 
@@ -139,19 +138,19 @@ msgstr "&Встановити"
 #: comctl32.rc:71 comdlg32.rc:170 comdlg32.rc:192 comdlg32.rc:210
 #: comdlg32.rc:232 comdlg32.rc:262 comdlg32.rc:305 comdlg32.rc:327
 #: comdlg32.rc:347 comdlg32.rc:359 comdlg32.rc:398 comdlg32.rc:452
-#: comdlg32.rc:477 comdlg32.rc:495 credui.rc:53 cryptui.rc:264 cryptui.rc:276
+#: comdlg32.rc:477 comdlg32.rc:500 credui.rc:53 cryptui.rc:264 cryptui.rc:276
 #: cryptui.rc:366 dinput.rc:47 ieframe.rc:97 inetcpl.rc:81 localui.rc:45
 #: localui.rc:58 mpr.rc:50 msacm32.rc:54 mshtml.rc:48 mshtml.rc:58
-#: msvfw32.rc:37 oledlg.rc:61 oledlg.rc:93 serialui.rc:42 setupapi.rc:42
+#: msvfw32.rc:37 oledlg.rc:63 oledlg.rc:95 serialui.rc:42 setupapi.rc:42
 #: setupapi.rc:60 shell32.rc:277 shell32.rc:301 shell32.rc:312 shell32.rc:341
 #: shlwapi.rc:45 user32.rc:81 user32.rc:99 wininet.rc:52 wininet.rc:72
 #: winspool.rc:43 notepad.rc:118 oleview.rc:163 oleview.rc:176 progman.rc:107
 #: progman.rc:125 progman.rc:143 progman.rc:159 progman.rc:181 progman.rc:200
 #: progman.rc:217 regedit.rc:248 regedit.rc:259 regedit.rc:272 regedit.rc:288
 #: regedit.rc:301 regedit.rc:314 taskmgr.rc:443 taskmgr.rc:518 wineboot.rc:34
-#: winecfg.rc:215 winecfg.rc:225 wineconsole.rc:135 winefile.rc:132
-#: winefile.rc:155 winefile.rc:185 winemine.rc:96 wordpad.rc:208
-#: wordpad.rc:219 wordpad.rc:237 wordpad.rc:250
+#: winecfg.rc:215 winecfg.rc:225 wineconsole.rc:136 winefile.rc:132
+#: winefile.rc:155 winefile.rc:185 winemine.rc:96 wordpad.rc:208 wordpad.rc:219
+#: wordpad.rc:237 wordpad.rc:250
 msgid "Cancel"
 msgstr "Скасувати"
 
@@ -345,11 +344,11 @@ msgstr "&Скинути"
 
 #: comctl32.rc:86 comdlg32.rc:171 comdlg32.rc:193 comdlg32.rc:264
 #: comdlg32.rc:328 comdlg32.rc:348 comdlg32.rc:360 comdlg32.rc:478
-#: comdlg32.rc:496 ieframe.rc:58 msacm32.rc:52 oledlg.rc:94 shell32.rc:128
+#: comdlg32.rc:501 ieframe.rc:58 msacm32.rc:52 oledlg.rc:96 shell32.rc:128
 #: clock.rc:44 notepad.rc:60 notepad.rc:119 oleview.rc:72 progman.rc:55
 #: progman.rc:108 progman.rc:126 progman.rc:144 progman.rc:160 progman.rc:184
 #: progman.rc:202 progman.rc:219 regedit.rc:79 taskmgr.rc:87 winefile.rc:82
-#: winemine.rc:51 winhlp32.rc:56 wordpad.rc:94
+#: winemine.rc:51 winhlp32.rc:57 wordpad.rc:94
 msgid "&Help"
 msgstr "&Довідка"
 
@@ -525,7 +524,7 @@ msgstr "Ро&змір"
 msgid "&Source"
 msgstr "&Джерело"
 
-#: comdlg32.rc:249 wineconsole.rc:84
+#: comdlg32.rc:249 wineconsole.rc:85
 msgid "Font"
 msgstr "Шрифт"
 
@@ -7434,72 +7433,72 @@ msgstr "Ввімкнено"
 msgid "Off"
 msgstr "Вимкнено"
 
-#: oledlg.rc:53
+#: oledlg.rc:55
 msgid "Insert Object"
 msgstr "Вставка об'єкта"
 
-#: oledlg.rc:59
+#: oledlg.rc:61
 msgid "Object Type:"
 msgstr "Тип об'єкта:"
 
-#: oledlg.rc:62 oledlg.rc:100
+#: oledlg.rc:64 oledlg.rc:102
 msgid "Result"
 msgstr "Результат"
 
-#: oledlg.rc:63
+#: oledlg.rc:65
 msgid "Create New"
 msgstr "Створити новий"
 
-#: oledlg.rc:65
+#: oledlg.rc:67
 msgid "Create Control"
 msgstr "Створити елемент управління"
 
-#: oledlg.rc:67
+#: oledlg.rc:69
 msgid "Create From File"
 msgstr "Створити з файла"
 
-#: oledlg.rc:70
+#: oledlg.rc:72
 msgid "&Add Control..."
 msgstr "&Додати елемент управління..."
 
-#: oledlg.rc:71
+#: oledlg.rc:73
 msgid "Display As Icon"
 msgstr "У вигляді значка"
 
-#: oledlg.rc:73 setupapi.rc:61
+#: oledlg.rc:75 setupapi.rc:61
 msgid "Browse..."
 msgstr "Огляд..."
 
-#: oledlg.rc:74
+#: oledlg.rc:76
 msgid "File:"
 msgstr "Файл:"
 
-#: oledlg.rc:80
+#: oledlg.rc:82
 msgid "Paste Special"
 msgstr "Спеціальна вставка"
 
-#: oledlg.rc:83 setupapi.rc:43
+#: oledlg.rc:85 setupapi.rc:43
 msgid "Source:"
 msgstr "Джерело:"
 
-#: oledlg.rc:84 shdoclc.rc:50 shdoclc.rc:82 shdoclc.rc:95 shdoclc.rc:135
+#: oledlg.rc:86 shdoclc.rc:50 shdoclc.rc:82 shdoclc.rc:95 shdoclc.rc:135
 #: shdoclc.rc:162 shdoclc.rc:186 user32.rc:62 wineconsole.rc:33 wordpad.rc:106
 msgid "&Paste"
 msgstr "Вст&авити"
 
-#: oledlg.rc:86
+#: oledlg.rc:88
 msgid "Paste &Link"
 msgstr "&Зв'язати"
 
-#: oledlg.rc:88
+#: oledlg.rc:90
 msgid "&As:"
 msgstr "&Як:"
 
-#: oledlg.rc:95
+#: oledlg.rc:97
 msgid "&Display As Icon"
 msgstr "&У вигляді значка"
 
-#: oledlg.rc:97
+#: oledlg.rc:99
 msgid "Change &Icon..."
 msgstr "З&мінити значок..."
 
@@ -7531,21 +7530,31 @@ msgstr ""
 msgid "Add Control"
 msgstr "Додати елемент управління"
 
+#: oledlg.rc:35
+msgid "&Convert..."
+msgstr "&Конвертувати..."
+
+#: oledlg.rc:36
+#, fuzzy
+#| msgid "&Object"
+msgid "%1 %2 &Object"
+msgstr "&Об'єкт"
+
 #: oledlg.rc:34
 #, fuzzy
-#| msgid "&Font..."
-msgid "&Convert..."
-msgstr "&Шрифт..."
+#| msgid "&Object"
+msgid "%1 &Object"
+msgstr "&Об'єкт"
 
 #: oledlg.rc:33 oleview.rc:40
 msgid "&Object"
 msgstr "&Об'єкт"
 
-#: oledlg.rc:39
+#: oledlg.rc:41
 msgid "Inserts the contents of the clipboard into your document as %s."
 msgstr "Вставка до документа вмісту буфера у форматі: %s."
 
-#: oledlg.rc:40
+#: oledlg.rc:42
 msgid ""
 "Inserts the contents of the clipboard into your document so that you can "
 "activate it using %s."
@@ -7553,7 +7562,7 @@ msgstr ""
 "Вставка до документа вмісту буфера, що дає змогу активувати об'єкт за "
 "допомогою %s."
 
-#: oledlg.rc:41
+#: oledlg.rc:43
 msgid ""
 "Inserts the contents of the clipboard into your document so that you can "
 "activate it using %s. It will be displayed as an icon."
@@ -7561,7 +7570,7 @@ msgstr ""
 "Вставка до документа вмісту буфера, що дає змогу активувати об'єкт за "
 "допомогою %s. Об'єкт буде показано як значок."
 
-#: oledlg.rc:42
+#: oledlg.rc:44
 msgid ""
 "Inserts the contents of the clipboard into your document as %s. The data is "
 "linked to the source file so that changes to the file will be reflected in "
@@ -7570,7 +7579,7 @@ msgstr ""
 "Вставка до документа вмісту буфера у форматі: %s. Дані будуть зв'язані з "
 "вихідним файлом, що дасть змогу відображувати в документі внесені зміни."
 
-#: oledlg.rc:43
+#: oledlg.rc:45
 msgid ""
 "Inserts a picture of the clipboard contents into your document. The picture "
 "is linked to the source file so that changes to the file will be reflected "
@@ -7579,7 +7588,7 @@ msgstr ""
 "Вставка до документа зображення вмісту буфера. Зображення буде зв'язане з "
 "вихідним файлом, що дасть змогу відображувати в документі внесені зміни."
 
-#: oledlg.rc:44
+#: oledlg.rc:46
 msgid ""
 "Inserts a shortcut which points to the location of the clipboard contents. "
 "The shortcut is linked to the source file so that changes to the file will "
@@ -7589,19 +7598,19 @@ msgstr ""
 "буде зв'язаний із вихідним файлом, що дасть змогу відображувати в документі "
 "внесені зміни."
 
-#: oledlg.rc:45
+#: oledlg.rc:47
 msgid "Inserts the contents of the clipboard into your document."
 msgstr "Вставка вмісту буфера до документа."
 
-#: oledlg.rc:46
+#: oledlg.rc:48
 msgid "Unknown Type"
 msgstr "Невідомий тип"
 
-#: oledlg.rc:47
+#: oledlg.rc:49
 msgid "Unknown Source"
 msgstr "Невідоме джерело"
 
-#: oledlg.rc:48
+#: oledlg.rc:50
 msgid "the program which created it"
 msgstr "програми, яка його створила"
 
@@ -8246,7 +8255,7 @@ msgstr "Шаблони"
 msgid "PrintHood"
 msgstr "Принтери"
 
-#: shell32.rc:214 winhlp32.rc:48
+#: shell32.rc:214 winhlp32.rc:49
 msgid "History"
 msgstr "Історія"
 
@@ -8587,7 +8596,7 @@ msgstr "&Відновити"
 msgid "&Move"
 msgstr "&Пересунути"
 
-#: user32.rc:32 user32.rc:45 wineconsole.rc:92
+#: user32.rc:32 user32.rc:45 wineconsole.rc:93
 msgid "&Size"
 msgstr "Роз&мір"
 
@@ -9290,24 +9299,20 @@ msgstr ""
 "достатньо вільного простору та що комп'ютер ще підключений до мережі."
 
 #: winmm.rc:136
-#, fuzzy
-#| msgid "Wine Mono Installer"
 msgid "Wine Sound Mapper"
-msgstr "Встановлювач Wine Mono"
+msgstr "Wine Sound Mapper"
 
 #: winmm.rc:137
-#, fuzzy
-#| msgid "column"
 msgid "Volume"
-msgstr "стовпчик"
+msgstr "Гучність"
 
 #: winmm.rc:138
 msgid "Master Volume"
-msgstr ""
+msgstr "Основна гучність"
 
 #: winmm.rc:139
 msgid "Mute"
-msgstr ""
+msgstr "Приглушити"
 
 #: winspool.rc:37
 msgid "Print to File"
@@ -9561,7 +9566,7 @@ msgstr "Зациклювання при обробці посилань"
 msgid "Referral hop limit exceeded"
 msgstr "Перевищено граничну кількість пересилання посилань"
 
-#: attrib.rc:30 cmd.rc:327
+#: attrib.rc:30 cmd.rc:361
 msgid ""
 "Not Yet Implemented\n"
 "\n"
@@ -9569,7 +9574,7 @@ msgstr ""
 "Ще не реалізовано\n"
 "\n"
 
-#: attrib.rc:31 cmd.rc:330
+#: attrib.rc:31 cmd.rc:364
 msgid "%1: File Not Found\n"
 msgstr "%1: Файл не знайдено\n"
 
@@ -9651,24 +9656,23 @@ msgstr "Годинник"
 
 #: cmd.rc:40
 msgid ""
-"CALL <batchfilename> is used within a batch file to execute commands\n"
-"from another batch file. When the batch file exits, control returns to\n"
-"the file which called it. The CALL command may supply parameters to the\n"
-"called procedure.\n"
+"CALL <batchfilename> is used within a batch file to execute commands from\n"
+"another batch file. When the batch file exits, control returns to the file\n"
+"which called it. The CALL command may supply parameters to the called\n"
+"procedure.\n"
 "\n"
 "Changes to default directory, environment variables etc made within a\n"
 "called procedure are inherited by the caller.\n"
 msgstr ""
-"CALL <ім'я_пакетного_файлу> використовується в пакетному файлі для "
-"виконання\n"
-"команд з іншого пакетного файлу. Якщо пакетний файл існує, керування\n"
-"повертається до файлу, який його викликав. Команда CALL може передати\n"
-"параметри до викликаної процедури.\n"
+"CALL <ім'я_пакетного_файлу> використовується в пакетному файлі для\n"
+"виконання команд з іншого пакетного файлу. Якщо пакетний файл існує,\n"
+"керування повертається до файлу, який його викликав. Команда CALL може\n"
+"передати параметри до викликаної процедури.\n"
 "\n"
 "Зміни теки за замовчуванням, змінних оточення та ін., зроблені викликаною\n"
 "процедурою, успадковуються тим, хто її викликав.\n"
 
-#: cmd.rc:43
+#: cmd.rc:44
 #, fuzzy
 #| msgid ""
 #| "CD <dir> is the short version of CHDIR. It changes the current\n"
@@ -9677,45 +9681,45 @@ msgid ""
 "CD <directory> is the short version of CHDIR. It changes the current\n"
 "default directory.\n"
 msgstr ""
-"CD <тека> це короткий варіант CHDIR. Вона змінює поточну\n"
-"теку за зомовчуванням.\n"
+"CD <тека> це короткий варіант CHDIR. Вона змінює поточну теку за\n"
+"зомовчуванням.\n"
 
-#: cmd.rc:44
+#: cmd.rc:47
 #, fuzzy
 #| msgid "CHDIR <dir> changes the current default directory.\n"
 msgid "CHDIR <directory> changes the current default directory.\n"
 msgstr "CHDIR <тека> змінює поточну теку за замовчуванням.\n"
 
-#: cmd.rc:46
+#: cmd.rc:50
 msgid "CLS clears the console screen.\n"
 msgstr "CLS очищує екран консолі.\n"
 
-#: cmd.rc:48
+#: cmd.rc:53
 msgid "COPY <filename> copies a file.\n"
 msgstr "COPY <ім'я_файлу> копіює файл.\n"
 
-#: cmd.rc:49
+#: cmd.rc:56
 msgid "CTTY changes the input/output device.\n"
 msgstr "CTTY змінює пристрій вводу/виводу.\n"
 
-#: cmd.rc:50
+#: cmd.rc:59
 msgid "DATE shows or changes the system date.\n"
 msgstr "DATE показує чи змінює системну дату.\n"
 
-#: cmd.rc:51
+#: cmd.rc:62
 msgid "DEL <filename> deletes a file or set of files.\n"
 msgstr "DEL <ім'я_файлу> видаляє файл чи набір файлів.\n"
 
-#: cmd.rc:52
+#: cmd.rc:65
 msgid "DIR lists the contents of a directory.\n"
 msgstr "DIR показує вміст теки.\n"
 
-#: cmd.rc:62
+#: cmd.rc:75
 msgid ""
 "ECHO <string> displays <string> on the current terminal device.\n"
 "\n"
-"ECHO ON causes all subsequent commands in a batch file to be displayed\n"
-"on the terminal device before they are executed.\n"
+"ECHO ON causes all subsequent commands in a batch file to be displayed on\n"
+"the terminal device before they are executed.\n"
 "\n"
 "ECHO OFF reverses the effect of a previous ECHO ON (ECHO is OFF by\n"
 "default). The ECHO OFF command can be prevented from displaying by\n"
@@ -9723,18 +9727,18 @@ msgid ""
 msgstr ""
 "ECHO <рядок> відображає <рядок> на поточному термінальному пристрої.\n"
 "\n"
-"ECHO ON вмикає відображення всіх наступних команд пакетного файлу\n"
-"в термінальному пристрої перед їх виконанням.\n"
+"ECHO ON вмикає відображення всіх наступних команд пакетного файлу в\n"
+"термінальному пристрої перед їх виконанням.\n"
 "\n"
-"ECHO OFF дає протилежний ефект до попередньої ECHO ON (ECHO вимкнено\n"
-"(OFF) за замовчуванням). Команда ECHO OFF може бути прихована зазначенням\n"
-"перед нею знаку @.\n"
+"ECHO OFF дає протилежний ефект до попередньої ECHO ON (ECHO вимкнено (OFF)\n"
+"за замовчуванням). Команда ECHO OFF може бути прихована зазначенням перед\n"
+"нею знаку @.\n"
 
-#: cmd.rc:64
+#: cmd.rc:78
 msgid "ERASE <filename> deletes a file or set of files.\n"
 msgstr "ERASE <ім'я_файлу> видаляє файл чи набір файлів.\n"
 
-#: cmd.rc:71
+#: cmd.rc:85
 #, fuzzy
 #| msgid ""
 #| "The FOR command is used to execute a command for each of a set of files.\n"
@@ -9751,30 +9755,30 @@ msgstr ""
 "\n"
 "Синтаксис: FOR %змінна IN (набір) DO команда\n"
 
-#: cmd.rc:83
+#: cmd.rc:97
 msgid ""
-"The GOTO command transfers execution to another statement within a\n"
-"batch file.\n"
+"The GOTO command transfers execution to another statement within a batch\n"
+"file.\n"
 "\n"
-"The label which is the target of a GOTO may be up to 255 characters\n"
-"long but may not include spaces (this is different from other operating\n"
-"systems). If two or more identical labels exist in a batch file the\n"
-"first one will always be executed. Attempting to GOTO a nonexistent\n"
-"label terminates the batch file execution.\n"
+"The label which is the target of a GOTO may be up to 255 characters long\n"
+"but may not include spaces (this is different from other operating\n"
+"systems). If two or more identical labels exist in a batch file the first\n"
+"one will always be executed. Attempting to GOTO a nonexistent label\n"
+"terminates the batch file execution.\n"
 "\n"
 "GOTO has no effect when used interactively.\n"
 msgstr ""
 "Команда GOTO передає керування певному рядку пакетного файлу.\n"
 "\n"
-"Мітка, що є ціллю GOTO, може мати довжину до 255 знаків, але\n"
-"не повинна містити пробіли (відмінність від інших операційних\n"
-"систем). Якщо в пакетному файлі є дві чи більше однакових мітки,\n"
-"завжди буде працювати перша. Спроба GOTO перейти до неіснуючої\n"
-"мітки перериває виконання пакетного файлу.\n"
+"Мітка, що є ціллю GOTO, може мати довжину до 255 знаків, але не повинна\n"
+"містити пробіли (відмінність від інших операційних систем). Якщо в\n"
+"пакетному файлі є дві чи більше однакових мітки, завжди буде працювати\n"
+"перша. Спроба GOTO перейти до неіснуючої мітки перериває виконання\n"
+"пакетного файлу.\n"
 "\n"
 "GOTO не працює в інтерактивному режимі.\n"
 
-#: cmd.rc:86
+#: cmd.rc:101
 msgid ""
 "HELP <command> shows brief help details on a topic.\n"
 "HELP without an argument shows all CMD built-in commands.\n"
@@ -9782,7 +9786,7 @@ msgstr ""
 "HELP <команда> показує коротку довідкову інформацію про команду.\n"
 "HELP без аргументів показує всі вбудовані команди CMD.\n"
 
-#: cmd.rc:96
+#: cmd.rc:111
 msgid ""
 "IF is used to conditionally execute a command.\n"
 "\n"
@@ -9802,7 +9806,7 @@ msgstr ""
 "В другій формі команди, рядок1 та рядок2 повинні бути в подвійних лапках.\n"
 "Порівняння не чутливе до регістру.\n"
 
-#: cmd.rc:102
+#: cmd.rc:118
 msgid ""
 "LABEL is used to set a disk volume label.\n"
 "\n"
@@ -9816,38 +9820,37 @@ msgstr ""
 "Команда запитує нову мітку тому для відповідного диску.\n"
 "З допомогою команди VOL ви можете подивитись мітку диску.\n"
 
-#: cmd.rc:105
+#: cmd.rc:121
 msgid "MD <name> is the short version of MKDIR. It creates a subdirectory.\n"
 msgstr "MD <ім'я> це коротка версія MKDIR. Вона створює підтеку.\n"
 
-#: cmd.rc:106
+#: cmd.rc:123
 msgid "MKDIR <name> creates a subdirectory.\n"
 msgstr "MKDIR <ім'я> створює підтеку.\n"
 
-#: cmd.rc:113
+#: cmd.rc:131
 msgid ""
 "MOVE relocates a file or directory to a new point within the file system.\n"
 "\n"
-"If the item being moved is a directory then all the files and "
-"subdirectories\n"
-"below the item are moved as well.\n"
+"If the item being moved is a directory then all the files and\n"
+"subdirectories below the item are moved as well.\n"
 "\n"
 "MOVE fails if the old and new locations are on different DOS drive letters.\n"
 msgstr ""
 "MOVE переміщує файл чи теку на нове місце файлової системи.\n"
 "\n"
-"Якщо переміщується тека, то переміщуються всі файли та підтеки,\n"
-"які містить ця тека.\n"
+"Якщо переміщується тека, то переміщуються всі файли та підтеки, які містить\n"
+"ця тека.\n"
 "\n"
 "MOVE не працює для переміщення даних з одного логічного диска DOS на інший.\n"
 
-#: cmd.rc:124
+#: cmd.rc:142
 msgid ""
 "PATH displays or changes the cmd search path.\n"
 "\n"
-"Entering PATH will display the current PATH setting (initially taken\n"
-"from the registry). To change the setting follow the\n"
-"PATH command with the new value.\n"
+"Entering PATH will display the current PATH setting (initially taken from\n"
+"the registry). To change the setting follow the PATH command with the new\n"
+"value.\n"
 "\n"
 "It is also possible to modify the PATH by using the PATH environment\n"
 "variable, for example:\n"
@@ -9855,27 +9858,27 @@ msgid ""
 msgstr ""
 "PATH відображає або змінює шлях пошуку cmd.\n"
 "\n"
-"Команда PATH відобразить поточні параметри PATH (спочатку береться\n"
-"з реєстру). Для зміни налаштувань використайте команду\n"
-"PATH з новим значенням.\n"
+"Команда PATH відобразить поточні параметри PATH (спочатку береться з\n"
+"реєстру). Для зміни налаштувань використайте команду PATH з новим\n"
+"значенням.\n"
 "\n"
-"Також можна змінити значення PATH, використавши змінну оточення\n"
-"PATH, наприклад:\n"
+"Також можна змінити значення PATH, використавши змінну оточення PATH,\n"
+"наприклад:\n"
 "PATH %PATH%;c:\\temp\n"
 
-#: cmd.rc:130
+#: cmd.rc:148
 msgid ""
 "PAUSE displays a message on the screen asking the user to press a key.\n"
 "\n"
-"It is mainly useful in batch files to allow the user to read the output\n"
-"of a previous command before it scrolls off the screen.\n"
+"It is mainly useful in batch files to allow the user to read the output of\n"
+"a previous command before it scrolls off the screen.\n"
 msgstr ""
 "PAUSE показує на екрані повідомлення 'Натисніть клавішу для продовження'\n"
 "\n"
 "В основному корисно в пакетних файлах щоб користувач міг прочитати вивід\n"
 "попередньої команди перед її зникненням з екрану.\n"
 
-#: cmd.rc:151
+#: cmd.rc:169
 msgid ""
 "PROMPT sets the command-line prompt.\n"
 "\n"
@@ -9899,8 +9902,8 @@ msgid ""
 msgstr ""
 "PROMPT задає запрошення командного рядка.\n"
 "\n"
-"Рядок, що йде після команди PROMPT (і пробілу після команди),\n"
-"з'являється на початку рядка, коли cmd очікує введення.\n"
+"Рядок, що йде після команди PROMPT (і пробілу після команди), з'являється\n"
+"на початку рядка, коли cmd очікує введення.\n"
 "\n"
 "Наступні символьні рядки мають спеціальні значення і відображення:\n"
 "\n"
@@ -9910,42 +9913,42 @@ msgstr ""
 "$q    Знак рівності       $t    Поточний час        $v    Версія cmd\n"
 "\n"
 "Зауважте, що при вводі команди PROMPT без рядка запрошення налаштування\n"
-"скидаються до типових, тобто до поточної теки (включаючи\n"
-"букву поточного диску) з наступним знаком більше (>).\n"
+"скидаються до типових, тобто до поточної теки (включаючи букву поточного\n"
+"диску) з наступним знаком більше (>).\n"
 "(як в команді PROMPT $p$g).\n"
 "\n"
-"Запрошення також може бути змінене зміною змінної оточення PROMPT,\n"
-"тому команда 'SET PROMPT=text' має той же ефект, що і 'PROMPT text'.\n"
+"Запрошення також може бути змінене зміною змінної оточення PROMPT, тому\n"
+"команда 'SET PROMPT=text' має той же ефект, що і 'PROMPT text'.\n"
 
-#: cmd.rc:155
+#: cmd.rc:173
 msgid ""
-"A command line beginning with REM (followed by a space) performs no\n"
-"action, and can therefore be used as a comment in a batch file.\n"
+"A command line beginning with REM (followed by a space) performs no action,\n"
+"and can therefore be used as a comment in a batch file.\n"
 msgstr ""
-"Командний рядок, що починається з REM (з наступним пробілом) нічого\n"
-"не виконує, тому може бути використаний як коментар в пакетному файлі.\n"
+"Командний рядок, що починається з REM (з наступним пробілом) нічого не\n"
+"виконує, тому може бути використаний як коментар в пакетному файлі.\n"
 
-#: cmd.rc:158
+#: cmd.rc:176
 msgid "REN <filename> is the short version of RENAME. It renames a file.\n"
 msgstr "REN <ім'я_файлу> це коротка версія RENAME. Вона перейменовує файл.\n"
 
-#: cmd.rc:159
+#: cmd.rc:178
 msgid "RENAME <filename> renames a file.\n"
 msgstr "RENAME <ім'я_файлу> перейменовує файл.\n"
 
-#: cmd.rc:161
+#: cmd.rc:181
 #, fuzzy
 #| msgid "RD <dir> is the short version of RMDIR. It deletes a subdirectory.\n"
 msgid "RD <directory> is the short version of RMDIR. It deletes a directory.\n"
 msgstr "RD <тека> це коротка версія RMDIR. Вона видаляє підтеку.\n"
 
-#: cmd.rc:162
+#: cmd.rc:183
 #, fuzzy
 #| msgid "RMDIR <dir> deletes a subdirectory.\n"
 msgid "RMDIR <directory> deletes a directory.\n"
 msgstr "RMDIR <тека> видаляє підтеку.\n"
 
-#: cmd.rc:206
+#: cmd.rc:229
 msgid ""
 "SET displays or changes the cmd environment variables.\n"
 "\n"
@@ -9955,14 +9958,13 @@ msgid ""
 "\n"
 "SET <variable>=<value>\n"
 "\n"
-"where <variable> and <value> are character strings. There must be no\n"
-"space before the equals sign, nor can the variable name\n"
-"have embedded spaces.\n"
+"where <variable> and <value> are character strings. There must be no space\n"
+"before the equals sign, nor can the variable name have embedded spaces.\n"
 "\n"
-"Under Wine, the environment of the underlying operating system is\n"
-"included into the Win32 environment, there will generally therefore be\n"
-"many more values than in a native Win32 implementation. Note that it is\n"
-"not possible to affect the operating system environment from within cmd.\n"
+"Under Wine, the environment of the underlying operating system is included\n"
+"into the Win32 environment, there will generally therefore be many more\n"
+"values than in a native Win32 implementation. Note that it is not possible\n"
+"to affect the operating system environment from within cmd.\n"
 msgstr ""
 "SET показує чи задає змiнні оточення cmd.\n"
 "\n"
@@ -9972,75 +9974,73 @@ msgstr ""
 "\n"
 "SET <змінна>=<значення>\n"
 "\n"
-"де <змінна> та <значення> є символьними рядками. Перед знаком рівності\n"
-"не повинно бути пробілів, ім'я змінної не повинно містити в собі\n"
-"пробіли.\n"
+"де <змінна> та <значення> є символьними рядками. Перед знаком рівності не\n"
+"повинно бути пробілів, ім'я змінної не повинно містити в собі пробіли.\n"
 "\n"
-"В Wine, оточення основної операційної системи включене\n"
-"в оточення Win32, тому буде доступно більше змінних, ніж\n"
-"в звичайній реалізації Win32. Зверніть увагу на те, що неможливо\n"
-"змінити оточення операційної системи з cmd.\n"
+"В Wine, оточення основної операційної системи включене в оточення Win32,\n"
+"тому буде доступно більше змінних, ніж в звичайній реалізації Win32.\n"
+"Зверніть увагу на те, що неможливо змінити оточення операційної системи з\n"
+"cmd.\n"
 
-#: cmd.rc:211
+#: cmd.rc:234
 msgid ""
-"SHIFT is used in a batch file to remove one parameter from the head of\n"
-"the list, so parameter 2 becomes parameter 1 and so on. It has no effect\n"
-"if called from the command line.\n"
+"SHIFT is used in a batch file to remove one parameter from the head of the\n"
+"list, so parameter 2 becomes parameter 1 and so on. It has no effect if\n"
+"called from the command line.\n"
 msgstr ""
 "SHIFT використовується в пакетному файлі для вилучення одного параметра з\n"
-"вершини списку, тому параметр 2 стає параметром 1 і т.д. Команда не працює "
-"при\n"
-"її виклику з командного рядка.\n"
+"вершини списку, тому параметр 2 стає параметром 1 і т.д. Команда не працює\n"
+"при її виклику з командного рядка.\n"
 
-#: cmd.rc:188 start.rc:53
+#: cmd.rc:212 start.rc:56
 msgid ""
-"Start a program, or open a document in the program normally used for files "
+"Start a program, or open a document in the program normally used for files\n"
 "with that suffix.\n"
 "Usage:\n"
 "start [options] program_filename [...]\n"
 "start [options] document_filename\n"
 "\n"
 "Options:\n"
-"\"title\"      Specifies the title of the child windows.\n"
-"/d directory Start the program in the specified directory.\n"
-"/b           Don't create a new console for the program.\n"
-"/i           Start the program with fresh environment variables.\n"
-"/min         Start the program minimized.\n"
-"/max         Start the program maximized.\n"
-"/low         Start the program in the idle priority class.\n"
-"/normal      Start the program in the normal priority class.\n"
-"/high        Start the program in the high priority class.\n"
-"/realtime    Start the program in the realtime priority class.\n"
-"/abovenormal Start the program in the abovenormal priority class.\n"
-"/belownormal Start the program in the belownormal priority class.\n"
-"/node n      Start the program on the specified NUMA node.\n"
+"\"title\"        Specifies the title of the child windows.\n"
+"/d directory   Start the program in the specified directory.\n"
+"/b             Don't create a new console for the program.\n"
+"/i             Start the program with fresh environment variables.\n"
+"/min           Start the program minimized.\n"
+"/max           Start the program maximized.\n"
+"/low           Start the program in the idle priority class.\n"
+"/normal        Start the program in the normal priority class.\n"
+"/high          Start the program in the high priority class.\n"
+"/realtime      Start the program in the realtime priority class.\n"
+"/abovenormal   Start the program in the abovenormal priority class.\n"
+"/belownormal   Start the program in the belownormal priority class.\n"
+"/node n        Start the program on the specified NUMA node.\n"
 "/affinity mask Start the program with the specified affinity mask.\n"
-"/wait        Wait for the started program to finish, then exit with its exit "
-"code.\n"
-"/unix        Use a Unix filename and start the file like windows explorer.\n"
-"/ProgIDOpen  Open a document using the specified progID.\n"
-"/?           Display this help and exit.\n"
+"/wait          Wait for the started program to finish, then exit with its\n"
+"exit code.\n"
+"/unix          Use a Unix filename and start the file like windows\n"
+"explorer.\n"
+"/ProgIDOpen    Open a document using the specified progID.\n"
+"/?             Display this help and exit.\n"
 msgstr ""
 
-#: cmd.rc:213
+#: cmd.rc:237
 msgid "TIME sets or shows the current system time.\n"
 msgstr "TIME задає чи показує поточний системний час.\n"
 
-#: cmd.rc:215
+#: cmd.rc:240
 msgid "TITLE <string> sets the window title for the cmd window.\n"
 msgstr "TITLE <рядок> задає заголовок вікна для вікна cmd.\n"
 
-#: cmd.rc:219
+#: cmd.rc:244
 msgid ""
-"TYPE <filename> copies <filename> to the console device (or elsewhere\n"
-"if redirected). No check is made that the file is readable text.\n"
+"TYPE <filename> copies <filename> to the console device (or elsewhere if\n"
+"redirected). No check is made that the file is readable text.\n"
 msgstr ""
-"TYPE <ім'я_файлу> копіює <ім'я_файлу> до консольного пристрою (чи в інше "
-"місце,\n"
-"якщо він перенаправлений). Не перевіряється, чи файл це текст, призначений\n"
-"для читання.\n"
+"TYPE <ім'я_файлу> копіює <ім'я_файлу> до консольного пристрою (чи в інше\n"
+"місце, якщо він перенаправлений). Не перевіряється, чи файл це текст,\n"
+"призначений для читання.\n"
 
-#: cmd.rc:228
+#: cmd.rc:253
 msgid ""
 "VERIFY is used to set, clear or test the verify flag. Valid forms are:\n"
 "\n"
@@ -10050,7 +10050,7 @@ msgid ""
 "\n"
 "The verify flag has no function in Wine.\n"
 msgstr ""
-"VERIFY призначена для задання, скидання чи тестування прапора перевірки. "
+"VERIFY призначена для задання, скидання чи тестування прапора перевірки.\n"
 "Діючі форми:\n"
 "\n"
 "VERIFY ON\tЗадати прапор.\n"
@@ -10059,23 +10059,23 @@ msgstr ""
 "\n"
 "Прапор перевірки не має функцій в Wine.\n"
 
-#: cmd.rc:231
+#: cmd.rc:256
 msgid "VER displays the version of cmd you are running.\n"
 msgstr "VER відображає версію запущеного cmd.\n"
 
-#: cmd.rc:233
+#: cmd.rc:259
 msgid "VOL shows the volume label of a disk device.\n"
 msgstr "VOL відображає мітку тому дискового пристрою.\n"
 
-#: cmd.rc:237
+#: cmd.rc:263
 msgid ""
-"ENDLOCAL ends localization of environment changes in a batch file\n"
-"which were introduced by a preceding SETLOCAL.\n"
+"ENDLOCAL ends localization of environment changes in a batch file which\n"
+"were introduced by a preceding SETLOCAL.\n"
 msgstr ""
-"ENDLOCAL завершує локалізацію змін оточення в пакетному файлі\n"
-"що були впроваджені командою SETLOCAL.\n"
+"ENDLOCAL завершує локалізацію змін оточення в пакетному файлі що були\n"
+"впроваджені командою SETLOCAL.\n"
 
-#: cmd.rc:245
+#: cmd.rc:271
 msgid ""
 "SETLOCAL starts localization of environment changes in a batch file.\n"
 "\n"
@@ -10091,23 +10091,23 @@ msgstr ""
 "трапиться раніше), після чого відновлюються попередні налаштування\n"
 "оточення.\n"
 
-#: cmd.rc:248
+#: cmd.rc:275
 #, fuzzy
 #| msgid ""
 #| "PUSHD <directoryname> saves the current directory onto a\n"
 #| "stack, and then changes the current directory to the supplied one.\n"
 msgid ""
-"PUSHD <directory> saves the current directory onto a\n"
-"stack, and then changes the current directory to the supplied one.\n"
+"PUSHD <directory> saves the current directory onto a stack, and then\n"
+"changes the current directory to the supplied one.\n"
 msgstr ""
-"PUSHD <ім'я_теки> зберігає поточну теку в стек,\n"
-"а потім змінює поточну теку на вказану.\n"
+"PUSHD <ім'я_теки> зберігає поточну теку в стек, а потім змінює поточну теку\n"
+"на вказану.\n"
 
-#: cmd.rc:250
+#: cmd.rc:278
 msgid "POPD changes current directory to the last one saved with PUSHD.\n"
 msgstr "POPD змінює поточну теку на останню збережену командою PUSHD.\n"
 
-#: cmd.rc:258
+#: cmd.rc:288
 msgid ""
 "ASSOC shows or modifies file extension associations.\n"
 "\n"
@@ -10115,7 +10115,7 @@ msgid ""
 "\n"
 "ASSOC without parameters displays current file associations.\n"
 "If used with only a file extension, displays the current association.\n"
-"Specifying no file type after the equal sign removes the current "
+"Specifying no file type after the equal sign removes the current\n"
 "association, if any.\n"
 msgstr ""
 "ASSOC показує чи змінює асоціації файлових типів.\n"
@@ -10124,57 +10124,57 @@ msgstr ""
 "\n"
 "ASSOC без параметрів показує поточні файлові асоціації.\n"
 "Якщо використовується лише з розширенням то відображає поточну асоціацію.\n"
-"Якщо не вказати тип файлу після знаку рівності то існуюча асоціація буде "
+"Якщо не вказати тип файлу після знаку рівності то існуюча асоціація буде\n"
 "видалена.\n"
 
-#: cmd.rc:269
+#: cmd.rc:300
 msgid ""
 "FTYPE shows or modifies open commands associated with file types.\n"
 "\n"
 "Syntax: FTYPE [fileType[=[openCommand]]]\n"
 "\n"
-"Without parameters, shows the file types for which open command strings are "
+"Without parameters, shows the file types for which open command strings are\n"
 "currently defined.\n"
-"If used with only a file type, displays the associated open command string, "
+"If used with only a file type, displays the associated open command string,\n"
 "if any.\n"
-"Specifying no open command after the equal sign removes the command string "
+"Specifying no open command after the equal sign removes the command string\n"
 "associated to the specified file type.\n"
 msgstr ""
 "FTYPE показує або змінює команди відкриття, асоційовані з типами файлів.\n"
 "\n"
 "Синтаксис: FTYPE [тип_файлу[=[командаВідкриття]]]\n"
 "\n"
-"Без параметрів, показує типи файлів, для яких на даний момент задані рядки "
+"Без параметрів, показує типи файлів, для яких на даний момент задані рядки\n"
 "команд відкриття.\n"
-"Якщо вказаний лише тип файлу, відображає асоційовані команди відкриття, якщо "
-"такі є.\n"
+"Якщо вказаний лише тип файлу, відображає асоційовані команди відкриття,\n"
+"якщо такі є.\n"
 "Якщо не вказана команда відкриття після знаку рівності то це видалить\n"
 "команду для вказаного типу файлів.\n"
 
-#: cmd.rc:271
+#: cmd.rc:303
 msgid "MORE displays output of files or piped input in pages.\n"
 msgstr "MORE відображає вміст файлів чи каналів сторінками.\n"
 
-#: cmd.rc:275
+#: cmd.rc:308
 msgid ""
-"CHOICE displays a text and waits, until the User\n"
-"presses an allowed Key from a selectable list.\n"
+"CHOICE displays a text and waits, until the User presses an allowed Key\n"
+"from a selectable list.\n"
 "CHOICE is mainly used to build a menu selection in a batch file.\n"
 msgstr ""
-"CHOICE відображує текст і чекає, поки Користувач\n"
-"натисне дозволену Кнопку зі списку таблиці вибору.\n"
-"CHOICE переважно використовується для побудови меню вибору в пакетному "
+"CHOICE відображує текст і чекає, поки Користувач натисне дозволену Кнопку\n"
+"зі списку таблиці вибору.\n"
+"CHOICE переважно використовується для побудови меню вибору в пакетному\n"
 "файлі.\n"
 
-#: cmd.rc:279
+#: cmd.rc:312
 msgid ""
-"EXIT terminates the current command session and returns\n"
-"to the operating system or shell from which you invoked cmd.\n"
+"EXIT terminates the current command session and returns to the operating\n"
+"system or shell from which you invoked cmd.\n"
 msgstr ""
-"EXIT завершує поточну сесію командного рядка та повертає вас\n"
-"до операційної системи чи оболонки, з якої ви запустили cmd.\n"
+"EXIT завершує поточну сесію командного рядка та повертає вас до операційної\n"
+"системи чи оболонки, з якої ви запустили cmd.\n"
 
-#: cmd.rc:317
+#: cmd.rc:351
 msgid ""
 "CMD built-in commands are:\n"
 "ASSOC\t\tShow or modify file extension associations\n"
@@ -10254,110 +10254,110 @@ msgstr ""
 "\n"
 "Введіть HELP <команда> для детальнішої інформації про вищенаведені команди.\n"
 
-#: cmd.rc:319
+#: cmd.rc:353
 msgid "Are you sure?"
 msgstr "Ви впевнені?"
 
-#: cmd.rc:320 xcopy.rc:43
+#: cmd.rc:354 xcopy.rc:43
 msgctxt "Yes key"
 msgid "Y"
 msgstr "Т"
 
-#: cmd.rc:321 xcopy.rc:44
+#: cmd.rc:355 xcopy.rc:44
 msgctxt "No key"
 msgid "N"
 msgstr "Н"
 
-#: cmd.rc:322
+#: cmd.rc:356
 msgid "File association missing for extension %1\n"
 msgstr "Файлова асоціація для розширення %1 відсутня\n"
 
-#: cmd.rc:323
+#: cmd.rc:357
 msgid "No open command associated with file type '%1'\n"
 msgstr "Немає команди відкриття, асоційованої з файловим типом '%1'\n"
 
-#: cmd.rc:324
+#: cmd.rc:358
 msgid "Overwrite %1?"
 msgstr "Перезаписати %1?"
 
-#: cmd.rc:325
+#: cmd.rc:359
 msgid "More..."
 msgstr "Більше..."
 
-#: cmd.rc:326
+#: cmd.rc:360
 msgid "Line in Batch processing possibly truncated. Using:\n"
 msgstr "Рядок в обробці Пакету мабуть урізаний. Використовую:\n"
 
-#: cmd.rc:328
+#: cmd.rc:362
 msgid "Argument missing\n"
 msgstr "Відсутній аргумент\n"
 
-#: cmd.rc:329
+#: cmd.rc:363
 msgid "Syntax error\n"
 msgstr "Синтаксична помилка\n"
 
-#: cmd.rc:331
+#: cmd.rc:365
 msgid "No help available for %1\n"
 msgstr "Немає довідки для %1\n"
 
-#: cmd.rc:332
+#: cmd.rc:366
 msgid "Target to GOTO not found\n"
 msgstr "Не знайдена ціль для GOTO\n"
 
-#: cmd.rc:333
+#: cmd.rc:367
 msgid "Current Date is %1\n"
 msgstr "Поточна дата: %1\n"
 
-#: cmd.rc:334
+#: cmd.rc:368
 msgid "Current Time is %1\n"
 msgstr "Поточний час: %1\n"
 
-#: cmd.rc:335
+#: cmd.rc:369
 msgid "Enter new date: "
 msgstr "Введіть нову дату: "
 
-#: cmd.rc:336
+#: cmd.rc:370
 msgid "Enter new time: "
 msgstr "Введіть новий час: "
 
-#: cmd.rc:337
+#: cmd.rc:371
 msgid "Environment variable %1 not defined\n"
 msgstr "Змінна оточення %1 не визначена\n"
 
-#: cmd.rc:338 xcopy.rc:41
+#: cmd.rc:372 xcopy.rc:41
 msgid "Failed to open '%1'\n"
 msgstr "Не вдалось відкрити '%1'\n"
 
-#: cmd.rc:339
+#: cmd.rc:373
 msgid "Cannot call batch label outside of a batch script\n"
 msgstr "Не можу викликати мітку пакету за межами пакетного скрипта\n"
 
-#: cmd.rc:340 xcopy.rc:45
+#: cmd.rc:374 xcopy.rc:45
 msgctxt "All key"
 msgid "A"
 msgstr "В"
 
-#: cmd.rc:341
+#: cmd.rc:375
 msgid "Delete %1?"
 msgstr "Видалити %1?"
 
-#: cmd.rc:342
+#: cmd.rc:376
 msgid "Echo is %1\n"
 msgstr "Echo зараз %1\n"
 
-#: cmd.rc:343
+#: cmd.rc:377
 msgid "Verify is %1\n"
 msgstr "Verify зараз %1\n"
 
-#: cmd.rc:344
+#: cmd.rc:378
 msgid "Verify must be ON or OFF\n"
 msgstr "Verify повинен бути ON чи OFF\n"
 
-#: cmd.rc:345
+#: cmd.rc:379
 msgid "Parameter error\n"
 msgstr "Помилка параметру\n"
 
-#: cmd.rc:346
+#: cmd.rc:380
 msgid ""
 "Volume Serial Number is %1!04x!-%2!04x!\n"
 "\n"
@@ -10365,76 +10365,76 @@ msgstr ""
 "Серійний номер диску: %1!04x!-%2!04x!\n"
 "\n"
 
-#: cmd.rc:347
+#: cmd.rc:381
 msgid "Volume label (11 characters, <Enter> for none)?"
 msgstr "Мітка диску (11 символів, <Enter> - без мітки)?"
 
-#: cmd.rc:348
+#: cmd.rc:382
 msgid "PATH not found\n"
 msgstr "PATH не знайдено\n"
 
-#: cmd.rc:349
+#: cmd.rc:383
 msgid "Press any key to continue... "
 msgstr "Натисніть будь-яку клавішу, щоб продовжити... "
 
-#: cmd.rc:350
+#: cmd.rc:384
 msgid "Wine Command Prompt"
 msgstr "Командний рядок Wine"
 
-#: cmd.rc:351
+#: cmd.rc:385
 msgid "Microsoft Windows %1!S!\n"
 msgstr "Microsoft Windows %1!S!\n"
 
-#: cmd.rc:352
+#: cmd.rc:386
 msgid "More? "
 msgstr "Більше? "
 
-#: cmd.rc:353
+#: cmd.rc:387
 msgid "The input line is too long.\n"
 msgstr "Введений рядок задовгий.\n"
 
-#: cmd.rc:354
+#: cmd.rc:388
 msgid "Volume in drive %1!c! is %2\n"
 msgstr "Том в приводі %1!c! : %2\n"
 
-#: cmd.rc:355
+#: cmd.rc:389
 msgid "Volume in drive %1!c! has no label.\n"
 msgstr "Том в приводі %1!c! не має мітки.\n"
 
-#: cmd.rc:356
+#: cmd.rc:390
 msgid " (Yes|No)"
 msgstr " (Так|Ні)"
 
-#: cmd.rc:357
+#: cmd.rc:391
 msgid " (Yes|No|All)"
 msgstr " (Так|Ні|Всі)"
 
-#: cmd.rc:358
+#: cmd.rc:392
 msgid ""
 "Can't recognize '%1' as an internal or external command, or batch script.\n"
 msgstr ""
 "Не можу визначити '%1' як внутрішню або зовнішню команду, чи пакетний "
 "сценарій (скрипт).\n"
 
-#: cmd.rc:359
+#: cmd.rc:393
 msgid "Division by zero error.\n"
 msgstr "Помилка Ділення на нуль.\n"
 
-#: cmd.rc:360
+#: cmd.rc:394
 msgid "Expected an operand.\n"
 msgstr ""
 
-#: cmd.rc:361
+#: cmd.rc:395
 #, fuzzy
 #| msgid "Unexpected network error.\n"
 msgid "Expected an operator.\n"
 msgstr "Неочікувана помилка мережі.\n"
 
-#: cmd.rc:362
+#: cmd.rc:396
 msgid "Mismatch in parentheses.\n"
 msgstr ""
 
-#: cmd.rc:363
+#: cmd.rc:397
 msgid ""
 "Badly formed number - must be one of decimal (12),\n"
 " hexadecimal (0x34) or octal (056).\n"
@@ -12031,7 +12031,7 @@ msgid "regsvr32: Failed to load DLL '%1'\n"
 msgstr "regsvr32: Не вдалося завантажити DLL '%1'\n"
 
 #: regsvr32.rc:43
-msgid "regsvr32: %1 not implemented in DLL '%2'\n"
+msgid "regsvr32: '%1!S!' not implemented in DLL '%2'\n"
 msgstr "regsvr32: %1 не реалізовано у DLL '%2'\n"
 
 #: regsvr32.rc:44
@@ -12066,7 +12066,7 @@ msgstr "regsvr32: Не вдалося видалити DLL '%1'\n"
 msgid "regsvr32: Successfully uninstalled DLL '%1'\n"
 msgstr "regsvr32: DLL '%1' успішно видалена\n"
 
-#: start.rc:55
+#: start.rc:58
 msgid ""
 "Application could not be started, or no application associated with the "
 "specified file.\n"
@@ -12076,7 +12076,7 @@ msgstr ""
 "документа додатків.\n"
 "Виклик ShellExecuteEx провалився"
 
-#: start.rc:57
+#: start.rc:60
 msgid "Could not translate the specified Unix filename to a DOS filename."
 msgstr "Неможливо перетворити ім'я файлу UNIX в ім'я файлу DOS."
 
@@ -12951,6 +12951,42 @@ msgstr ""
 "Помилка виконання команди видалення '%s', можливо через відсутність файлу.\n"
 "Видалити дані про встановлення з реєстру?"
 
+#: uninstaller.rc:31
+msgid "uninstaller: The application with GUID '%1' was not found\n"
+msgstr "uninstaller: Застосунок з ідентифікатором '%1' не знайдено\n"
+
+#: uninstaller.rc:32
+msgid ""
+"uninstaller: The option '--remove' must be followed by an application GUID\n"
+msgstr ""
+"uninstaller: Для параметра '--remove' повинен бути вказаний GUID застосунка\n"
+
+#: uninstaller.rc:33
+msgid "uninstaller: Invalid option [%1]\n"
+msgstr "uninstaller: Невірний параметр [%1]\n"
+
+#: uninstaller.rc:35
+msgid ""
+"Wine Application Uninstaller\n"
+"\n"
+"Uninstall applications from the current Wine prefix.\n"
+"\n"
+msgstr ""
+
+#: uninstaller.rc:43
+msgid ""
+"Usage:\n"
+"  uninstaller [options]\n"
+"\n"
+"Options:\n"
+"  --help\t    Display this information.\n"
+"  --list\t    List all applications installed in this Wine prefix.\n"
+"  --remove {GUID}   Uninstall the specified application.\n"
+"\t\t    Use '--list' to determine the application GUID.\n"
+"  [no option]       Launch the graphical version of this program.\n"
+"\n"
+msgstr ""
+
 #: view.rc:36
 msgid "&Pan"
 msgstr ""
@@ -13595,98 +13631,98 @@ msgid "&Large"
 msgstr "&Великий"
 
 #: wineconsole.rc:68
-msgid "Control"
-msgstr "Керування"
-
-#: wineconsole.rc:69
-msgid "Popup menu"
-msgstr "Спливаюче меню"
-
-#: wineconsole.rc:70
-msgid "&Control"
-msgstr ""
-
-#: wineconsole.rc:71
-msgid "S&hift"
-msgstr ""
-
-#: wineconsole.rc:72
-msgid "Quick edit"
-msgstr "Швидке редагування"
-
-#: wineconsole.rc:73
-msgid "&enable"
-msgstr "вв&імкнути"
-
-#: wineconsole.rc:75
 msgid "Command history"
 msgstr "Історія команд"
 
+#: wineconsole.rc:69
+msgid "&Buffer size:"
+msgstr "&Розмір буфера:"
+
+#: wineconsole.rc:72
+msgid "&Remove duplicates"
+msgstr "&Видаляти повтори"
+
+#: wineconsole.rc:74
+msgid "Popup menu"
+msgstr "Спливаюче меню"
+
+#: wineconsole.rc:75
+msgid "&Control"
+msgstr ""
+
 #: wineconsole.rc:76
-msgid "&Number of recalled commands:"
-msgstr "&Кількість нагаданих команд:"
+msgid "S&hift"
+msgstr ""
+
+#: wineconsole.rc:78
+msgid "Console"
+msgstr "Консоль"
 
 #: wineconsole.rc:79
-msgid "&Remove doubles"
-msgstr "Видаляти &повтори"
+msgid "&Quick Edit mode"
+msgstr "&Швидке редагування"
 
-#: wineconsole.rc:87
+#: wineconsole.rc:80
+msgid "&Insert mode"
+msgstr "&Режим вставки"
+
+#: wineconsole.rc:88
 msgid "&Font"
 msgstr "&Шрифт"
 
-#: wineconsole.rc:89
+#: wineconsole.rc:90
 msgid "&Color"
 msgstr "&Колір"
 
-#: wineconsole.rc:100
+#: wineconsole.rc:101
 msgid "Configuration"
 msgstr "Конфігурація"
 
-#: wineconsole.rc:103
+#: wineconsole.rc:104
 msgid "Buffer zone"
 msgstr "Зона буфера"
 
-#: wineconsole.rc:104
+#: wineconsole.rc:105
 msgid "&Width:"
 msgstr "&Ширина:"
 
-#: wineconsole.rc:107
+#: wineconsole.rc:108
 msgid "&Height:"
 msgstr "&Висота:"
 
-#: wineconsole.rc:111
+#: wineconsole.rc:112
 msgid "Window size"
 msgstr "Розмір вікна"
 
-#: wineconsole.rc:112
+#: wineconsole.rc:113
 msgid "W&idth:"
 msgstr "Ш&ирина:"
 
-#: wineconsole.rc:115
+#: wineconsole.rc:116
 msgid "H&eight:"
 msgstr "Висо&та:"
 
-#: wineconsole.rc:119
+#: wineconsole.rc:120
 msgid "End of program"
 msgstr "Завершення програми"
 
-#: wineconsole.rc:120
+#: wineconsole.rc:121
 msgid "&Close console"
 msgstr "&Закрити консоль"
 
-#: wineconsole.rc:122
+#: wineconsole.rc:123
 msgid "Edition"
 msgstr "Випуск"
 
-#: wineconsole.rc:128
+#: wineconsole.rc:129
 msgid "Console parameters"
 msgstr "Параметри консолі"
 
-#: wineconsole.rc:131
+#: wineconsole.rc:132
 msgid "Retain these settings for later sessions"
 msgstr "Зберегти ці налаштування для наступних сесій"
 
-#: wineconsole.rc:132
+#: wineconsole.rc:133
 msgid "Modify only current session"
 msgstr "Змінювати лише поточну сесію"
 
@@ -14191,29 +14227,29 @@ msgstr "&Закладка"
 msgid "&Define..."
 msgstr "&Задати..."
 
-#: winhlp32.rc:49 winhlp32.rc:70
+#: winhlp32.rc:48
+msgid "Always on &top"
+msgstr "Завжди &зверху"
+
+#: winhlp32.rc:50 winhlp32.rc:70
 msgid "Fonts"
 msgstr "Шрифти"
 
-#: winhlp32.rc:51 winhlp32.rc:72
+#: winhlp32.rc:52 winhlp32.rc:72
 msgid "Small"
 msgstr "Малий"
 
-#: winhlp32.rc:52 winhlp32.rc:73
+#: winhlp32.rc:53 winhlp32.rc:73
 msgid "Normal"
 msgstr "Нормальний"
 
-#: winhlp32.rc:53 winhlp32.rc:74
+#: winhlp32.rc:54 winhlp32.rc:74
 msgid "Large"
 msgstr "Великий"
 
-#: winhlp32.rc:57
+#: winhlp32.rc:58
 msgid "&Help on help\tF1"
 msgstr "&Використання Довідки\tF1"
-
-#: winhlp32.rc:58
-msgid "Always on &top"
-msgstr "Завжди &зверху"
 
 #: winhlp32.rc:59
 msgid "&About Wine Help"
