@@ -1717,6 +1717,7 @@ void set_fd_user( struct fd *fd, const struct fd_ops *user_ops, struct object *u
 char *dup_fd_name( struct fd *root, const char *name )
 {
     char *ret;
+    int len;
 
     if (!root) return strdup( name );
     if (!root->unix_name) return NULL;
@@ -1724,11 +1725,18 @@ char *dup_fd_name( struct fd *root, const char *name )
     /* skip . prefix */
     if (name[0] == '.' && (!name[1] || name[1] == '/')) name++;
 
-    if ((ret = malloc( strlen(root->unix_name) + strlen(name) + 2 )))
+    len = strlen( root->unix_name );
+    if ((ret = malloc( len + strlen(name) + 2 )))
     {
-        strcpy( ret, root->unix_name );
-        if (name[0] && name[0] != '/') strcat( ret, "/" );
-        strcat( ret, name );
+        memcpy( ret, root->unix_name, len );
+        while (len && ret[len - 1] == '/') len--;
+        while (name[0] == '/') name++;
+        if (name[0])
+        {
+            ret[ len ] = '/';
+            strcpy( ret + len + 1, name );
+        }
+        else ret[ len ] = 0;
     }
     return ret;
 }
@@ -1742,6 +1750,7 @@ struct fd *open_fd( struct fd *root, const char *name, int flags, mode_t *mode, 
     struct fd *fd;
     int root_fd = -1;
     int rw_mode;
+    int do_chmod = 0;
 
     if (((options & FILE_DELETE_ON_CLOSE) && !(access & DELETE)) ||
         ((options & FILE_DIRECTORY_FILE) && (flags & O_TRUNC)))
@@ -1773,7 +1782,12 @@ struct fd *open_fd( struct fd *root, const char *name, int flags, mode_t *mode, 
     /* create the directory if needed */
     if ((options & FILE_DIRECTORY_FILE) && (flags & O_CREAT))
     {
-        if (mkdir( name, *mode ) == -1)
+        if (mkdir( name, *mode | S_IRUSR ) != -1)
+        {
+            /* remove S_IRUSR later, after we have opened the directory */
+            do_chmod = !(*mode & S_IRUSR);
+        }
+        else
         {
             if (errno != EEXIST || (flags & O_EXCL))
             {
@@ -1801,10 +1815,28 @@ struct fd *open_fd( struct fd *root, const char *name, int flags, mode_t *mode, 
             if ((access & FILE_UNIX_WRITE_ACCESS) || (flags & O_CREAT))
                 fd->unix_fd = open( name, O_RDONLY | (flags & ~(O_TRUNC | O_CREAT | O_EXCL)), *mode );
         }
+        else if (errno == EACCES)
+        {
+            /* try to change permissions temporarily to open a file descriptor */
+            if (!(access & ((FILE_UNIX_WRITE_ACCESS | FILE_UNIX_READ_ACCESS | DELETE) & ~FILE_WRITE_ATTRIBUTES)) &&
+                !stat( name, &st ) && st.st_uid == getuid() &&
+                !chmod( name, st.st_mode | S_IRUSR ))
+            {
+                fd->unix_fd = open( name, O_RDONLY | (flags & ~(O_TRUNC | O_CREAT | O_EXCL)), *mode );
+                *mode = st.st_mode;
+                do_chmod = 1;
+            }
+            else
+            {
+                set_error( STATUS_ACCESS_DENIED );
+                goto error;
+            }
+        }
 
         if (fd->unix_fd == -1)
         {
             file_set_error();
+            if (do_chmod) chmod( name, *mode );
             goto error;
         }
     }
@@ -1812,6 +1844,8 @@ struct fd *open_fd( struct fd *root, const char *name, int flags, mode_t *mode, 
     closed_fd->unix_fd = fd->unix_fd;
     closed_fd->unlink = 0;
     closed_fd->unix_name = fd->unix_name;
+
+    if (do_chmod) chmod( name, *mode );
     fstat( fd->unix_fd, &st );
     *mode = st.st_mode;
 
@@ -1833,6 +1867,15 @@ struct fd *open_fd( struct fd *root, const char *name, int flags, mode_t *mode, 
         fd->cacheable = !inode->device->removable;
         list_add_head( &inode->open, &fd->inode_entry );
         closed_fd = NULL;
+
+        /* can't unlink files we don't have permission to access */
+        if ((options & FILE_DELETE_ON_CLOSE) && S_ISREG(st.st_mode) &&
+            !(flags & O_CREAT) && !(st.st_mode & (S_IWUSR | S_IWGRP | S_IWOTH)))
+        {
+            /* FIXME: instead of checking for O_CREAT it should check if the file was created */
+            set_error( STATUS_CANNOT_DELETE );
+            goto error;
+        }
 
         /* check directory options */
         if ((options & FILE_DIRECTORY_FILE) && !S_ISDIR(st.st_mode))
@@ -2213,6 +2256,7 @@ static struct fd *get_handle_fd_obj( struct process *process, obj_handle_t handl
 static void set_fd_disposition( struct fd *fd, int unlink )
 {
     struct stat st;
+    struct list *ptr;
 
     if (!fd->inode)
     {
@@ -2244,6 +2288,17 @@ static void set_fd_disposition( struct fd *fd, int unlink )
     {
         set_error( STATUS_CANNOT_DELETE );
         return;
+    }
+
+    /* can't unlink files which are mapped to memory */
+    LIST_FOR_EACH( ptr, &fd->inode->open )
+    {
+        struct fd *fd_ptr = LIST_ENTRY( ptr, struct fd, inode_entry );
+        if (fd_ptr != fd && (fd_ptr->access & FILE_MAPPING_ACCESS))
+        {
+            set_error( STATUS_CANNOT_DELETE );
+            return;
+        }
     }
 
     fd->closed->unlink = unlink || (fd->options & FILE_DELETE_ON_CLOSE);
@@ -2346,6 +2401,50 @@ static void set_fd_name( struct fd *fd, struct fd *root, const char *nameptr,
 
 failed:
     free( name );
+}
+
+static void set_fd_eof( struct fd *fd, file_pos_t eof )
+{
+    static const char zero;
+    struct stat st;
+    struct list *ptr;
+
+    if (!fd->inode)
+    {
+        set_error( STATUS_OBJECT_TYPE_MISMATCH );
+        return;
+    }
+
+    if (fd->unix_fd == -1)
+    {
+        set_error( fd->no_fd_status );
+        return;
+    }
+
+    /* can't set eof of files which are mapped to memory */
+    LIST_FOR_EACH( ptr, &fd->inode->open )
+    {
+        struct fd *fd_ptr = LIST_ENTRY( ptr, struct fd, inode_entry );
+        if (fd_ptr != fd && (fd_ptr->access & FILE_MAPPING_ACCESS))
+        {
+            set_error( STATUS_USER_MAPPED_FILE );
+            return;
+        }
+    }
+
+    /* first try normal truncate */
+    if (ftruncate( fd->unix_fd, eof ) != -1) return;
+
+    /* now check for the need to extend the file */
+    if (fstat( fd->unix_fd, &st ) != -1 && eof > st.st_size)
+    {
+        /* extend the file one byte beyond the requested size and then truncate it */
+        /* this should work around ftruncate implementations that can't extend files */
+        if (pwrite( fd->unix_fd, &zero, 1, eof ) != -1 &&
+            ftruncate( fd->unix_fd, eof) != -1) return;
+    }
+
+    file_set_error();
 }
 
 struct completion *fd_get_completion( struct fd *fd, apc_param_t *p_key )
@@ -2472,6 +2571,33 @@ DECL_HANDLER(write)
     }
 }
 
+/* get file descriptor to shared memory block */
+DECL_HANDLER(get_shared_memory)
+{
+    if (req->tid)
+    {
+        struct thread *thread = get_thread_from_id( req->tid );
+        if (thread)
+        {
+            if (thread->shm_fd != -1 || allocate_shared_memory( &thread->shm_fd,
+                (void **)&thread->shm, sizeof(*thread->shm) ))
+            {
+                send_client_fd( current->process, thread->shm_fd, 0 );
+            }
+            else
+                set_error( STATUS_NOT_SUPPORTED );
+            release_object( thread );
+        }
+    }
+    else
+    {
+        if (shmglobal_fd != -1)
+            send_client_fd( current->process, shmglobal_fd, 0 );
+        else
+            set_error( STATUS_NOT_SUPPORTED );
+    }
+}
+
 /* perform an ioctl on a file */
 DECL_HANDLER(ioctl)
 {
@@ -2587,4 +2713,15 @@ DECL_HANDLER(set_fd_name_info)
         release_object( fd );
     }
     if (root_fd) release_object( root_fd );
+}
+
+/* set fd eof information */
+DECL_HANDLER(set_fd_eof_info)
+{
+    struct fd *fd = get_handle_fd_obj( current->process, req->handle, 0 );
+    if (fd)
+    {
+        set_fd_eof( fd, req->eof );
+        release_object( fd );
+    }
 }
