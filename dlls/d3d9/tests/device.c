@@ -7845,7 +7845,13 @@ static void test_surface_blocks(void)
                     break;
 
                 default:
+                    hr = E_FAIL;
                     break;
+            }
+            if (FAILED(hr))
+            {
+                skip("Failed to create surface, skipping tests.\n");
+                continue;
             }
 
             if (formats[i].block_width > 1)
@@ -8711,6 +8717,11 @@ static void test_volume_blocks(void)
         hr = IDirect3DDevice9_CreateVolumeTexture(device, 24, 8, 8, 1, 0,
                 formats[i].fmt, D3DPOOL_SCRATCH, &texture, NULL);
         ok(SUCCEEDED(hr), "Failed to create volume texture, hr %#x.\n", hr);
+        if (FAILED(hr))
+        {
+            skip("Failed to create texture, skipping tests.\n");
+            continue;
+        }
 
         /* Test lockrect offset */
         for (j = 0; j < sizeof(offset_tests) / sizeof(*offset_tests); j++)
@@ -9202,37 +9213,37 @@ static void test_pixel_format(void)
     }
 
     test_format = GetPixelFormat(hdc);
-    ok(test_format == format, "window has pixel format %d, expected %d\n", test_format, format);
+    todo_wine ok(test_format == format, "window has pixel format %d, expected %d\n", test_format, format);
 
     hr = IDirect3DDevice9_SetFVF(device, D3DFVF_XYZ);
     ok(SUCCEEDED(hr), "Failed to set FVF, hr %#x.\n", hr);
 
     test_format = GetPixelFormat(hdc);
-    ok(test_format == format, "window has pixel format %d, expected %d\n", test_format, format);
+    todo_wine ok(test_format == format, "window has pixel format %d, expected %d\n", test_format, format);
 
     hr = IDirect3DDevice9_BeginScene(device);
     ok(SUCCEEDED(hr), "BeginScene failed %#x\n", hr);
 
     test_format = GetPixelFormat(hdc);
-    ok(test_format == format, "window has pixel format %d, expected %d\n", test_format, format);
+    todo_wine ok(test_format == format, "window has pixel format %d, expected %d\n", test_format, format);
 
     hr = IDirect3DDevice9_DrawPrimitiveUP(device, D3DPT_POINTLIST, 1, point, 3 * sizeof(float));
     ok(SUCCEEDED(hr), "Failed to draw, hr %#x.\n", hr);
 
     test_format = GetPixelFormat(hdc);
-    ok(test_format == format, "window has pixel format %d, expected %d\n", test_format, format);
+    todo_wine ok(test_format == format, "window has pixel format %d, expected %d\n", test_format, format);
 
     hr = IDirect3DDevice9_EndScene(device);
     ok(SUCCEEDED(hr), "EndScene failed %#x\n", hr);
 
     test_format = GetPixelFormat(hdc);
-    ok(test_format == format, "window has pixel format %d, expected %d\n", test_format, format);
+    todo_wine ok(test_format == format, "window has pixel format %d, expected %d\n", test_format, format);
 
     hr = IDirect3DDevice9_Present(device, NULL, NULL, NULL, NULL);
     ok(SUCCEEDED(hr), "Present failed %#x\n", hr);
 
     test_format = GetPixelFormat(hdc);
-    ok(test_format == format, "window has pixel format %d, expected %d\n", test_format, format);
+    todo_wine ok(test_format == format, "window has pixel format %d, expected %d\n", test_format, format);
 
     if (hdc2)
     {
@@ -9240,10 +9251,10 @@ static void test_pixel_format(void)
         ok(SUCCEEDED(hr), "Present failed %#x\n", hr);
 
         test_format = GetPixelFormat(hdc);
-        ok(test_format == format, "window has pixel format %d, expected %d\n", test_format, format);
+        todo_wine ok(test_format == format, "window has pixel format %d, expected %d\n", test_format, format);
 
         test_format = GetPixelFormat(hdc2);
-        ok(test_format == format, "second window has pixel format %d, expected %d\n", test_format, format);
+        todo_wine ok(test_format == format, "second window has pixel format %d, expected %d\n", test_format, format);
     }
 
 cleanup:
@@ -10352,6 +10363,21 @@ static void test_swapchain_parameters(void)
     DestroyWindow(window);
 }
 
+static void test_desktop_window(void)
+{
+    IDirect3DDevice9 *device = NULL;
+    IDirect3D9 *d3d;
+
+    d3d = Direct3DCreate9(D3D_SDK_VERSION);
+    ok(!!d3d, "Failed to create a D3D object.\n");
+
+    device = create_device(d3d, GetDesktopWindow(), NULL);
+    ok(!!device, "Failed to created device on desktop window.\n");
+
+    if (device) IDirect3DDevice9_Release(device);
+    IDirect3D9_Release(d3d);
+}
+
 START_TEST(device)
 {
     WNDCLASSA wc = {0};
@@ -10463,6 +10489,7 @@ START_TEST(device)
     test_lost_device();
     test_resource_priority();
     test_swapchain_parameters();
+    test_desktop_window();
 
     UnregisterClassA("d3d9_test_wc", GetModuleHandleA(NULL));
 }

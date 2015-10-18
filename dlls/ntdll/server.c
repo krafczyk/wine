@@ -83,6 +83,7 @@
 #include "ntdll_misc.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(server);
+WINE_DECLARE_DEBUG_CHANNEL(winediag);
 
 /* Some versions of glibc don't define this */
 #ifndef SCM_RIGHTS
@@ -305,6 +306,14 @@ unsigned int wine_server_call( void *req_ptr )
     sigset_t old_set;
     unsigned int ret;
 
+    /* trigger write watches, otherwise read() might return EFAULT */
+    if (req->u.req.request_header.reply_size &&
+        !virtual_check_buffer_for_write( req->reply_data, req->u.req.request_header.reply_size ))
+    {
+        ret = STATUS_ACCESS_VIOLATION;
+        return ret;
+    }
+
     pthread_sigmask( SIG_BLOCK, &server_block_set, &old_set );
     ret = send_request( req );
     if (!ret) ret = wait_reply( req );
@@ -424,7 +433,7 @@ static BOOL invoke_apc( const apc_call_t *call, apc_result_t *result )
         size = call->virtual_alloc.size;
         if ((ULONG_PTR)addr == call->virtual_alloc.addr && size == call->virtual_alloc.size)
         {
-            result->virtual_alloc.status = NtAllocateVirtualMemory( NtCurrentProcess(), &addr,
+            result->virtual_alloc.status = SYSCALL(NtAllocateVirtualMemory)( NtCurrentProcess(), &addr,
                                                                     call->virtual_alloc.zero_bits, &size,
                                                                     call->virtual_alloc.op_type,
                                                                     call->virtual_alloc.prot );
@@ -439,7 +448,7 @@ static BOOL invoke_apc( const apc_call_t *call, apc_result_t *result )
         size = call->virtual_free.size;
         if ((ULONG_PTR)addr == call->virtual_free.addr && size == call->virtual_free.size)
         {
-            result->virtual_free.status = NtFreeVirtualMemory( NtCurrentProcess(), &addr, &size,
+            result->virtual_free.status = SYSCALL(NtFreeVirtualMemory)( NtCurrentProcess(), &addr, &size,
                                                                call->virtual_free.op_type );
             result->virtual_free.addr = wine_server_client_ptr( addr );
             result->virtual_free.size = size;
@@ -452,7 +461,7 @@ static BOOL invoke_apc( const apc_call_t *call, apc_result_t *result )
         result->type = call->type;
         addr = wine_server_get_ptr( call->virtual_query.addr );
         if ((ULONG_PTR)addr == call->virtual_query.addr)
-            result->virtual_query.status = NtQueryVirtualMemory( NtCurrentProcess(),
+            result->virtual_query.status = SYSCALL(NtQueryVirtualMemory)( NtCurrentProcess(),
                                                                  addr, MemoryBasicInformation, &info,
                                                                  sizeof(info), NULL );
         else
@@ -476,7 +485,7 @@ static BOOL invoke_apc( const apc_call_t *call, apc_result_t *result )
         size = call->virtual_protect.size;
         if ((ULONG_PTR)addr == call->virtual_protect.addr && size == call->virtual_protect.size)
         {
-            result->virtual_protect.status = NtProtectVirtualMemory( NtCurrentProcess(), &addr, &size,
+            result->virtual_protect.status = SYSCALL(NtProtectVirtualMemory)( NtCurrentProcess(), &addr, &size,
                                                                      call->virtual_protect.prot,
                                                                      &result->virtual_protect.prot );
             result->virtual_protect.addr = wine_server_client_ptr( addr );
@@ -490,7 +499,7 @@ static BOOL invoke_apc( const apc_call_t *call, apc_result_t *result )
         size = call->virtual_flush.size;
         if ((ULONG_PTR)addr == call->virtual_flush.addr && size == call->virtual_flush.size)
         {
-            result->virtual_flush.status = NtFlushVirtualMemory( NtCurrentProcess(),
+            result->virtual_flush.status = SYSCALL(NtFlushVirtualMemory)( NtCurrentProcess(),
                                                                  (const void **)&addr, &size, 0 );
             result->virtual_flush.addr = wine_server_client_ptr( addr );
             result->virtual_flush.size = size;
@@ -503,7 +512,7 @@ static BOOL invoke_apc( const apc_call_t *call, apc_result_t *result )
         size = call->virtual_lock.size;
         if ((ULONG_PTR)addr == call->virtual_lock.addr && size == call->virtual_lock.size)
         {
-            result->virtual_lock.status = NtLockVirtualMemory( NtCurrentProcess(), &addr, &size, 0 );
+            result->virtual_lock.status = SYSCALL(NtLockVirtualMemory)( NtCurrentProcess(), &addr, &size, 0 );
             result->virtual_lock.addr = wine_server_client_ptr( addr );
             result->virtual_lock.size = size;
         }
@@ -515,7 +524,7 @@ static BOOL invoke_apc( const apc_call_t *call, apc_result_t *result )
         size = call->virtual_unlock.size;
         if ((ULONG_PTR)addr == call->virtual_unlock.addr && size == call->virtual_unlock.size)
         {
-            result->virtual_unlock.status = NtUnlockVirtualMemory( NtCurrentProcess(), &addr, &size, 0 );
+            result->virtual_unlock.status = SYSCALL(NtUnlockVirtualMemory)( NtCurrentProcess(), &addr, &size, 0 );
             result->virtual_unlock.addr = wine_server_client_ptr( addr );
             result->virtual_unlock.size = size;
         }
@@ -529,7 +538,7 @@ static BOOL invoke_apc( const apc_call_t *call, apc_result_t *result )
         {
             LARGE_INTEGER offset;
             offset.QuadPart = call->map_view.offset;
-            result->map_view.status = NtMapViewOfSection( wine_server_ptr_handle(call->map_view.handle),
+            result->map_view.status = SYSCALL(NtMapViewOfSection)( wine_server_ptr_handle(call->map_view.handle),
                                                           NtCurrentProcess(), &addr,
                                                           call->map_view.zero_bits, 0,
                                                           &offset, &size, ViewShare,
@@ -544,7 +553,7 @@ static BOOL invoke_apc( const apc_call_t *call, apc_result_t *result )
         result->type = call->type;
         addr = wine_server_get_ptr( call->unmap_view.addr );
         if ((ULONG_PTR)addr == call->unmap_view.addr)
-            result->unmap_view.status = NtUnmapViewOfSection( NtCurrentProcess(), addr );
+            result->unmap_view.status = SYSCALL(NtUnmapViewOfSection)( NtCurrentProcess(), addr );
         else
             result->unmap_view.status = STATUS_INVALID_PARAMETER;
         break;
@@ -614,10 +623,11 @@ unsigned int server_select( const select_op_t *select_op, data_size_t size, UINT
         if (ret != STATUS_USER_APC) break;
         if (invoke_apc( &call, &result ))
         {
-            /* if we ran a user apc we have to check once more if an object got signaled,
-             * but we don't want to wait */
+            /* if we ran a user apc, we have to check once more if
+             * additional apcs are queued, but we don't want to wait */
             abs_timeout = 0;
             user_apc = TRUE;
+            size = 0;
         }
 
         /* don't signal multiple times */
@@ -915,6 +925,30 @@ int server_remove_fd_from_cache( HANDLE handle )
 
 
 /***********************************************************************
+ *           wine_server_close_fds_by_type
+ *
+ * Needed for a proper implementation of WSACleanup.
+ */
+void CDECL wine_server_close_fds_by_type( enum server_fd_type type )
+{
+    union fd_cache_entry cache;
+    unsigned int entry, idx;
+
+    for (entry = 0; entry < FD_CACHE_ENTRIES; entry++)
+    {
+        if (!fd_cache[entry]) continue;
+        for (idx = 0; idx < FD_CACHE_BLOCK_SIZE; idx++)
+        {
+            cache.data = interlocked_cmpxchg64( &fd_cache[entry][idx].data, 0, 0 );
+            if (cache.s.type != type || cache.s.fd == 0) continue;
+            if (interlocked_cmpxchg64( &fd_cache[entry][idx].data, 0, cache.data ) != cache.data) continue;
+            close( cache.s.fd - 1 );
+        }
+    }
+}
+
+
+/***********************************************************************
  *           server_get_unix_fd
  *
  * The returned unix_fd should be closed iff needs_close is non-zero.
@@ -968,6 +1002,87 @@ done:
     }
     if (!ret) *unix_fd = fd;
     return ret;
+}
+
+
+/***********************************************************************
+ *           server_get_shared_memory_fd
+ *
+ * Receive a file descriptor to a server shared memory block.
+ */
+static int server_get_shared_memory_fd( HANDLE thread, int *unix_fd )
+{
+    obj_handle_t dummy;
+    sigset_t sigset;
+    int ret;
+
+    server_enter_uninterrupted_section( &fd_cache_section, &sigset );
+
+    SERVER_START_REQ( get_shared_memory )
+    {
+        req->tid = HandleToULong(thread);
+        if (!(ret = wine_server_call( req )))
+        {
+            *unix_fd = receive_fd( &dummy );
+            if (*unix_fd == -1) ret = STATUS_NOT_SUPPORTED;
+        }
+    }
+    SERVER_END_REQ;
+
+    server_leave_uninterrupted_section( &fd_cache_section, &sigset );
+    return ret;
+}
+
+/* The shared memory wineserver communication is still highly experimental
+ * and might cause unexpected results when the client/server status gets
+ * out of synchronization. The feature will be disabled by default until it
+ * is tested a bit more. */
+static inline BOOL experimental_SHARED_MEMORY( void )
+{
+    static int enabled = -1;
+    if (enabled == -1)
+    {
+        const char *str = getenv( "STAGING_SHARED_MEMORY" );
+        enabled = str && (atoi(str) != 0);
+    }
+    return enabled;
+}
+
+
+/***********************************************************************
+ *           server_get_shared_memory
+ *
+ * Get address of a shared memory block.
+ */
+void *server_get_shared_memory( HANDLE thread )
+{
+    static shmglobal_t *shmglobal = (void *)-1;
+    void *mem = NULL;
+    int fd = -1;
+
+    if (!experimental_SHARED_MEMORY())
+        return NULL;
+
+    /* The global memory block is only requested once. No locking is
+     * required because this function is called very early during the
+     * process initialization for the first time. */
+    if (!thread && shmglobal != (void *)-1)
+        return shmglobal;
+
+    if (!server_get_shared_memory_fd( thread, &fd ))
+    {
+        SIZE_T size = thread ? sizeof(shmlocal_t) : sizeof(shmglobal_t);
+        virtual_map_shared_memory( fd, &mem, 0, &size, PAGE_READONLY );
+        close( fd );
+    }
+
+    if (!thread)
+    {
+        if (mem) WARN_(winediag)("Using shared memory wineserver communication\n");
+        shmglobal = mem;
+    }
+
+    return mem;
 }
 
 
@@ -1502,6 +1617,10 @@ size_t server_init_thread( void *entry_point )
         server_cpus       = reply->all_cpus;
     }
     SERVER_END_REQ;
+
+    /* initialize thread shared memory pointers */
+    NtCurrentTeb()->Reserved5[0] = server_get_shared_memory( 0 );
+    NtCurrentTeb()->Reserved5[1] = server_get_shared_memory( NtCurrentTeb()->ClientId.UniqueThread );
 
     is_wow64 = !is_win64 && (server_cpus & ((1 << CPU_x86_64) | (1 << CPU_ARM64))) != 0;
     ntdll_get_thread_data()->wow64_redir = is_wow64;
