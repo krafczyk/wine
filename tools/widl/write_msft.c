@@ -494,10 +494,22 @@ static int ctl2_alloc_guid(
     MSFT_GuidEntry *guid_space;
     int hash_key;
 
+    chat("adding uuid {%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}\n",
+         guid->guid.Data1, guid->guid.Data2, guid->guid.Data3,
+         guid->guid.Data4[0], guid->guid.Data4[1], guid->guid.Data4[2], guid->guid.Data4[3],
+         guid->guid.Data4[4], guid->guid.Data4[5], guid->guid.Data4[6], guid->guid.Data4[7]);
+
     hash_key = ctl2_hash_guid(&guid->guid);
 
     offset = ctl2_find_guid(typelib, hash_key, &guid->guid);
-    if (offset != -1) return offset;
+    if (offset != -1)
+    {
+        warning("duplicate uuid {%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}\n",
+                guid->guid.Data1, guid->guid.Data2, guid->guid.Data3,
+                guid->guid.Data4[0], guid->guid.Data4[1], guid->guid.Data4[2], guid->guid.Data4[3],
+                guid->guid.Data4[4], guid->guid.Data4[5], guid->guid.Data4[6], guid->guid.Data4[7]);
+        return -1;
+    }
 
     offset = ctl2_alloc_segment(typelib, MSFT_SEG_GUID, sizeof(MSFT_GuidEntry), 0);
 
@@ -2077,6 +2089,10 @@ static void add_interface_typeinfo(msft_typelib_t *typelib, type_t *interface)
            inherit->typelib_idx == -1)
             add_interface_typeinfo(typelib, inherit);
     }
+
+    /* check typelib_idx again, it could have been added while resolving the parent interface */
+    if (-1 < interface->typelib_idx)
+        return;
 
     interface->typelib_idx = typelib->typelib_header.nrtypeinfos;
     msft_typeinfo = create_msft_typeinfo(typelib, TKIND_INTERFACE, interface->name, interface->attrs);

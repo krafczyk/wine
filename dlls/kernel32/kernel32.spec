@@ -682,8 +682,8 @@
 @ stdcall GetFileSizeEx(long ptr)
 @ stdcall GetFileTime(long ptr ptr ptr)
 @ stdcall GetFileType(long)
-# @ stub GetFinalPathNameByHandleA
-# @ stub GetFinalPathNameByHandleW
+@ stdcall GetFinalPathNameByHandleA(long ptr long long)
+@ stdcall GetFinalPathNameByHandleW(long ptr long long)
 @ stdcall GetFirmwareEnvironmentVariableA(str str ptr long)
 @ stdcall GetFirmwareEnvironmentVariableW(wstr wstr ptr long)
 @ stdcall GetFullPathNameA(str long ptr ptr)
@@ -753,7 +753,7 @@
 @ stdcall GetNumberFormatA(long long str ptr ptr long)
 # @ stub GetNumberFormatEx
 @ stdcall GetNumberFormatW(long long wstr ptr ptr long)
-@ stub GetNumberOfConsoleFonts
+@ stdcall GetNumberOfConsoleFonts()
 @ stdcall GetNumberOfConsoleInputEvents(long ptr)
 @ stdcall GetNumberOfConsoleMouseButtons(ptr)
 @ stdcall GetOEMCP()
@@ -1350,7 +1350,7 @@
 @ stdcall SetConsoleIcon(ptr)
 @ stdcall SetConsoleInputExeNameA(ptr)
 @ stdcall SetConsoleInputExeNameW(ptr)
-@ stub SetConsoleKeyShortcuts
+@ stdcall SetConsoleKeyShortcuts(long long ptr long)
 @ stub SetConsoleLocalEUDC
 @ stub SetConsoleMaximumWindowSize
 @ stub SetConsoleMenuClose
