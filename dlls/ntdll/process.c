@@ -53,7 +53,8 @@ static ULONG execute_flags = MEM_EXECUTE_OPTION_DISABLE;
  *
  *  Native applications must kill themselves when done
  */
-NTSTATUS WINAPI NtTerminateProcess( HANDLE handle, LONG exit_code )
+DEFINE_SYSCALL_ENTRYPOINT( NtTerminateProcess, 2 );
+NTSTATUS WINAPI SYSCALL(NtTerminateProcess)( HANDLE handle, LONG exit_code )
 {
     NTSTATUS ret;
     BOOL self;
@@ -115,7 +116,8 @@ ULONG_PTR get_system_affinity_mask(void)
 *  ZwQueryInformationProcess		[NTDLL.@]
 *
 */
-NTSTATUS WINAPI NtQueryInformationProcess(
+DEFINE_SYSCALL_ENTRYPOINT( NtQueryInformationProcess, 5 );
+NTSTATUS WINAPI SYSCALL(NtQueryInformationProcess)(
 	IN HANDLE ProcessHandle,
 	IN PROCESSINFOCLASS ProcessInformationClass,
 	OUT PVOID ProcessInformation,
@@ -132,7 +134,6 @@ NTSTATUS WINAPI NtQueryInformationProcess(
 
     switch (ProcessInformationClass) 
     {
-    UNIMPLEMENTED_INFO_CLASS(ProcessQuotaLimits);
     UNIMPLEMENTED_INFO_CLASS(ProcessBasePriority);
     UNIMPLEMENTED_INFO_CLASS(ProcessRaisePriority);
     UNIMPLEMENTED_INFO_CLASS(ProcessExceptionPort);
@@ -193,6 +194,36 @@ NTSTATUS WINAPI NtQueryInformationProcess(
             else
             {
                 len = sizeof(PROCESS_BASIC_INFORMATION);
+                ret = STATUS_INFO_LENGTH_MISMATCH;
+            }
+        }
+        break;
+    case ProcessQuotaLimits:
+        {
+            QUOTA_LIMITS pqli;
+
+            if (ProcessInformationLength >= sizeof(QUOTA_LIMITS))
+            {
+                if (!ProcessInformation)
+                    ret = STATUS_ACCESS_VIOLATION;
+                else if (!ProcessHandle)
+                    ret = STATUS_INVALID_HANDLE;
+                else
+                {
+                    /* FIXME : real data */
+                    memset(&pqli, 0, sizeof(QUOTA_LIMITS));
+
+                    memcpy(ProcessInformation, &pqli, sizeof(QUOTA_LIMITS));
+
+                    len = sizeof(QUOTA_LIMITS);
+                }
+
+                if (ProcessInformationLength > sizeof(QUOTA_LIMITS))
+                    ret = STATUS_INFO_LENGTH_MISMATCH;
+            }
+            else
+            {
+                len = sizeof(QUOTA_LIMITS);
                 ret = STATUS_INFO_LENGTH_MISMATCH;
             }
         }
@@ -485,7 +516,8 @@ NTSTATUS WINAPI NtQueryInformationProcess(
  * NtSetInformationProcess [NTDLL.@]
  * ZwSetInformationProcess [NTDLL.@]
  */
-NTSTATUS WINAPI NtSetInformationProcess(
+DEFINE_SYSCALL_ENTRYPOINT( NtSetInformationProcess, 4 );
+NTSTATUS WINAPI SYSCALL(NtSetInformationProcess)(
 	IN HANDLE ProcessHandle,
 	IN PROCESSINFOCLASS ProcessInformationClass,
 	IN PVOID ProcessInformation,
@@ -575,7 +607,8 @@ NTSTATUS WINAPI NtSetInformationProcess(
  * NtFlushInstructionCache [NTDLL.@]
  * ZwFlushInstructionCache [NTDLL.@]
  */
-NTSTATUS WINAPI NtFlushInstructionCache(
+DEFINE_SYSCALL_ENTRYPOINT( NtFlushInstructionCache, 3 );
+NTSTATUS WINAPI SYSCALL(NtFlushInstructionCache)(
         IN HANDLE ProcessHandle,
         IN LPCVOID BaseAddress,
         IN SIZE_T Size)
@@ -596,7 +629,8 @@ NTSTATUS WINAPI NtFlushInstructionCache(
  *		NtOpenProcess [NTDLL.@]
  *		ZwOpenProcess [NTDLL.@]
  */
-NTSTATUS  WINAPI NtOpenProcess(PHANDLE handle, ACCESS_MASK access,
+DEFINE_SYSCALL_ENTRYPOINT( NtOpenProcess, 4 );
+NTSTATUS  WINAPI SYSCALL(NtOpenProcess)(PHANDLE handle, ACCESS_MASK access,
                                const OBJECT_ATTRIBUTES* attr, const CLIENT_ID* cid)
 {
     NTSTATUS    status;

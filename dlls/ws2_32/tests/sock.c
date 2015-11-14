@@ -1123,11 +1123,11 @@ static void test_WithWSAStartup(void)
     ok(res == 0, "WSAStartup() failed unexpectedly: %d\n", res);
 
     /* show that sockets are destroyed automatically after WSACleanup */
-    todo_wine {
     SetLastError(0xdeadbeef);
     res = send(src, "TEST", 4, 0);
     error = WSAGetLastError();
     ok(res == SOCKET_ERROR, "send should have failed\n");
+    todo_wine
     ok(error == WSAENOTSOCK, "expected 10038, got %d\n", error);
 
     SetLastError(0xdeadbeef);
@@ -1135,8 +1135,6 @@ static void test_WithWSAStartup(void)
     error = WSAGetLastError();
     ok(res == SOCKET_ERROR, "closesocket should have failed\n");
     ok(error == WSAENOTSOCK, "expected 10038, got %d\n", error);
-    }
-
     closesocket(src);
     closesocket(dst);
 
@@ -4950,6 +4948,8 @@ static void test_send(void)
     OVERLAPPED ov;
     BOOL bret;
     DWORD id, bytes_sent, dwRet;
+    DWORD expected_time, connect_time;
+    socklen_t optlen;
 
     memset(&ov, 0, sizeof(ov));
 
@@ -4958,6 +4958,7 @@ static void test_send(void)
         ok(0, "creating socket pair failed, skipping test\n");
         return;
     }
+    expected_time = GetTickCount();
 
     set_blocking(dst, FALSE);
     /* force disable buffering so we can get a pending overlapped request */
@@ -5043,6 +5044,22 @@ static void test_send(void)
     ret = WSASend(dst, &buf, 1, NULL, 0, &ov, NULL);
     ok(ret == SOCKET_ERROR && WSAGetLastError() == ERROR_IO_PENDING,
        "Failed to start overlapped send %d - %d\n", ret, WSAGetLastError());
+
+    expected_time = (GetTickCount() - expected_time) / 1000;
+
+    connect_time = 0xdeadbeef;
+    optlen = sizeof(connect_time);
+    ret = getsockopt(dst, SOL_SOCKET, SO_CONNECT_TIME, (char *)&connect_time, &optlen);
+    ok(!ret, "getsockopt failed %d\n", WSAGetLastError());
+    ok(connect_time >= expected_time && connect_time <= expected_time + 1,
+       "unexpected connect time %u, expected %u\n", connect_time, expected_time);
+
+    connect_time = 0xdeadbeef;
+    optlen = sizeof(connect_time);
+    ret = getsockopt(src, SOL_SOCKET, SO_CONNECT_TIME, (char *)&connect_time, &optlen);
+    ok(!ret, "getsockopt failed %d\n", WSAGetLastError());
+    ok(connect_time >= expected_time && connect_time <= expected_time + 1,
+       "unexpected connect time %u, expected %u\n", connect_time, expected_time);
 
 end:
     if (src != INVALID_SOCKET)
@@ -6481,6 +6498,7 @@ static void test_WSAPoll(void)
     POLL_SET(fdWrite, POLLIN);
     ret = pWSAPoll(fds, ix, poll_timeout);
     ok(ret == 1, "expected 1, got %d\n", ret);
+todo_wine
     ok(POLL_ISSET(fdWrite, POLLHUP), "fdWrite socket events incorrect\n");
     ret = recv(fdWrite, tmp_buf, sizeof(tmp_buf), 0);
     ok(ret == 0, "expected 0, got %d\n", ret);
@@ -6499,6 +6517,7 @@ static void test_WSAPoll(void)
     POLL_SET(fdWrite, POLLIN | POLLOUT);
     poll_timeout = 2000;
     ret = pWSAPoll(fds, ix, poll_timeout);
+todo_wine
     ok(ret == 0, "expected 0, got %d\n", ret);
     len = sizeof(id);
     id = 0xdeadbeef;
@@ -6520,6 +6539,7 @@ static void test_WSAPoll(void)
     POLL_SET(fdWrite, POLLIN | POLLOUT);
     ret = pWSAPoll(fds, ix, poll_timeout);
     ok(ret == 1, "expected 1, got %d\n", ret);
+todo_wine
     ok(POLL_ISSET(fdWrite, POLLWRNORM | POLLHUP) || broken(POLL_ISSET(fdWrite, POLLWRNORM)) /* <= 2008 */,
        "fdWrite socket events incorrect\n");
     closesocket(fdWrite);
@@ -6543,6 +6563,7 @@ static void test_WSAPoll(void)
     POLL_SET(fdWrite, POLLIN);
     ret = pWSAPoll(fds, ix, poll_timeout);
     ok(ret == 1, "expected 1, got %d\n", ret);
+todo_wine
     ok(POLL_ISSET(fdWrite, POLLNVAL), "fdWrite socket events incorrect\n");
     WaitForSingleObject (thread_handle, 1000);
     closesocket(fdRead);
@@ -7884,8 +7905,18 @@ static void test_TransmitFile(void)
     ok(memcmp(buf, &footer_msg[0], sizeof(footer_msg)+1) == 0,
        "TransmitFile footer buffer did not match!\n");
 
-    /* Test TransmitFile with a UDP datagram socket */
+    /* Test TransmitFile w/ TF_DISCONNECT */
+    SetFilePointer(file, 0, NULL, FILE_BEGIN);
+    bret = pTransmitFile(client, file, 0, 0, NULL, NULL, TF_DISCONNECT);
+    ok(bret, "TransmitFile failed unexpectedly.\n");
+    compare_file(file, dest, 0);
     closesocket(client);
+    ok(send(client, "test", 4, 0) == -1, "send() after TF_DISCONNECT succeeded unexpectedly.\n");
+    err = WSAGetLastError();
+    todo_wine ok(err == WSAENOTSOCK, "send() after TF_DISCONNECT triggered unexpected errno (%d != %d)\n",
+                 err, WSAENOTSOCK);
+
+    /* Test TransmitFile with a UDP datagram socket */
     client = socket(AF_INET, SOCK_DGRAM, 0);
     bret = pTransmitFile(client, NULL, 0, 0, NULL, NULL, 0);
     err = WSAGetLastError();
