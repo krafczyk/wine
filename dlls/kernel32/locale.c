@@ -1093,8 +1093,10 @@ LANGID WINAPI GetSystemDefaultUILanguage(void)
 LCID WINAPI LocaleNameToLCID( LPCWSTR name, DWORD flags )
 {
     struct locale_name locale_name;
+    static int once;
 
-    if (flags) FIXME( "unsupported flags %x\n", flags );
+    if (flags && !once++)
+        FIXME( "unsupported flags %x\n", flags );
 
     if (name == LOCALE_NAME_USER_DEFAULT)
         return GetUserDefaultLCID();
@@ -1124,7 +1126,8 @@ LCID WINAPI LocaleNameToLCID( LPCWSTR name, DWORD flags )
  */
 INT WINAPI LCIDToLocaleName( LCID lcid, LPWSTR name, INT count, DWORD flags )
 {
-    if (flags) FIXME( "unsupported flags %x\n", flags );
+    static int once;
+    if (flags && !once++) FIXME( "unsupported flags %x\n", flags );
 
     return GetLocaleInfoW( lcid, LOCALE_SNAME | LOCALE_NOUSEROVERRIDE, name, count );
 }
@@ -2126,7 +2129,7 @@ INT WINAPI MultiByteToWideChar( UINT page, DWORD flags, LPCSTR src, INT srclen,
     const union cptable *table;
     int ret;
 
-    if (!src || !srclen || (!dst && dstlen))
+    if (!src || !srclen || (!dst && dstlen) || dstlen < 0)
     {
         SetLastError( ERROR_INVALID_PARAMETER );
         return 0;
@@ -2342,7 +2345,7 @@ INT WINAPI WideCharToMultiByte( UINT page, DWORD flags, LPCWSTR src, INT srclen,
     const union cptable *table;
     int ret, used_tmp;
 
-    if (!src || !srclen || (!dst && dstlen))
+    if (!src || !srclen || (!dst && dstlen) || dstlen < 0)
     {
         SetLastError( ERROR_INVALID_PARAMETER );
         return 0;
@@ -3260,9 +3263,10 @@ INT WINAPI CompareStringW(LCID lcid, DWORD flags,
 INT WINAPI CompareStringEx(LPCWSTR locale, DWORD flags, LPCWSTR str1, INT len1,
                            LPCWSTR str2, INT len2, LPNLSVERSIONINFO version, LPVOID reserved, LPARAM lParam)
 {
-    DWORD supported_flags = NORM_IGNORECASE|NORM_IGNORENONSPACE|NORM_IGNORESYMBOLS|SORT_STRINGSORT
-                           |NORM_IGNOREKANATYPE|NORM_IGNOREWIDTH|LOCALE_USE_CP_ACP;
-    DWORD semistub_flags = NORM_LINGUISTIC_CASING|LINGUISTIC_IGNORECASE|0x10000000;
+    static const DWORD supported_flags = NORM_IGNORECASE|NORM_IGNORENONSPACE|NORM_IGNORESYMBOLS|SORT_STRINGSORT
+                                        |NORM_IGNOREKANATYPE|NORM_IGNOREWIDTH|LOCALE_USE_CP_ACP
+                                        |NORM_LINGUISTIC_CASING|LINGUISTIC_IGNORECASE|0x10000000;
+    static DWORD semistub_flags = NORM_LINGUISTIC_CASING|LINGUISTIC_IGNORECASE|0x10000000;
     /* 0x10000000 is related to diacritics in Arabic, Japanese, and Hebrew */
     INT ret;
 
@@ -3276,14 +3280,17 @@ INT WINAPI CompareStringEx(LPCWSTR locale, DWORD flags, LPCWSTR str1, INT len1,
         return 0;
     }
 
-    if (flags & ~(supported_flags|semistub_flags))
+    if (flags & ~supported_flags)
     {
         SetLastError(ERROR_INVALID_FLAGS);
         return 0;
     }
 
     if (flags & semistub_flags)
-        FIXME("semi-stub behavor for flag(s) 0x%x\n", flags & semistub_flags);
+    {
+        FIXME("semi-stub behavior for flag(s) 0x%x\n", flags & semistub_flags);
+        semistub_flags &= ~flags;
+    }
 
     if (len1 < 0) len1 = strlenW(str1);
     if (len2 < 0) len2 = strlenW(str2);
