@@ -477,27 +477,47 @@ static void test_query_handle(void)
     ULONG ReturnLength;
     ULONG SystemInformationLength = sizeof(SYSTEM_HANDLE_INFORMATION);
     SYSTEM_HANDLE_INFORMATION* shi = HeapAlloc(GetProcessHeap(), 0, SystemInformationLength);
+    HANDLE event_handle;
+
+    event_handle = CreateEventA(NULL, FALSE, FALSE, NULL);
+    ok( event_handle != NULL, "CreateEventA failed %u\n", GetLastError() );
 
     /* Request the needed length : a SystemInformationLength greater than one struct sets ReturnLength */
+    ReturnLength = 0xdeadbeef;
     status = pNtQuerySystemInformation(SystemHandleInformation, shi, SystemInformationLength, &ReturnLength);
-    todo_wine ok( status == STATUS_INFO_LENGTH_MISMATCH, "Expected STATUS_INFO_LENGTH_MISMATCH, got %08x\n", status);
+    ok( status == STATUS_INFO_LENGTH_MISMATCH, "Expected STATUS_INFO_LENGTH_MISMATCH, got %08x\n", status);
+    ok( ReturnLength != 0xdeadbeef, "Expected valid ReturnLength\n" );
 
     SystemInformationLength = ReturnLength;
     shi = HeapReAlloc(GetProcessHeap(), 0, shi , SystemInformationLength);
+
+    ReturnLength = 0xdeadbeef;
     status = pNtQuerySystemInformation(SystemHandleInformation, shi, SystemInformationLength, &ReturnLength);
     if (status != STATUS_INFO_LENGTH_MISMATCH) /* vista */
     {
-        ok( status == STATUS_SUCCESS,
-            "Expected STATUS_SUCCESS, got %08x\n", status);
+        ULONG ExpectedLength = FIELD_OFFSET(SYSTEM_HANDLE_INFORMATION, Handle[shi->Count]);
+        unsigned int i;
+        BOOL found = FALSE;
 
-        /* Check if we have some return values */
-        trace("Number of Handles : %d\n", shi->Count);
-        todo_wine
+        ok( status == STATUS_SUCCESS, "Expected STATUS_SUCCESS, got %08x\n", status );
+        ok( ReturnLength == ExpectedLength, "Expected length %u, got %u\n", ExpectedLength, ReturnLength );
+        ok( shi->Count > 1, "Expected more than 1 handles, got %u\n", shi->Count );
+        for (i = 0; i < shi->Count; i++)
         {
-            /* our implementation is a stub for now */
-            ok( shi->Count > 1, "Expected more than 1 handles, got (%d)\n", shi->Count);
+            if (shi->Handle[i].OwnerPid == GetCurrentProcessId() &&
+                (HANDLE)(ULONG_PTR)shi->Handle[i].HandleValue == event_handle)
+            {
+                found = TRUE;
+                break;
+            }
         }
+        ok( found, "Expected to find event handle in handle list\n" );
     }
+
+    status = pNtQuerySystemInformation(SystemHandleInformation, NULL, SystemInformationLength, &ReturnLength);
+    ok( status == STATUS_ACCESS_VIOLATION, "Expected STATUS_ACCESS_VIOLATION, got %08x\n", status );
+
+    CloseHandle(event_handle);
     HeapFree( GetProcessHeap(), 0, shi);
 }
 
@@ -1271,8 +1291,9 @@ static void test_query_process_debug_object_handle(int argc, char **argv)
     ok(ret, "CloseHandle failed with last error %u\n", GetLastError());
 }
 
-static void test_query_process_debug_flags(int argc, char **argv)
+static void test_query_process_debug_flags(int argc, char **argv, DWORD flags)
 {
+    DWORD expected_flags = !(flags & DEBUG_ONLY_THIS_PROCESS);
     DWORD debug_flags = 0xdeadbeef;
     char cmdline[MAX_PATH];
     PROCESS_INFORMATION pi;
@@ -1283,7 +1304,7 @@ static void test_query_process_debug_flags(int argc, char **argv)
     sprintf(cmdline, "%s %s %s", argv[0], argv[1], "debuggee");
 
     si.cb = sizeof(si);
-    ret = CreateProcessA(NULL, cmdline, NULL, NULL, FALSE, DEBUG_PROCESS | DEBUG_ONLY_THIS_PROCESS, NULL, NULL, &si, &pi);
+    ret = CreateProcessA(NULL, cmdline, NULL, NULL, FALSE, flags, NULL, NULL, &si, &pi);
     ok(ret, "CreateProcess failed, last error %#x.\n", GetLastError());
     if (!ret) return;
 
@@ -1320,7 +1341,8 @@ static void test_query_process_debug_flags(int argc, char **argv)
     status = pNtQueryInformationProcess(pi.hProcess, ProcessDebugFlags,
             &debug_flags, sizeof(debug_flags), NULL);
     ok(!status || broken(status == STATUS_INVALID_INFO_CLASS) /* NT4 */, "NtQueryInformationProcess failed, status %#x.\n", status);
-    ok(debug_flags == FALSE || broken(status == STATUS_INVALID_INFO_CLASS) /* NT4 */, "Expected flag FALSE, got %x.\n", debug_flags);
+    ok(debug_flags == expected_flags || broken(status == STATUS_INVALID_INFO_CLASS) /* NT4 */,
+       "Expected flag %u, got %x.\n", expected_flags, debug_flags);
 
     for (;;)
     {
@@ -1871,7 +1893,9 @@ START_TEST(info)
 
     /* 0x1F ProcessDebugFlags */
     trace("Starting test_process_debug_flags()\n");
-    test_query_process_debug_flags(argc, argv);
+    test_query_process_debug_flags(argc, argv, DEBUG_PROCESS);
+    test_query_process_debug_flags(argc, argv, DEBUG_ONLY_THIS_PROCESS);
+    test_query_process_debug_flags(argc, argv, DEBUG_PROCESS | DEBUG_ONLY_THIS_PROCESS);
 
     /* belongs to its own file */
     trace("Starting test_readvirtualmemory()\n");
