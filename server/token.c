@@ -91,6 +91,13 @@ static const struct /* same fields as struct SID */
     SID_IDENTIFIER_AUTHORITY IdentifierAuthority;
     DWORD SubAuthority[2];
 } builtin_users_sid = { SID_REVISION, 2, { SECURITY_NT_AUTHORITY }, { SECURITY_BUILTIN_DOMAIN_RID, DOMAIN_ALIAS_RID_USERS } };
+static const struct /* same fields as struct SID */
+{
+    BYTE Revision;
+    BYTE SubAuthorityCount;
+    SID_IDENTIFIER_AUTHORITY IdentifierAuthority;
+    DWORD SubAuthority[5];
+} domain_users_sid = { SID_REVISION, 5, { SECURITY_NT_AUTHORITY }, { SECURITY_NT_NON_UNIQUE, 0, 0, 0, DOMAIN_GROUP_RID_USERS } };
 
 const PSID security_world_sid = (PSID)&world_sid;
 static const PSID security_local_sid = (PSID)&local_sid;
@@ -100,6 +107,7 @@ const PSID security_local_system_sid = (PSID)&local_system_sid;
 const PSID security_local_user_sid = (PSID)&local_user_sid;
 const PSID security_builtin_admins_sid = (PSID)&builtin_admins_sid;
 const PSID security_builtin_users_sid = (PSID)&builtin_users_sid;
+const PSID security_domain_users_sid = (PSID)&domain_users_sid;
 
 static luid_t prev_luid_value = { 1000, 0 };
 
@@ -159,6 +167,7 @@ static const struct object_ops token_ops =
     default_set_sd,            /* set_sd */
     no_lookup_name,            /* lookup_name */
     no_open_file,              /* open_file */
+    no_alloc_handle,           /* alloc_handle */
     no_close_handle,           /* close_handle */
     token_destroy              /* destroy */
 };
@@ -559,6 +568,7 @@ struct token *token_duplicate( struct token *src_token, unsigned primary,
     if (!token) return token;
 
     /* copy groups */
+    token->primary_group = NULL;
     LIST_FOR_EACH_ENTRY( group, &src_token->groups, struct group, entry )
     {
         size_t size = FIELD_OFFSET( struct group, sid.SubAuthority[group->sid.SubAuthorityCount] );
@@ -570,8 +580,9 @@ struct token *token_duplicate( struct token *src_token, unsigned primary,
         }
         memcpy( newgroup, group, size );
         list_add_tail( &token->groups, &newgroup->entry );
+        if (src_token->primary_group == &group->sid)
+            token->primary_group = &newgroup->sid;
     }
-    token->primary_group = src_token->primary_group;
     assert( token->primary_group );
 
     /* copy privileges */
@@ -687,6 +698,7 @@ struct token *token_create_admin( void )
             { security_local_sid, SE_GROUP_ENABLED|SE_GROUP_ENABLED_BY_DEFAULT|SE_GROUP_MANDATORY },
             { security_interactive_sid, SE_GROUP_ENABLED|SE_GROUP_ENABLED_BY_DEFAULT|SE_GROUP_MANDATORY },
             { security_authenticated_user_sid, SE_GROUP_ENABLED|SE_GROUP_ENABLED_BY_DEFAULT|SE_GROUP_MANDATORY },
+            { security_domain_users_sid, SE_GROUP_ENABLED|SE_GROUP_ENABLED_BY_DEFAULT|SE_GROUP_MANDATORY|SE_GROUP_OWNER },
             { alias_admins_sid, SE_GROUP_ENABLED|SE_GROUP_ENABLED_BY_DEFAULT|SE_GROUP_MANDATORY|SE_GROUP_OWNER },
             { alias_users_sid, SE_GROUP_ENABLED|SE_GROUP_ENABLED_BY_DEFAULT|SE_GROUP_MANDATORY },
             { logon_sid, SE_GROUP_ENABLED|SE_GROUP_ENABLED_BY_DEFAULT|SE_GROUP_MANDATORY|SE_GROUP_LOGON_ID },

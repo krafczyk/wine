@@ -118,6 +118,7 @@ static const struct object_ops thread_apc_ops =
     default_set_sd,             /* set_sd */
     no_lookup_name,             /* lookup_name */
     no_open_file,               /* open_file */
+    no_alloc_handle,            /* alloc_handle */
     no_close_handle,            /* close_handle */
     thread_apc_destroy          /* destroy */
 };
@@ -147,6 +148,7 @@ static const struct object_ops thread_ops =
     default_set_sd,             /* set_sd */
     no_lookup_name,             /* lookup_name */
     no_open_file,               /* open_file */
+    no_alloc_handle,            /* alloc_handle */
     no_close_handle,            /* close_handle */
     destroy_thread              /* destroy */
 };
@@ -195,6 +197,9 @@ static inline void init_thread_structure( struct thread *thread )
     thread->suspend         = 0;
     thread->desktop_users   = 0;
     thread->token           = NULL;
+    thread->exit_poll       = NULL;
+    thread->shm_fd          = -1;
+    thread->shm             = NULL;
 
     thread->creation_time = current_time;
     thread->exit_time     = 0;
@@ -296,6 +301,8 @@ static void cleanup_thread( struct thread *thread )
             thread->inflight[i].client = thread->inflight[i].server = -1;
         }
     }
+    release_shared_memory( thread->shm_fd, thread->shm, sizeof(*thread->shm) );
+
     thread->req_data = NULL;
     thread->reply_data = NULL;
     thread->request_fd = NULL;
@@ -304,6 +311,9 @@ static void cleanup_thread( struct thread *thread )
     thread->context = NULL;
     thread->suspend_context = NULL;
     thread->desktop = 0;
+    thread->shm_fd = -1;
+    thread->shm = NULL;
+
 }
 
 /* destroy a thread when its refcount is 0 */
@@ -316,6 +326,7 @@ static void destroy_thread( struct object *obj )
     list_remove( &thread->entry );
     cleanup_thread( thread );
     release_object( thread->process );
+    if (thread->exit_poll) remove_timeout_user( thread->exit_poll );
     if (thread->id) free_ptid( thread->id );
     if (thread->token) release_object( thread->token );
 }
@@ -333,7 +344,7 @@ static void dump_thread( struct object *obj, int verbose )
 static int thread_signaled( struct object *obj, struct wait_queue_entry *entry )
 {
     struct thread *mythread = (struct thread *)obj;
-    return (mythread->state == TERMINATED);
+    return (mythread->state == TERMINATED && !mythread->exit_poll);
 }
 
 static unsigned int thread_map_access( struct object *obj, unsigned int access )
@@ -487,7 +498,10 @@ static void set_thread_info( struct thread *thread,
         if ((req->priority >= min && req->priority <= max) ||
             req->priority == THREAD_PRIORITY_IDLE ||
             req->priority == THREAD_PRIORITY_TIME_CRITICAL)
+        {
             thread->priority = req->priority;
+            set_scheduler_priority( thread );
+        }
         else
             set_error( STATUS_INVALID_PARAMETER );
     }
@@ -1091,6 +1105,25 @@ int thread_get_inflight_fd( struct thread *thread, int client )
     return -1;
 }
 
+static void check_terminated( void *arg )
+{
+    struct thread *thread = arg;
+    assert( thread->obj.ops == &thread_ops );
+    assert( thread->state == TERMINATED );
+
+    if (thread->unix_tid != -1 && !kill( thread->unix_tid, 0 ))
+    {
+        thread->exit_poll = add_timeout_user( -TICKS_PER_SEC / 100, check_terminated, thread );
+        return;
+    }
+
+    /* grab reference since object can be destroyed while trying to wake up */
+    grab_object( &thread->obj );
+    thread->exit_poll = NULL;
+    wake_up( &thread->obj, 0 );
+    release_object( &thread->obj );
+}
+
 /* kill a thread on the spot */
 void kill_thread( struct thread *thread, int violent_death )
 {
@@ -1111,8 +1144,8 @@ void kill_thread( struct thread *thread, int violent_death )
     kill_console_processes( thread, 0 );
     debug_exit_thread( thread );
     abandon_mutexes( thread );
-    wake_up( &thread->obj, 0 );
     if (violent_death) send_thread_signal( thread, SIGQUIT );
+    check_terminated( thread );
     cleanup_thread( thread );
     remove_process_thread( thread->process, thread );
     release_object( thread );
@@ -1300,7 +1333,7 @@ DECL_HANDLER(init_thread)
         process->peb      = req->entry;
         process->cpu      = req->cpu;
         reply->info_size  = init_process( current );
-        if (!process->parent)
+        if (!process->parent_id)
             process->affinity = current->affinity = get_thread_affinity( current );
         else
             set_thread_affinity( current, current->affinity );
@@ -1398,6 +1431,8 @@ DECL_HANDLER(get_thread_times)
     {
         reply->creation_time  = thread->creation_time;
         reply->exit_time      = thread->exit_time;
+        reply->unix_pid       = thread->unix_pid;
+        reply->unix_tid       = thread->unix_tid;
 
         release_object( thread );
     }
