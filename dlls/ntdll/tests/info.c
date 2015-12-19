@@ -477,27 +477,47 @@ static void test_query_handle(void)
     ULONG ReturnLength;
     ULONG SystemInformationLength = sizeof(SYSTEM_HANDLE_INFORMATION);
     SYSTEM_HANDLE_INFORMATION* shi = HeapAlloc(GetProcessHeap(), 0, SystemInformationLength);
+    HANDLE event_handle;
+
+    event_handle = CreateEventA(NULL, FALSE, FALSE, NULL);
+    ok( event_handle != NULL, "CreateEventA failed %u\n", GetLastError() );
 
     /* Request the needed length : a SystemInformationLength greater than one struct sets ReturnLength */
+    ReturnLength = 0xdeadbeef;
     status = pNtQuerySystemInformation(SystemHandleInformation, shi, SystemInformationLength, &ReturnLength);
-    todo_wine ok( status == STATUS_INFO_LENGTH_MISMATCH, "Expected STATUS_INFO_LENGTH_MISMATCH, got %08x\n", status);
+    ok( status == STATUS_INFO_LENGTH_MISMATCH, "Expected STATUS_INFO_LENGTH_MISMATCH, got %08x\n", status);
+    ok( ReturnLength != 0xdeadbeef, "Expected valid ReturnLength\n" );
 
     SystemInformationLength = ReturnLength;
     shi = HeapReAlloc(GetProcessHeap(), 0, shi , SystemInformationLength);
+
+    ReturnLength = 0xdeadbeef;
     status = pNtQuerySystemInformation(SystemHandleInformation, shi, SystemInformationLength, &ReturnLength);
     if (status != STATUS_INFO_LENGTH_MISMATCH) /* vista */
     {
-        ok( status == STATUS_SUCCESS,
-            "Expected STATUS_SUCCESS, got %08x\n", status);
+        ULONG ExpectedLength = FIELD_OFFSET(SYSTEM_HANDLE_INFORMATION, Handle[shi->Count]);
+        unsigned int i;
+        BOOL found = FALSE;
 
-        /* Check if we have some return values */
-        trace("Number of Handles : %d\n", shi->Count);
-        todo_wine
+        ok( status == STATUS_SUCCESS, "Expected STATUS_SUCCESS, got %08x\n", status );
+        ok( ReturnLength == ExpectedLength, "Expected length %u, got %u\n", ExpectedLength, ReturnLength );
+        ok( shi->Count > 1, "Expected more than 1 handles, got %u\n", shi->Count );
+        for (i = 0; i < shi->Count; i++)
         {
-            /* our implementation is a stub for now */
-            ok( shi->Count > 1, "Expected more than 1 handles, got (%d)\n", shi->Count);
+            if (shi->Handle[i].OwnerPid == GetCurrentProcessId() &&
+                (HANDLE)(ULONG_PTR)shi->Handle[i].HandleValue == event_handle)
+            {
+                found = TRUE;
+                break;
+            }
         }
+        ok( found, "Expected to find event handle in handle list\n" );
     }
+
+    status = pNtQuerySystemInformation(SystemHandleInformation, NULL, SystemInformationLength, &ReturnLength);
+    ok( status == STATUS_ACCESS_VIOLATION, "Expected STATUS_ACCESS_VIOLATION, got %08x\n", status );
+
+    CloseHandle(event_handle);
     HeapFree( GetProcessHeap(), 0, shi);
 }
 
@@ -1345,11 +1365,7 @@ static void test_query_process_debug_flags(int argc, char **argv)
         status = pNtQueryInformationProcess(pi.hProcess, ProcessDebugFlags,
                 &debug_flags, sizeof(debug_flags), NULL);
         ok(!status, "NtQueryInformationProcess failed, status %#x.\n", status);
-        if (!expected_flags)
-            ok(debug_flags == expected_flags, "Expected flag %x, got %x.\n", expected_flags, debug_flags);
-        else
-            todo_wine
-            ok(debug_flags == expected_flags, "Expected flag %x, got %x.\n", expected_flags, debug_flags);
+        ok(debug_flags == expected_flags, "Expected flag %x, got %x.\n", expected_flags, debug_flags);
 
         if (!(test_flags[i] & CREATE_SUSPENDED))
         {
@@ -1379,11 +1395,7 @@ static void test_query_process_debug_flags(int argc, char **argv)
         status = pNtQueryInformationProcess(pi.hProcess, ProcessDebugFlags,
                 &debug_flags, sizeof(debug_flags), NULL);
         ok(!status, "NtQueryInformationProcess failed, status %#x.\n", status);
-        if (expected_flags)
-            ok(debug_flags == expected_flags, "Expected flag %x, got %x.\n", expected_flags, debug_flags);
-        else
-            todo_wine
-            ok(debug_flags == expected_flags, "Expected flag %x, got %x.\n", expected_flags, debug_flags);
+        ok(debug_flags == expected_flags, "Expected flag %x, got %x.\n", expected_flags, debug_flags);
 
         ret = DebugActiveProcess(pi.dwProcessId);
         ok(ret, "DebugActiveProcess failed, last error %#x.\n", GetLastError());

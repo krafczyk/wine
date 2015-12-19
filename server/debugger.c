@@ -82,6 +82,7 @@ static const struct object_ops debug_event_ops =
     default_set_sd,                /* set_sd */
     no_lookup_name,                /* lookup_name */
     no_open_file,                  /* open_file */
+    no_alloc_handle,               /* alloc_handle */
     no_close_handle,               /* close_handle */
     debug_event_destroy            /* destroy */
 };
@@ -106,6 +107,7 @@ static const struct object_ops debug_ctx_ops =
     default_set_sd,                /* set_sd */
     no_lookup_name,                /* lookup_name */
     no_open_file,                  /* open_file */
+    no_alloc_handle,               /* alloc_handle */
     no_close_handle,               /* close_handle */
     debug_ctx_destroy              /* destroy */
 };
@@ -443,6 +445,7 @@ static int debugger_attach( struct process *process, struct thread *debugger )
         resume_process( process );
         return 0;
     }
+    process->debug_children = 0;
     return 1;
 
  error:
@@ -483,7 +486,6 @@ int debugger_detach( struct process *process, struct thread *debugger )
 
     /* remove relationships between process and its debugger */
     process->debugger = NULL;
-    process->debug_children = 0;
     if (!set_process_debug_flag( process, 0 )) clear_error();  /* ignore error */
 
     /* from this function */
