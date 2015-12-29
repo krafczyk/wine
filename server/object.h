@@ -86,8 +86,10 @@ struct object_ops
     /* open a file object to access this object */
     struct object *(*open_file)(struct object *, unsigned int access, unsigned int sharing,
                                 unsigned int options);
+    /* allocate a handle to this object */
+    void (*alloc_handle)(struct object *, struct process *, obj_handle_t);
     /* close a handle to this object */
-    int (*close_handle)(struct object *,struct process *,obj_handle_t);
+    int (*close_handle)(struct object *, struct process *, obj_handle_t);
     /* destroy on refcount == 0 */
     void (*destroy)(struct object *);
 };
@@ -96,6 +98,7 @@ struct object
 {
     unsigned int              refcount;    /* reference count */
     unsigned int              handle_count;/* handle count */
+    struct object            *parent;      /* parent object */
     const struct object_ops  *ops;
     struct list               wait_queue;
     struct object_name       *name;
@@ -140,11 +143,15 @@ extern struct fd *no_get_fd( struct object *obj );
 extern unsigned int no_map_access( struct object *obj, unsigned int access );
 extern struct security_descriptor *default_get_sd( struct object *obj );
 extern int default_set_sd( struct object *obj, const struct security_descriptor *sd, unsigned int set_info );
+extern struct security_descriptor *set_sd_from_token_internal( const struct security_descriptor *sd,
+                                                               const struct security_descriptor *old_sd,
+                                                               unsigned int set_info, struct token *token );
 extern int set_sd_defaults_from_token( struct object *obj, const struct security_descriptor *sd,
                                        unsigned int set_info, struct token *token );
 extern struct object *no_lookup_name( struct object *obj, struct unicode_str *name, unsigned int attributes );
 extern struct object *no_open_file( struct object *obj, unsigned int access, unsigned int sharing,
                                     unsigned int options );
+extern void no_alloc_handle( struct object *obj, struct process *process, obj_handle_t handle );
 extern int no_close_handle( struct object *obj, struct process *process, obj_handle_t handle );
 extern void no_destroy( struct object *obj );
 #ifdef DEBUG_OBJECTS

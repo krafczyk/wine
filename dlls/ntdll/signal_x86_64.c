@@ -1800,11 +1800,12 @@ __ASM_GLOBAL_FUNC( RtlCaptureContext,
                    "ret" );
 
 /***********************************************************************
- *           set_cpu_context
+ *           __wine_restore_regs
  *
  * Set the new CPU context.
  */
-__ASM_GLOBAL_FUNC( set_cpu_context,
+extern void __wine_restore_regs( const CONTEXT *context );
+__ASM_GLOBAL_FUNC( __wine_restore_regs,
                    "subq $40,%rsp\n\t"
                    __ASM_CFI(".cfi_adjust_cfa_offset 40\n\t")
                    "ldmxcsr 0x34(%rdi)\n\t"         /* context->MxCsr */
@@ -1851,6 +1852,25 @@ __ASM_GLOBAL_FUNC( set_cpu_context,
                    "movq 0x78(%rdi),%rax\n\t"       /* context->Rax */
                    "movq 0xb0(%rdi),%rdi\n\t"       /* context->Rdi */
                    "iretq" );
+
+
+/***********************************************************************
+ *           set_cpu_context
+ *
+ * Set the new CPU context. Used by NtSetContextThread.
+ */
+void set_cpu_context( const CONTEXT *context )
+{
+    DWORD flags = context->ContextFlags & ~CONTEXT_AMD64;
+    if (flags & CONTEXT_FULL)
+    {
+        if (!(flags & CONTEXT_CONTROL))
+            FIXME( "setting partial context (%x) not supported\n", flags );
+        else
+            __wine_restore_regs( context );
+    }
+}
+
 
 /***********************************************************************
  *           copy_context
@@ -2732,11 +2752,18 @@ NTSTATUS signal_alloc_thread( TEB **teb )
 void signal_free_thread( TEB *teb )
 {
     SIZE_T size;
+    struct ntdll_thread_data *thread_data = (struct ntdll_thread_data *)teb->SpareBytes1;
 
     if (teb->DeallocationStack)
     {
         size = 0;
         NtFreeVirtualMemory( GetCurrentProcess(), &teb->DeallocationStack, &size, MEM_RELEASE );
+    }
+    if ((ULONG_PTR)thread_data->pthread_stack & 1)
+    {
+        void *addr = (void *)((ULONG_PTR)thread_data->pthread_stack & ~1);
+        size = 0;
+        NtFreeVirtualMemory( GetCurrentProcess(), &addr, &size, MEM_RELEASE );
     }
     size = 0;
     NtFreeVirtualMemory( NtCurrentProcess(), (void **)&teb, &size, MEM_RELEASE );
@@ -2826,6 +2853,12 @@ void signal_init_process(void)
     exit(1);
 }
 
+/**********************************************************************
+ *    signal_init_early
+ */
+void signal_init_early(void)
+{
+}
 
 /**********************************************************************
  *              RtlAddFunctionTable   (NTDLL.@)
@@ -3617,7 +3650,8 @@ EXCEPTION_DISPOSITION WINAPI __C_specific_handler( EXCEPTION_RECORD *rec,
 /*******************************************************************
  *		NtRaiseException (NTDLL.@)
  */
-NTSTATUS WINAPI NtRaiseException( EXCEPTION_RECORD *rec, CONTEXT *context, BOOL first_chance )
+DEFINE_SYSCALL_ENTRYPOINT( NtRaiseException, 3 );
+NTSTATUS WINAPI SYSCALL(NtRaiseException)( EXCEPTION_RECORD *rec, CONTEXT *context, BOOL first_chance )
 {
     NTSTATUS status = raise_exception( rec, context, first_chance );
     if (status == STATUS_SUCCESS) NtSetContextThread( GetCurrentThread(), context );

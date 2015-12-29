@@ -52,6 +52,7 @@ static NTSTATUS  (WINAPI *pNtTerminateProcess)(HANDLE handle, LONG exit_code);
 static NTSTATUS  (WINAPI *pNtQueryInformationProcess)(HANDLE, PROCESSINFOCLASS, PVOID, ULONG, PULONG);
 static NTSTATUS  (WINAPI *pNtSetInformationProcess)(HANDLE, PROCESSINFOCLASS, PVOID, ULONG);
 static BOOL      (WINAPI *pIsWow64Process)(HANDLE, PBOOL);
+static NTSTATUS  (WINAPI *pNtClose)(HANDLE);
 
 #if defined(__x86_64__)
 static BOOLEAN   (CDECL *pRtlAddFunctionTable)(RUNTIME_FUNCTION*, DWORD, DWORD64);
@@ -937,6 +938,16 @@ static void test_debugger(void)
                         /* here we handle exception */
                     }
                 }
+                else if (stage == 7 || stage == 8)
+                {
+                    ok(de.u.Exception.ExceptionRecord.ExceptionCode == EXCEPTION_INVALID_HANDLE,
+                       "unexpected exception code %08x, expected %08x\n", de.u.Exception.ExceptionRecord.ExceptionCode,
+                       EXCEPTION_INVALID_HANDLE);
+                    ok(de.u.Exception.ExceptionRecord.NumberParameters == 0,
+                       "unexpected number of parameters %d, expected 0\n", de.u.Exception.ExceptionRecord.NumberParameters);
+
+                    if (stage == 8) continuestatus = DBG_EXCEPTION_NOT_HANDLED;
+                }
                 else
                     ok(FALSE, "unexpected stage %x\n", stage);
 
@@ -1723,6 +1734,83 @@ static void test_dynamic_unwind(void)
 #endif  /* __x86_64__ */
 
 #if defined(__i386__) || defined(__x86_64__)
+
+static void test_debug_registers(void)
+{
+    NTSTATUS status;
+    CONTEXT ctx, ctx2;
+
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+    ctx2.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+
+    ctx.Dr0 = 0x42424240;
+    ctx.Dr2 = 0x126bb070;
+    ctx.Dr3 = 0x0badbad0;
+    ctx.Dr7 = 0xffff0115;
+    status = pNtSetContextThread(GetCurrentThread(), &ctx);
+    ok(status == STATUS_SUCCESS, "NtGetContextThread failed with %08x\n", status);
+    status = pNtGetContextThread(GetCurrentThread(), &ctx2);
+    ok(status == STATUS_SUCCESS, "NtGetContextThread failed with %x\n", status);
+    ctx2.Dr6 &= 0xf00f; ctx2.Dr7 &= ~0xdc00;
+    ok(ctx2.Dr0 == ctx.Dr0, "expected %lx, got %lx\n", (DWORD_PTR)ctx.Dr0, (DWORD_PTR)ctx2.Dr0);
+    ok(ctx2.Dr1 == ctx.Dr1, "expected %lx, got %lx\n", (DWORD_PTR)ctx.Dr1, (DWORD_PTR)ctx2.Dr1);
+    ok(ctx2.Dr2 == ctx.Dr2, "expected %lx, got %lx\n", (DWORD_PTR)ctx.Dr2, (DWORD_PTR)ctx2.Dr2);
+    ok(ctx2.Dr3 == ctx.Dr3, "expected %lx, got %lx\n", (DWORD_PTR)ctx.Dr3, (DWORD_PTR)ctx2.Dr3);
+    ok(ctx2.Dr6 == ctx.Dr6, "expected %lx, got %lx\n", (DWORD_PTR)ctx.Dr6, (DWORD_PTR)ctx2.Dr6);
+    ok(ctx2.Dr7 == ctx.Dr7, "expected %lx, got %lx\n", (DWORD_PTR)ctx.Dr7, (DWORD_PTR)ctx2.Dr7);
+
+    ctx.Dr0 = 0x42424242;
+    ctx.Dr2 = 0x100f0fe7;
+    ctx.Dr3 = 0x0abebabe;
+    ctx.Dr7 = 0x115;
+    status = pNtSetContextThread(GetCurrentThread(), &ctx);
+    ok(status == STATUS_SUCCESS, "NtGetContextThread failed with %08x\n", status);
+    status = pNtGetContextThread(GetCurrentThread(), &ctx2);
+    ok(status == STATUS_SUCCESS, "NtGetContextThread failed with %x\n", status);
+    ctx2.Dr6 &= 0xf00f; ctx2.Dr7 &= ~0xdc00;
+    ok(ctx2.Dr0 == ctx.Dr0, "expected %lx, got %lx\n", (DWORD_PTR)ctx.Dr0, (DWORD_PTR)ctx2.Dr0);
+    ok(ctx2.Dr1 == ctx.Dr1, "expected %lx, got %lx\n", (DWORD_PTR)ctx.Dr1, (DWORD_PTR)ctx2.Dr1);
+    ok(ctx2.Dr2 == ctx.Dr2, "expected %lx, got %lx\n", (DWORD_PTR)ctx.Dr2, (DWORD_PTR)ctx2.Dr2);
+    ok(ctx2.Dr3 == ctx.Dr3, "expected %lx, got %lx\n", (DWORD_PTR)ctx.Dr3, (DWORD_PTR)ctx2.Dr3);
+    ok(ctx2.Dr6 == ctx.Dr6, "expected %lx, got %lx\n", (DWORD_PTR)ctx.Dr6, (DWORD_PTR)ctx2.Dr6);
+    ok(ctx2.Dr7 == ctx.Dr7, "expected %lx, got %lx\n", (DWORD_PTR)ctx.Dr7, (DWORD_PTR)ctx2.Dr7);
+
+    /* setting Gx flags is not allowed */
+    ctx.Dr7 |= 0xaa;
+    status = pNtSetContextThread(GetCurrentThread(), &ctx);
+    ok(status == STATUS_SUCCESS, "NtGetContextThread failed with %08x\n", status);
+    status = pNtGetContextThread(GetCurrentThread(), &ctx2);
+    ok(status == STATUS_SUCCESS, "NtGetContextThread failed with %x\n", status);
+    ctx.Dr7 &= ~0xaa; ctx2.Dr7 &= ~0xdc00;
+todo_wine
+    ok(ctx2.Dr7 == ctx.Dr7, "expected %lx, got %lx\n", (DWORD_PTR)ctx.Dr7, (DWORD_PTR)ctx2.Dr7);
+
+    /* setting GE flag is not allowed on 32-bit, but on 64-bit */
+    ctx.Dr7 |= 0x200;
+    status = pNtSetContextThread(GetCurrentThread(), &ctx);
+    ok(status == STATUS_SUCCESS, "NtGetContextThread failed with %08x\n", status);
+    status = pNtGetContextThread(GetCurrentThread(), &ctx2);
+    ok(status == STATUS_SUCCESS, "NtGetContextThread failed with %x\n", status);
+#ifdef __i386__
+    ctx.Dr7 &= ~0x200; ctx2.Dr7 &= ~0xdc00;
+todo_wine
+    ok(ctx2.Dr7 == ctx.Dr7, "expected %lx, got %lx\n", (DWORD_PTR)ctx.Dr7, (DWORD_PTR)ctx2.Dr7);
+#else
+    ctx2.Dr7 &= ~0xdc00;
+    ok(ctx2.Dr7 == ctx.Dr7, "expected %lx, got %lx\n", (DWORD_PTR)ctx.Dr7, (DWORD_PTR)ctx2.Dr7);
+#endif
+
+    /* clearing LE flag is allowed */
+    ctx.Dr7 &= ~0x100;
+    status = pNtSetContextThread(GetCurrentThread(), &ctx);
+    ok(status == STATUS_SUCCESS, "NtGetContextThread failed with %08x\n", status);
+    status = pNtGetContextThread(GetCurrentThread(), &ctx2);
+    ok(status == STATUS_SUCCESS, "NtGetContextThread failed with %x\n", status);
+    ctx2.Dr7 &= ~0xdc00;
+    ok(ctx2.Dr7 == ctx.Dr7, "expected %lx, got %lx\n", (DWORD_PTR)ctx.Dr7, (DWORD_PTR)ctx2.Dr7);
+}
+
 static DWORD outputdebugstring_exceptions;
 
 static LONG CALLBACK outputdebugstring_vectored_handler(EXCEPTION_POINTERS *ExceptionInfo)
@@ -1741,7 +1829,7 @@ static LONG CALLBACK outputdebugstring_vectored_handler(EXCEPTION_POINTERS *Exce
     return EXCEPTION_CONTINUE_SEARCH;
 }
 
-static void test_outputdebugstring(DWORD numexc, BOOL todo)
+static void test_outputdebugstring(DWORD numexc)
 {
     PVOID vectored_handler;
 
@@ -1756,13 +1844,8 @@ static void test_outputdebugstring(DWORD numexc, BOOL todo)
 
     outputdebugstring_exceptions = 0;
     OutputDebugStringA("Hello World");
-    if (todo)
-        todo_wine
-        ok(outputdebugstring_exceptions == numexc, "OutputDebugStringA generated %d exceptions, expected %d\n",
-           outputdebugstring_exceptions, numexc);
-    else
-        ok(outputdebugstring_exceptions == numexc, "OutputDebugStringA generated %d exceptions, expected %d\n",
-           outputdebugstring_exceptions, numexc);
+    ok(outputdebugstring_exceptions == numexc, "OutputDebugStringA generated %d exceptions, expected %d\n",
+       outputdebugstring_exceptions, numexc);
 
     pRtlRemoveVectoredExceptionHandler(vectored_handler);
 }
@@ -1812,6 +1895,53 @@ static void test_ripevent(DWORD numexc)
     pRtlRaiseException(&record);
     ok(ripevent_exceptions == numexc, "RtlRaiseException generated %d exceptions, expected %d\n",
        ripevent_exceptions, numexc);
+
+    pRtlRemoveVectoredExceptionHandler(vectored_handler);
+}
+
+static DWORD invalid_handle_exceptions;
+
+static LONG CALLBACK invalid_handle_vectored_handler(EXCEPTION_POINTERS *ExceptionInfo)
+{
+    PEXCEPTION_RECORD rec = ExceptionInfo->ExceptionRecord;
+    trace("vect. handler %08x addr:%p\n", rec->ExceptionCode, rec->ExceptionAddress);
+
+    ok(rec->ExceptionCode == EXCEPTION_INVALID_HANDLE, "ExceptionCode is %08x instead of %08x\n",
+       rec->ExceptionCode, EXCEPTION_INVALID_HANDLE);
+    ok(rec->NumberParameters == 0, "ExceptionParameters is %d instead of 0\n", rec->NumberParameters);
+
+    invalid_handle_exceptions++;
+    return (rec->ExceptionCode == EXCEPTION_INVALID_HANDLE) ? EXCEPTION_CONTINUE_EXECUTION : EXCEPTION_CONTINUE_SEARCH;
+}
+
+static void test_closehandle(DWORD numexc)
+{
+    PVOID vectored_handler;
+    NTSTATUS status;
+    DWORD res;
+
+    if (!pRtlAddVectoredExceptionHandler || !pRtlRemoveVectoredExceptionHandler || !pRtlRaiseException)
+    {
+        skip("RtlAddVectoredExceptionHandler or RtlRemoveVectoredExceptionHandler or RtlRaiseException not found\n");
+        return;
+    }
+
+    vectored_handler = pRtlAddVectoredExceptionHandler(TRUE, &invalid_handle_vectored_handler);
+    ok(vectored_handler != 0, "RtlAddVectoredExceptionHandler failed\n");
+
+    invalid_handle_exceptions = 0;
+    res = CloseHandle((HANDLE)0xdeadbeef);
+    ok(!res, "CloseHandle(0xdeadbeef) unexpectedly succeeded\n");
+    ok(GetLastError() == ERROR_INVALID_HANDLE, "wrong error code %d instead of %d\n",
+       GetLastError(), ERROR_INVALID_HANDLE);
+    ok(invalid_handle_exceptions == numexc, "CloseHandle generated %d exceptions, expected %d\n",
+       invalid_handle_exceptions, numexc);
+
+    invalid_handle_exceptions = 0;
+    status = pNtClose((HANDLE)0xdeadbeef);
+    ok(status == STATUS_INVALID_HANDLE, "NtClose(0xdeadbeef) returned status %08x\n", status);
+    ok(invalid_handle_exceptions == numexc, "NtClose generated %d exceptions, expected %d\n",
+       invalid_handle_exceptions, numexc);
 
     pRtlRemoveVectoredExceptionHandler(vectored_handler);
 }
@@ -1868,6 +1998,7 @@ START_TEST(exception)
     pNtGetContextThread  = (void *)GetProcAddress( hntdll, "NtGetContextThread" );
     pNtSetContextThread  = (void *)GetProcAddress( hntdll, "NtSetContextThread" );
     pNtReadVirtualMemory = (void *)GetProcAddress( hntdll, "NtReadVirtualMemory" );
+    pNtClose             = (void *)GetProcAddress( hntdll, "NtClose" );
     pRtlUnwind           = (void *)GetProcAddress( hntdll, "RtlUnwind" );
     pRtlRaiseException   = (void *)GetProcAddress( hntdll, "RtlRaiseException" );
     pNtTerminateProcess  = (void *)GetProcAddress( hntdll, "NtTerminateProcess" );
@@ -1928,13 +2059,17 @@ START_TEST(exception)
             run_rtlraiseexception_test(EXCEPTION_BREAKPOINT);
             run_rtlraiseexception_test(EXCEPTION_INVALID_HANDLE);
             test_stage = 3;
-            test_outputdebugstring(0, FALSE);
+            test_outputdebugstring(0);
             test_stage = 4;
-            test_outputdebugstring(2, TRUE); /* is this a Windows bug? */
+            test_outputdebugstring(2);
             test_stage = 5;
             test_ripevent(0);
             test_stage = 6;
             test_ripevent(1);
+            test_stage = 7;
+            test_closehandle(0);
+            test_stage = 8;
+            test_closehandle(1);
         }
         else
             skip( "RtlRaiseException not found\n" );
@@ -1946,8 +2081,10 @@ START_TEST(exception)
     test_unwind();
     test_exceptions();
     test_rtlraiseexception();
-    test_outputdebugstring(1, FALSE);
+    test_debug_registers();
+    test_outputdebugstring(1);
     test_ripevent(1);
+    test_closehandle(0);
     test_vectored_continue_handler();
     test_debugger();
     test_simd_exceptions();
@@ -1965,8 +2102,10 @@ START_TEST(exception)
     pRtlLookupFunctionEntry            = (void *)GetProcAddress( hntdll,
                                                                  "RtlLookupFunctionEntry" );
 
-    test_outputdebugstring(1, FALSE);
+    test_debug_registers();
+    test_outputdebugstring(1);
     test_ripevent(1);
+    test_closehandle(0);
     test_vectored_continue_handler();
     test_virtual_unwind();
 

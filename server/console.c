@@ -85,6 +85,7 @@ static const struct object_ops console_input_ops =
     default_set_sd,                   /* set_sd */
     no_lookup_name,                   /* lookup_name */
     no_open_file,                     /* open_file */
+    no_alloc_handle,                  /* alloc_handle */
     no_close_handle,                  /* close_handle */
     console_input_destroy             /* destroy */
 };
@@ -117,6 +118,7 @@ static const struct object_ops console_input_events_ops =
     default_set_sd,                   /* set_sd */
     no_lookup_name,                   /* lookup_name */
     no_open_file,                     /* open_file */
+    no_alloc_handle,                  /* alloc_handle */
     no_close_handle,                  /* close_handle */
     console_input_events_destroy      /* destroy */
 };
@@ -169,6 +171,7 @@ static const struct object_ops screen_buffer_ops =
     default_set_sd,                   /* set_sd */
     no_lookup_name,                   /* lookup_name */
     no_open_file,                     /* open_file */
+    no_alloc_handle,                  /* alloc_handle */
     no_close_handle,                  /* close_handle */
     screen_buffer_destroy             /* destroy */
 };
@@ -1018,13 +1021,6 @@ static int set_console_output_info( struct screen_buffer *screen_buffer,
     }
     if (req->mask & SET_CONSOLE_OUTPUT_INFO_MAX_SIZE)
     {
-	/* can only be done by renderer */
-	if (current->process->console != screen_buffer->input)
-	{
-	    set_error( STATUS_INVALID_PARAMETER );
-	    return 0;
-	}
-
 	screen_buffer->max_width  = req->max_width;
 	screen_buffer->max_height = req->max_height;
     }
@@ -1425,13 +1421,12 @@ DECL_HANDLER(alloc_console)
     case 0:
         /* renderer is current, console to be attached to parent process */
         renderer = current;
-        if (!(process = current->process->parent))
+        if (!(process = get_process_from_id( current->process->parent_id )))
         {
             if (fd != -1) close( fd );
             set_error( STATUS_ACCESS_DENIED );
             return;
         }
-        grab_object( process );
         attach = 1;
         break;
     case 0xffffffff:
