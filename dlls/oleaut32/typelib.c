@@ -6402,15 +6402,15 @@ static double (* const call_double_method)(void*,int,const DWORD*,int*) = (void 
  * Invokes a method, or accesses a property of an object, that implements the
  * interface described by the type description.
  */
-DWORD
-_invoke(FARPROC func,CALLCONV callconv, int nrargs, DWORD *args) {
+DWORD _invoke(FARPROC func, CALLCONV callconv, int nrargs, DWORD_PTR *args)
+{
     DWORD res;
     int stack_offset;
 
     if (TRACE_ON(ole)) {
 	int i;
 	TRACE("Calling %p(",func);
-	for (i=0;i<min(nrargs,30);i++) TRACE("%08x,",args[i]);
+	for (i=0;i<min(nrargs,30);i++) TRACE("%08lx,",args[i]);
 	if (nrargs > 30) TRACE("...");
 	TRACE(")\n");
     }
@@ -6418,7 +6418,7 @@ _invoke(FARPROC func,CALLCONV callconv, int nrargs, DWORD *args) {
     switch (callconv) {
     case CC_STDCALL:
     case CC_CDECL:
-        res = call_method( func, nrargs, args, &stack_offset );
+        res = call_method(func, nrargs, (DWORD *)args, &stack_offset);
 	break;
     default:
 	FIXME("unsupported calling convention %d\n",callconv);
@@ -6474,6 +6474,34 @@ __ASM_GLOBAL_FUNC( call_method,
 
 /* same function but returning floating point */
 static double (CDECL * const call_double_method)(void*,int,const DWORD_PTR*) = (void *)call_method;
+
+DWORD _invoke(FARPROC func, CALLCONV callconv, int nrargs, DWORD_PTR *args)
+{
+    DWORD res;
+
+    if (TRACE_ON(ole))
+    {
+        int i;
+        TRACE("Calling %p(", func);
+        for (i=0; i<min(nrargs, 30); i++) TRACE("%016lx,", args[i]);
+        if (nrargs > 30) TRACE("...");
+        TRACE(")\n");
+    }
+
+    switch (callconv) {
+    case CC_STDCALL:
+    case CC_CDECL:
+        res = call_method(func, nrargs, args);
+        break;
+    default:
+        FIXME("unsupported calling convention %d\n", callconv);
+        res = -1;
+        break;
+    }
+
+    TRACE("returns %08x\n", res);
+    return res;
+}
 
 #endif  /* __x86_64__ */
 
@@ -6612,13 +6640,13 @@ static HRESULT typedescvt_to_variantvt(ITypeInfo *tinfo, const TYPEDESC *tdesc, 
     return hr;
 }
 
-static HRESULT get_iface_guid(ITypeInfo *tinfo, const TYPEDESC *tdesc, GUID *guid)
+static HRESULT get_iface_guid(ITypeInfo *tinfo, HREFTYPE href, GUID *guid)
 {
     ITypeInfo *tinfo2;
     TYPEATTR *tattr;
     HRESULT hres;
 
-    hres = ITypeInfo_GetRefTypeInfo(tinfo, tdesc->u.hreftype, &tinfo2);
+    hres = ITypeInfo_GetRefTypeInfo(tinfo, href, &tinfo2);
     if(FAILED(hres))
         return hres;
 
@@ -6630,13 +6658,28 @@ static HRESULT get_iface_guid(ITypeInfo *tinfo, const TYPEDESC *tdesc, GUID *gui
 
     switch(tattr->typekind) {
     case TKIND_ALIAS:
-        hres = get_iface_guid(tinfo2, &tattr->tdescAlias, guid);
+        hres = get_iface_guid(tinfo2, tattr->tdescAlias.u.hreftype, guid);
         break;
 
     case TKIND_INTERFACE:
     case TKIND_DISPATCH:
         *guid = tattr->guid;
         break;
+
+    case TKIND_COCLASS: {
+        unsigned int i;
+        int type_flags;
+
+        for(i = 0; i < tattr->cImplTypes; i++)
+            if(SUCCEEDED(ITypeInfo_GetImplTypeFlags(tinfo2, i, &type_flags)) &&
+               type_flags == (IMPLTYPEFLAG_FSOURCE|IMPLTYPEFLAG_FDEFAULT)) break;
+
+        if(i < tattr->cImplTypes) {
+            hres = ITypeInfo_GetRefTypeOfImplType(tinfo2, i, &href);
+            if(SUCCEEDED(hres)) hres = get_iface_guid(tinfo2, href, guid);
+        } else hres = E_UNEXPECTED;
+        break;
+    }
 
     default:
         ERR("Unexpected typekind %d\n", tattr->typekind);
@@ -7156,7 +7199,10 @@ static HRESULT WINAPI ITypeInfo_fnInvoke(
                         IUnknown *userdefined_iface;
                         GUID guid;
 
-                        hres = get_iface_guid((ITypeInfo*)iface, tdesc->vt == VT_PTR ? tdesc->u.lptdesc : tdesc, &guid);
+                        if (tdesc->vt == VT_PTR)
+                            tdesc = tdesc->u.lptdesc;
+
+                        hres = get_iface_guid((ITypeInfo*)iface, tdesc->u.hreftype, &guid);
                         if(FAILED(hres))
                             break;
 
