@@ -30,6 +30,8 @@
 #include "winbase.h"
 #include "wingdi.h"
 #include "winuser.h"
+#include "user_private.h"
+
 #include "wine/server.h"
 #include "wine/debug.h"
 
@@ -86,7 +88,7 @@ static void CALLBACK CARET_Callback( HWND hwnd, UINT msg, UINT_PTR id, DWORD cti
         req->x      = 0;
         req->y      = 0;
         req->hide   = 0;
-        req->state  = -1;  /* toggle current state */
+        req->state  = CARET_STATE_TOGGLE;
         if ((ret = !wine_server_call( req )))
         {
             hwnd      = wine_server_ptr_handle( reply->full_handle );
@@ -256,7 +258,7 @@ BOOL WINAPI SetCaretPos( INT x, INT y )
         req->x      = x;
         req->y      = y;
         req->hide   = 0;
-        req->state  = 1;
+        req->state  = CARET_STATE_ON_IF_POS_CHANGED;
         if ((ret = !wine_server_call_err( req )))
         {
             hwnd      = wine_server_ptr_handle( reply->full_handle );
@@ -277,6 +279,7 @@ BOOL WINAPI SetCaretPos( INT x, INT y )
         r.left = x;
         r.top = y;
         CARET_DisplayCaret( hwnd, &r );
+        USER_Driver->pUpdateCandidatePos( hwnd, &r );
         SetSystemTimer( hwnd, TIMERID, Caret.timeout, CARET_Callback );
     }
     return ret;
@@ -300,7 +303,7 @@ BOOL WINAPI HideCaret( HWND hwnd )
         req->x      = 0;
         req->y      = 0;
         req->hide   = 1;
-        req->state  = 0;
+        req->state  = CARET_STATE_OFF;
         if ((ret = !wine_server_call_err( req )))
         {
             hwnd      = wine_server_ptr_handle( reply->full_handle );
@@ -339,7 +342,7 @@ BOOL WINAPI ShowCaret( HWND hwnd )
         req->x      = 0;
         req->y      = 0;
         req->hide   = -1;
-        req->state  = 1;
+        req->state  = CARET_STATE_ON;
         if ((ret = !wine_server_call_err( req )))
         {
             hwnd      = wine_server_ptr_handle( reply->full_handle );
@@ -355,6 +358,7 @@ BOOL WINAPI ShowCaret( HWND hwnd )
     if (ret && (hidden == 1))  /* hidden was 1 so it's now 0 */
     {
         CARET_DisplayCaret( hwnd, &r );
+        USER_Driver->pUpdateCandidatePos( hwnd, &r );
         SetSystemTimer( hwnd, TIMERID, Caret.timeout, CARET_Callback );
     }
     return ret;
