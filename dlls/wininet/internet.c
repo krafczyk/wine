@@ -2415,7 +2415,8 @@ static BOOL get_proxy_autoconfig_url( char *buf, DWORD buflen )
     CFRelease( settings );
     return ret;
 #else
-    FIXME( "no support on this platform\n" );
+    static int once;
+    if (!once++) FIXME( "no support on this platform\n" );
     return FALSE;
 #endif
 }
@@ -3044,6 +3045,12 @@ BOOL WINAPI InternetSetOptionW(HINTERNET hInternet, DWORD dwOption,
         ret = (res == ERROR_SUCCESS);
         break;
         }
+    case INTERNET_OPTION_SETTINGS_CHANGED:
+        FIXME("INTERNET_OPTION_SETTINGS_CHANGED; STUB\n");
+        break;
+    case INTERNET_OPTION_REFRESH:
+        FIXME("INTERNET_OPTION_REFRESH; STUB\n");
+        break;
     default:
         FIXME("Option %d STUB\n",dwOption);
         SetLastError(ERROR_INTERNET_INVALID_OPTION);

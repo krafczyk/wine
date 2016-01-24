@@ -905,6 +905,29 @@ typedef struct _FILE_REMOTE_PROTOCOL_INFO {
     } ProtocolSpecificReserved;
 } FILE_REMOTE_PROTOCOL_INFO, *PFILE_REMOTE_PROTOCOL_INFO;
 
+typedef struct _FILE_STREAM_INFO {
+    DWORD NextEntryOffset;
+    DWORD StreamNameLength;
+    LARGE_INTEGER StreamSize;
+    LARGE_INTEGER StreamAllocationSize;
+    WCHAR StreamName[1];
+} FILE_STREAM_INFO, *PFILE_STREAM_INFO;
+
+typedef struct _FILE_FULL_DIR_INFO {
+    ULONG NextEntryOffset;
+    ULONG FileIndex;
+    LARGE_INTEGER CreationTime;
+    LARGE_INTEGER LastAccessTime;
+    LARGE_INTEGER LastWriteTime;
+    LARGE_INTEGER ChangeTime;
+    LARGE_INTEGER EndOfFile;
+    LARGE_INTEGER AllocationSize;
+    ULONG FileAttributes;
+    ULONG FileNameLength;
+    ULONG EaSize;
+    WCHAR FileName[1];
+} FILE_FULL_DIR_INFO, *PFILE_FULL_DIR_INFO;
+
 #define PIPE_ACCESS_INBOUND  1
 #define PIPE_ACCESS_OUTBOUND 2
 #define PIPE_ACCESS_DUPLEX   3
@@ -2972,6 +2995,21 @@ WINBASEAPI VOID        WINAPI SetLastError(DWORD);
 #define GetCurrentProcess() ((HANDLE)~(ULONG_PTR)0)
 #define GetCurrentThread()  ((HANDLE)~(ULONG_PTR)1)
 #endif
+
+static FORCEINLINE HANDLE GetCurrentProcessToken(void)
+{
+    return (HANDLE)~(LONG_PTR)3;
+}
+
+static FORCEINLINE HANDLE GetCurrentThreadToken(void)
+{
+    return (HANDLE)~(LONG_PTR)4;
+}
+
+static FORCEINLINE HANDLE GetCurrentThreadEffectiveToken(void)
+{
+    return (HANDLE)~(LONG_PTR)5;
+}
 
 /* WinMain(entry point) must be declared in winbase.h. */
 /* If this is not declared, we cannot compile many sources written with C++. */

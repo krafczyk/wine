@@ -65,6 +65,7 @@ static const struct object_ops object_type_ops =
     default_set_sd,               /* set_sd */
     no_lookup_name,               /* lookup_name */
     no_open_file,                 /* open_file */
+    no_alloc_handle,              /* alloc_handle */
     no_close_handle,              /* close_handle */
     no_destroy                    /* destroy */
 };
@@ -98,6 +99,7 @@ static const struct object_ops directory_ops =
     default_set_sd,               /* set_sd */
     directory_lookup_name,        /* lookup_name */
     no_open_file,                 /* open_file */
+    no_alloc_handle,              /* alloc_handle */
     no_close_handle,              /* close_handle */
     directory_destroy             /* destroy */
 };
@@ -192,7 +194,7 @@ static struct directory *create_directory( struct directory *root, const struct 
         if (!(dir->entries = create_namespace( hash_size )))
         {
             release_object( dir );
-            dir = NULL;
+            return NULL;
         }
         if (sd) default_set_sd( &dir->obj, sd, OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION |
                                 DACL_SECURITY_INFORMATION | SACL_SECURITY_INFORMATION );
