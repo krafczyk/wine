@@ -66,7 +66,7 @@
 @ stdcall CLSIDFromProgID(wstr ptr) ole32.CLSIDFromProgID
 @ stdcall CLSIDFromString(wstr ptr) ole32.CLSIDFromString
 @ stub CleanupOleStateInAllTls
-@ stub CleanupTlsOleState
+@ stdcall CleanupTlsOleState(ptr)
 @ stub ClearCleanupFlag
 @ stdcall CoAddRefServerProcess() ole32.CoAddRefServerProcess
 @ stub CoAllowUnmarshalerCLSID
@@ -90,7 +90,7 @@
 @ stdcall CoFreeUnusedLibrariesEx(long long) ole32.CoFreeUnusedLibrariesEx
 @ stdcall CoGetActivationState(int128 long ptr) ole32.CoGetActivationState
 @ stub CoGetApartmentID
-@ stub CoGetApartmentType
+@ stdcall CoGetApartmentType(ptr ptr) ole32.CoGetApartmentType
 @ stdcall CoGetCallContext(ptr ptr) ole32.CoGetCallContext
 @ stdcall CoGetCallState(long ptr) ole32.CoGetCallState
 @ stdcall CoGetCallerTID(ptr) ole32.CoGetCallerTID
@@ -242,7 +242,7 @@
 @ stdcall PropVariantClear(ptr) ole32.PropVariantClear
 @ stdcall PropVariantCopy(ptr ptr) ole32.PropVariantCopy
 @ stub ReleaseFuncDescs
-@ stub RoActivateInstance
+@ stdcall RoActivateInstance(ptr ptr)
 @ stub RoCaptureErrorContext
 @ stub RoClearError
 @ stub RoFailFastWithErrorContext
@@ -250,11 +250,11 @@
 @ stub RoGetActivatableClassRegistration
 @ stdcall RoGetActivationFactory(ptr ptr ptr)
 @ stub RoGetAgileReference
-@ stub RoGetApartmentIdentifier
+@ stdcall RoGetApartmentIdentifier(ptr)
 @ stub RoGetErrorReportingFlags
 @ stub RoGetMatchingRestrictedErrorInfo
 @ stub RoGetParameterizedTypeInstanceIID
-@ stub RoGetServerActivatableClasses
+@ stdcall RoGetServerActivatableClasses(ptr ptr ptr)
 @ stdcall RoInitialize(long)
 @ stub RoInspectCapturedStackBackTrace
 @ stub RoInspectThreadErrorInfo
@@ -262,8 +262,8 @@
 @ stub RoOriginateErrorW
 @ stub RoOriginateLanguageException
 @ stub RoParameterizedTypeExtraGetTypeSignature
-@ stub RoRegisterActivationFactories
-@ stub RoRegisterForApartmentShutdown
+@ stdcall RoRegisterActivationFactories(ptr ptr long ptr)
+@ stdcall RoRegisterForApartmentShutdown(ptr ptr ptr)
 @ stub RoReportCapabilityCheckFailure
 @ stub RoReportFailedDelegate
 @ stub RoReportUnhandledError
@@ -287,7 +287,7 @@
 @ stub WdtpInterfacePointer_UserSize64
 @ stdcall WdtpInterfacePointer_UserUnmarshal(ptr ptr ptr ptr) ole32.WdtpInterfacePointer_UserUnmarshal
 @ stub WdtpInterfacePointer_UserUnmarshal64
-@ stub WindowsCompareStringOrdinal
+@ stdcall WindowsCompareStringOrdinal(ptr ptr ptr)
 @ stdcall WindowsConcatString(ptr ptr ptr)
 @ stdcall WindowsCreateString(wstr long ptr)
 @ stdcall WindowsCreateStringReference(wstr long ptr ptr)
@@ -304,5 +304,5 @@
 @ stdcall WindowsStringHasEmbeddedNull(ptr ptr)
 @ stdcall WindowsSubstring(ptr long ptr)
 @ stdcall WindowsSubstringWithSpecifiedLength(ptr long long ptr)
-@ stub WindowsTrimStringEnd
-@ stub WindowsTrimStringStart
+@ stdcall WindowsTrimStringEnd(ptr ptr ptr)
+@ stdcall WindowsTrimStringStart(ptr ptr ptr)

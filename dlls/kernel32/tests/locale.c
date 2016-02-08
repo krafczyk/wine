@@ -1636,7 +1636,21 @@ static const struct comparestringa_entry comparestringa_data[] = {
   { LOCALE_SYSTEM_DEFAULT, SORT_STRINGSORT, "'o", -1, "/m", -1, CSTR_LESS_THAN },
   { LOCALE_SYSTEM_DEFAULT, SORT_STRINGSORT, "/m", -1, "'o", -1, CSTR_GREATER_THAN },
   { LOCALE_SYSTEM_DEFAULT, 0, "aLuZkUtZ", 8, "aLuZkUtZ", 9, CSTR_EQUAL },
-  { LOCALE_SYSTEM_DEFAULT, 0, "aLuZkUtZ", 7, "aLuZkUtZ\0A", 10, CSTR_LESS_THAN }
+  { LOCALE_SYSTEM_DEFAULT, 0, "aLuZkUtZ", 7, "aLuZkUtZ\0A", 10, CSTR_LESS_THAN },
+  { LOCALE_SYSTEM_DEFAULT, 0, "a-", 3, "a\0", 3, CSTR_GREATER_THAN },
+  { LOCALE_SYSTEM_DEFAULT, 0, "a'", 3, "a\0", 3, CSTR_GREATER_THAN },
+  { LOCALE_SYSTEM_DEFAULT, SORT_STRINGSORT, "a-", 3, "a\0", 3, CSTR_GREATER_THAN },
+  { LOCALE_SYSTEM_DEFAULT, SORT_STRINGSORT, "a'", 3, "a\0", 3, CSTR_GREATER_THAN },
+  { LOCALE_SYSTEM_DEFAULT, NORM_IGNORESYMBOLS, "a.", 3, "a\0", 3, CSTR_EQUAL },
+  { LOCALE_SYSTEM_DEFAULT, NORM_IGNORESYMBOLS, "a ", 3, "a\0", 3, CSTR_EQUAL },
+  { LOCALE_SYSTEM_DEFAULT, 0, "a", 1, "a\0\0", 4, CSTR_EQUAL },
+  { LOCALE_SYSTEM_DEFAULT, 0, "a", 2, "a\0\0", 4, CSTR_EQUAL },
+  { LOCALE_SYSTEM_DEFAULT, 0, "a\0\0", 4, "a", 1, CSTR_EQUAL },
+  { LOCALE_SYSTEM_DEFAULT, 0, "a\0\0", 4, "a", 2, CSTR_EQUAL },
+  { LOCALE_SYSTEM_DEFAULT, 0, "a", 1, "a\0x", 4, CSTR_LESS_THAN },
+  { LOCALE_SYSTEM_DEFAULT, 0, "a", 2, "a\0x", 4, CSTR_LESS_THAN },
+  { LOCALE_SYSTEM_DEFAULT, 0, "a\0x", 4, "a", 1, CSTR_GREATER_THAN },
+  { LOCALE_SYSTEM_DEFAULT, 0, "a\0x", 4, "a", 2, CSTR_GREATER_THAN },
 };
 
 static void test_CompareStringA(void)
@@ -1761,13 +1775,13 @@ static void test_CompareStringA(void)
     todo_wine ok(ret != CSTR_EQUAL, "\\2 vs \\1 expected unequal\n");
 
     ret = CompareStringA(lcid, NORM_IGNORECASE | LOCALE_USE_CP_ACP, "#", -1, ".", -1);
-    todo_wine ok(ret == CSTR_LESS_THAN, "\"#\" vs \".\" expected CSTR_LESS_THAN, got %d\n", ret);
+    ok(ret == CSTR_LESS_THAN, "\"#\" vs \".\" expected CSTR_LESS_THAN, got %d\n", ret);
 
     ret = CompareStringA(lcid, NORM_IGNORECASE, "_", -1, ".", -1);
-    todo_wine ok(ret == CSTR_GREATER_THAN, "\"_\" vs \".\" expected CSTR_GREATER_THAN, got %d\n", ret);
+    ok(ret == CSTR_GREATER_THAN, "\"_\" vs \".\" expected CSTR_GREATER_THAN, got %d\n", ret);
 
     ret = lstrcmpiA("#", ".");
-    todo_wine ok(ret == -1, "\"#\" vs \".\" expected -1, got %d\n", ret);
+    ok(ret == -1, "\"#\" vs \".\" expected -1, got %d\n", ret);
 
     lcid = MAKELCID(MAKELANGID(LANG_POLISH, SUBLANG_DEFAULT), SORT_DEFAULT);
 
@@ -4801,6 +4815,5 @@ START_TEST(locale)
   test_EnumSystemGeoID();
   test_invariant();
   test_GetSystemPreferredUILanguages();
-  /* this requires collation table patch to make it MS compatible */
-  if (0) test_sorting();
+  test_sorting();
 }

@@ -87,6 +87,7 @@ static const struct object_ops console_input_ops =
     no_link_name,                     /* link_name */
     NULL,                             /* unlink_name */
     no_open_file,                     /* open_file */
+    no_alloc_handle,                  /* alloc_handle */
     no_close_handle,                  /* close_handle */
     console_input_destroy             /* destroy */
 };
@@ -121,6 +122,7 @@ static const struct object_ops console_input_events_ops =
     no_link_name,                     /* link_name */
     NULL,                             /* unlink_name */
     no_open_file,                     /* open_file */
+    no_alloc_handle,                  /* alloc_handle */
     no_close_handle,                  /* close_handle */
     console_input_events_destroy      /* destroy */
 };
@@ -175,6 +177,7 @@ static const struct object_ops screen_buffer_ops =
     no_link_name,                     /* link_name */
     NULL,                             /* unlink_name */
     no_open_file,                     /* open_file */
+    no_alloc_handle,                  /* alloc_handle */
     no_close_handle,                  /* close_handle */
     screen_buffer_destroy             /* destroy */
 };
@@ -1424,13 +1427,12 @@ DECL_HANDLER(alloc_console)
     case 0:
         /* renderer is current, console to be attached to parent process */
         renderer = current;
-        if (!(process = current->process->parent))
+        if (!(process = get_process_from_id( current->process->parent_id )))
         {
             if (fd != -1) close( fd );
             set_error( STATUS_ACCESS_DENIED );
             return;
         }
-        grab_object( process );
         attach = 1;
         break;
     case 0xffffffff:
