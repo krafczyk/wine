@@ -30,6 +30,9 @@
 #ifdef HAVE_SYS_SYSCTL_H
 # include <sys/sysctl.h>
 #endif
+#ifdef HAVE_SYS_SYSINFO_H
+# include <sys/sysinfo.h>
+#endif
 #ifdef HAVE_MACHINE_CPU_H
 # include <machine/cpu.h>
 #endif
@@ -74,7 +77,8 @@ WINE_DEFAULT_DEBUG_CHANNEL(ntdll);
  *  NtDuplicateToken		[NTDLL.@]
  *  ZwDuplicateToken		[NTDLL.@]
  */
-NTSTATUS WINAPI NtDuplicateToken(
+DEFINE_SYSCALL_ENTRYPOINT( NtDuplicateToken, 6 );
+NTSTATUS WINAPI SYSCALL(NtDuplicateToken)(
         IN HANDLE ExistingToken,
         IN ACCESS_MASK DesiredAccess,
         IN POBJECT_ATTRIBUTES ObjectAttributes,
@@ -117,19 +121,21 @@ NTSTATUS WINAPI NtDuplicateToken(
  *  NtOpenProcessToken		[NTDLL.@]
  *  ZwOpenProcessToken		[NTDLL.@]
  */
-NTSTATUS WINAPI NtOpenProcessToken(
+DEFINE_SYSCALL_ENTRYPOINT( NtOpenProcessToken, 3 );
+NTSTATUS WINAPI SYSCALL(NtOpenProcessToken)(
 	HANDLE ProcessHandle,
 	DWORD DesiredAccess,
 	HANDLE *TokenHandle)
 {
-    return NtOpenProcessTokenEx( ProcessHandle, DesiredAccess, 0, TokenHandle );
+    return SYSCALL(NtOpenProcessTokenEx)( ProcessHandle, DesiredAccess, 0, TokenHandle );
 }
 
 /******************************************************************************
  *  NtOpenProcessTokenEx   [NTDLL.@]
  *  ZwOpenProcessTokenEx   [NTDLL.@]
  */
-NTSTATUS WINAPI NtOpenProcessTokenEx( HANDLE process, DWORD access, DWORD attributes,
+DEFINE_SYSCALL_ENTRYPOINT( NtOpenProcessTokenEx, 4 );
+NTSTATUS WINAPI SYSCALL(NtOpenProcessTokenEx)( HANDLE process, DWORD access, DWORD attributes,
                                       HANDLE *handle )
 {
     NTSTATUS ret;
@@ -153,20 +159,22 @@ NTSTATUS WINAPI NtOpenProcessTokenEx( HANDLE process, DWORD access, DWORD attrib
  *  NtOpenThreadToken		[NTDLL.@]
  *  ZwOpenThreadToken		[NTDLL.@]
  */
-NTSTATUS WINAPI NtOpenThreadToken(
+DEFINE_SYSCALL_ENTRYPOINT( NtOpenThreadToken, 4 );
+NTSTATUS WINAPI SYSCALL(NtOpenThreadToken)(
 	HANDLE ThreadHandle,
 	DWORD DesiredAccess,
 	BOOLEAN OpenAsSelf,
 	HANDLE *TokenHandle)
 {
-    return NtOpenThreadTokenEx( ThreadHandle, DesiredAccess, OpenAsSelf, 0, TokenHandle );
+    return SYSCALL(NtOpenThreadTokenEx)( ThreadHandle, DesiredAccess, OpenAsSelf, 0, TokenHandle );
 }
 
 /******************************************************************************
  *  NtOpenThreadTokenEx   [NTDLL.@]
  *  ZwOpenThreadTokenEx   [NTDLL.@]
  */
-NTSTATUS WINAPI NtOpenThreadTokenEx( HANDLE thread, DWORD access, BOOLEAN as_self, DWORD attributes,
+DEFINE_SYSCALL_ENTRYPOINT( NtOpenThreadTokenEx, 5 );
+NTSTATUS WINAPI SYSCALL(NtOpenThreadTokenEx)( HANDLE thread, DWORD access, BOOLEAN as_self, DWORD attributes,
                                      HANDLE *handle )
 {
     NTSTATUS ret;
@@ -194,7 +202,8 @@ NTSTATUS WINAPI NtOpenThreadTokenEx( HANDLE thread, DWORD access, BOOLEAN as_sel
  *
  * FIXME: parameters unsafe
  */
-NTSTATUS WINAPI NtAdjustPrivilegesToken(
+DEFINE_SYSCALL_ENTRYPOINT( NtAdjustPrivilegesToken, 6 );
+NTSTATUS WINAPI SYSCALL(NtAdjustPrivilegesToken)(
 	IN HANDLE TokenHandle,
 	IN BOOLEAN DisableAllPrivileges,
 	IN PTOKEN_PRIVILEGES NewState,
@@ -242,7 +251,8 @@ NTSTATUS WINAPI NtAdjustPrivilegesToken(
 *   0x08 SID
 *
 */
-NTSTATUS WINAPI NtQueryInformationToken(
+DEFINE_SYSCALL_ENTRYPOINT( NtQueryInformationToken, 5 );
+NTSTATUS WINAPI SYSCALL(NtQueryInformationToken)(
 	HANDLE token,
 	TOKEN_INFORMATION_CLASS tokeninfoclass,
 	PVOID tokeninfo,
@@ -554,7 +564,8 @@ NTSTATUS WINAPI NtQueryInformationToken(
 *  NtSetInformationToken		[NTDLL.@]
 *  ZwSetInformationToken		[NTDLL.@]
 */
-NTSTATUS WINAPI NtSetInformationToken(
+DEFINE_SYSCALL_ENTRYPOINT( NtSetInformationToken, 4 );
+NTSTATUS WINAPI SYSCALL(NtSetInformationToken)(
         HANDLE TokenHandle,
         TOKEN_INFORMATION_CLASS TokenInformationClass,
         PVOID TokenInformation,
@@ -604,7 +615,8 @@ NTSTATUS WINAPI NtSetInformationToken(
 *  NtAdjustGroupsToken		[NTDLL.@]
 *  ZwAdjustGroupsToken		[NTDLL.@]
 */
-NTSTATUS WINAPI NtAdjustGroupsToken(
+DEFINE_SYSCALL_ENTRYPOINT( NtAdjustGroupsToken, 6 );
+NTSTATUS WINAPI SYSCALL(NtAdjustGroupsToken)(
         HANDLE TokenHandle,
         BOOLEAN ResetToDefault,
         PTOKEN_GROUPS NewState,
@@ -621,7 +633,8 @@ NTSTATUS WINAPI NtAdjustGroupsToken(
 *  NtPrivilegeCheck		[NTDLL.@]
 *  ZwPrivilegeCheck		[NTDLL.@]
 */
-NTSTATUS WINAPI NtPrivilegeCheck(
+DEFINE_SYSCALL_ENTRYPOINT( NtPrivilegeCheck, 3 );
+NTSTATUS WINAPI SYSCALL(NtPrivilegeCheck)(
     HANDLE ClientToken,
     PPRIVILEGE_SET RequiredPrivileges,
     PBOOLEAN Result)
@@ -646,25 +659,6 @@ NTSTATUS WINAPI NtPrivilegeCheck(
 }
 
 /*
- *	Section
- */
-
-/******************************************************************************
- *  NtQuerySection	[NTDLL.@]
- */
-NTSTATUS WINAPI NtQuerySection(
-	IN HANDLE SectionHandle,
-	IN SECTION_INFORMATION_CLASS SectionInformationClass,
-	OUT PVOID SectionInformation,
-	IN ULONG Length,
-	OUT PULONG ResultLength)
-{
-	FIXME("(%p,%d,%p,0x%08x,%p) stub!\n",
-	SectionHandle,SectionInformationClass,SectionInformation,Length,ResultLength);
-	return 0;
-}
-
-/*
  *	ports
  */
 
@@ -672,7 +666,8 @@ NTSTATUS WINAPI NtQuerySection(
  *  NtCreatePort		[NTDLL.@]
  *  ZwCreatePort		[NTDLL.@]
  */
-NTSTATUS WINAPI NtCreatePort(PHANDLE PortHandle,POBJECT_ATTRIBUTES ObjectAttributes,
+DEFINE_SYSCALL_ENTRYPOINT( NtCreatePort, 5 );
+NTSTATUS WINAPI SYSCALL(NtCreatePort)(PHANDLE PortHandle,POBJECT_ATTRIBUTES ObjectAttributes,
                              ULONG MaxConnectInfoLength,ULONG MaxDataLength,PULONG reserved)
 {
   FIXME("(%p,%p,%u,%u,%p),stub!\n",PortHandle,ObjectAttributes,
@@ -684,7 +679,8 @@ NTSTATUS WINAPI NtCreatePort(PHANDLE PortHandle,POBJECT_ATTRIBUTES ObjectAttribu
  *  NtConnectPort		[NTDLL.@]
  *  ZwConnectPort		[NTDLL.@]
  */
-NTSTATUS WINAPI NtConnectPort(
+DEFINE_SYSCALL_ENTRYPOINT( NtConnectPort, 8 );
+NTSTATUS WINAPI SYSCALL(NtConnectPort)(
         PHANDLE PortHandle,
         PUNICODE_STRING PortName,
         PSECURITY_QUALITY_OF_SERVICE SecurityQos,
@@ -707,7 +703,8 @@ NTSTATUS WINAPI NtConnectPort(
  *  NtSecureConnectPort                (NTDLL.@)
  *  ZwSecureConnectPort                (NTDLL.@)
  */
-NTSTATUS WINAPI NtSecureConnectPort(
+DEFINE_SYSCALL_ENTRYPOINT( NtSecureConnectPort, 9 );
+NTSTATUS WINAPI SYSCALL(NtSecureConnectPort)(
         PHANDLE PortHandle,
         PUNICODE_STRING PortName,
         PSECURITY_QUALITY_OF_SERVICE SecurityQos,
@@ -729,7 +726,8 @@ NTSTATUS WINAPI NtSecureConnectPort(
  *  NtListenPort		[NTDLL.@]
  *  ZwListenPort		[NTDLL.@]
  */
-NTSTATUS WINAPI NtListenPort(HANDLE PortHandle,PLPC_MESSAGE pLpcMessage)
+DEFINE_SYSCALL_ENTRYPOINT( NtListenPort, 2 );
+NTSTATUS WINAPI SYSCALL(NtListenPort)(HANDLE PortHandle,PLPC_MESSAGE pLpcMessage)
 {
   FIXME("(%p,%p),stub!\n",PortHandle,pLpcMessage);
   return STATUS_NOT_IMPLEMENTED;
@@ -739,7 +737,8 @@ NTSTATUS WINAPI NtListenPort(HANDLE PortHandle,PLPC_MESSAGE pLpcMessage)
  *  NtAcceptConnectPort	[NTDLL.@]
  *  ZwAcceptConnectPort	[NTDLL.@]
  */
-NTSTATUS WINAPI NtAcceptConnectPort(
+DEFINE_SYSCALL_ENTRYPOINT( NtAcceptConnectPort, 6 );
+NTSTATUS WINAPI SYSCALL(NtAcceptConnectPort)(
         PHANDLE PortHandle,
         ULONG PortIdentifier,
         PLPC_MESSAGE pLpcMessage,
@@ -756,7 +755,8 @@ NTSTATUS WINAPI NtAcceptConnectPort(
  *  NtCompleteConnectPort	[NTDLL.@]
  *  ZwCompleteConnectPort	[NTDLL.@]
  */
-NTSTATUS WINAPI NtCompleteConnectPort(HANDLE PortHandle)
+DEFINE_SYSCALL_ENTRYPOINT( NtCompleteConnectPort, 1 );
+NTSTATUS WINAPI SYSCALL(NtCompleteConnectPort)(HANDLE PortHandle)
 {
   FIXME("(%p),stub!\n",PortHandle);
   return STATUS_NOT_IMPLEMENTED;
@@ -766,7 +766,8 @@ NTSTATUS WINAPI NtCompleteConnectPort(HANDLE PortHandle)
  *  NtRegisterThreadTerminatePort	[NTDLL.@]
  *  ZwRegisterThreadTerminatePort	[NTDLL.@]
  */
-NTSTATUS WINAPI NtRegisterThreadTerminatePort(HANDLE PortHandle)
+DEFINE_SYSCALL_ENTRYPOINT( NtRegisterThreadTerminatePort, 1 );
+NTSTATUS WINAPI SYSCALL(NtRegisterThreadTerminatePort)(HANDLE PortHandle)
 {
   FIXME("(%p),stub!\n",PortHandle);
   return STATUS_NOT_IMPLEMENTED;
@@ -776,7 +777,8 @@ NTSTATUS WINAPI NtRegisterThreadTerminatePort(HANDLE PortHandle)
  *  NtRequestWaitReplyPort		[NTDLL.@]
  *  ZwRequestWaitReplyPort		[NTDLL.@]
  */
-NTSTATUS WINAPI NtRequestWaitReplyPort(
+DEFINE_SYSCALL_ENTRYPOINT( NtRequestWaitReplyPort, 3 );
+NTSTATUS WINAPI SYSCALL(NtRequestWaitReplyPort)(
         HANDLE PortHandle,
         PLPC_MESSAGE pLpcMessageIn,
         PLPC_MESSAGE pLpcMessageOut)
@@ -803,7 +805,8 @@ NTSTATUS WINAPI NtRequestWaitReplyPort(
  *  NtReplyWaitReceivePort	[NTDLL.@]
  *  ZwReplyWaitReceivePort	[NTDLL.@]
  */
-NTSTATUS WINAPI NtReplyWaitReceivePort(
+DEFINE_SYSCALL_ENTRYPOINT( NtReplyWaitReceivePort, 4 );
+NTSTATUS WINAPI SYSCALL(NtReplyWaitReceivePort)(
         HANDLE PortHandle,
         PULONG PortIdentifier,
         PLPC_MESSAGE ReplyMessage,
@@ -821,7 +824,8 @@ NTSTATUS WINAPI NtReplyWaitReceivePort(
  *  NtSetIntervalProfile	[NTDLL.@]
  *  ZwSetIntervalProfile	[NTDLL.@]
  */
-NTSTATUS WINAPI NtSetIntervalProfile(
+DEFINE_SYSCALL_ENTRYPOINT( NtSetIntervalProfile, 2 );
+NTSTATUS WINAPI SYSCALL(NtSetIntervalProfile)(
         ULONG Interval,
         KPROFILE_SOURCE Source)
 {
@@ -1838,7 +1842,8 @@ static NTSTATUS create_logical_proc_info(SYSTEM_LOGICAL_PROCESSOR_INFORMATION **
  *  Length		size of the structure
  *  ResultLength	Data written
  */
-NTSTATUS WINAPI NtQuerySystemInformation(
+DEFINE_SYSCALL_ENTRYPOINT( NtQuerySystemInformation, 4 );
+NTSTATUS WINAPI SYSCALL(NtQuerySystemInformation)(
 	IN SYSTEM_INFORMATION_CLASS SystemInformationClass,
 	OUT PVOID SystemInformation,
 	IN ULONG Length,
@@ -1880,6 +1885,9 @@ NTSTATUS WINAPI NtQuerySystemInformation(
             SYSTEM_PERFORMANCE_INFORMATION spi;
             static BOOL fixme_written = FALSE;
             FILE *fp;
+        #ifdef HAVE_SYS_SYSINFO_H
+            struct sysinfo sinfo;
+        #endif
 
             memset(&spi, 0 , sizeof(spi));
             len = sizeof(spi);
@@ -1900,6 +1908,20 @@ NTSTATUS WINAPI NtQuerySystemInformation(
                 /* many programs expect IdleTime to change so fake change */
                 spi.IdleTime.QuadPart = ++idle;
             }
+
+        #ifdef HAVE_SYS_SYSINFO_H
+            if (!sysinfo(&sinfo))
+            {
+                ULONG64 freemem   = (ULONG64)sinfo.freeram * sinfo.mem_unit;
+                ULONG64 totalram  = (ULONG64)sinfo.totalram * sinfo.mem_unit;
+                ULONG64 totalswap = (ULONG64)sinfo.totalswap * sinfo.mem_unit;
+                ULONG64 freeswap  = (ULONG64)sinfo.freeswap * sinfo.mem_unit;
+
+                spi.AvailablePages      = freemem / page_size;
+                spi.TotalCommittedPages = (totalram + totalswap - freemem - freeswap) / page_size;
+                spi.TotalCommitLimit    = (totalram + totalswap) / page_size;
+            }
+        #endif
 
             if (Length >= len)
             {
@@ -2232,9 +2254,20 @@ NTSTATUS WINAPI NtQuerySystemInformation(
     case SystemInterruptInformation:
         {
             SYSTEM_INTERRUPT_INFORMATION sii;
+            int dev_random;
 
             memset(&sii, 0, sizeof(sii));
             len = sizeof(sii);
+
+            /* Some applications use the returned buffer for random number
+             * generation. Its unlikely that an app depends on the exact
+             * layout, so just fill with values from /dev/urandom. */
+            dev_random = open( "/dev/urandom", O_RDONLY );
+            if (dev_random != -1)
+            {
+                read( dev_random, &sii, sizeof(sii) );
+                close( dev_random );
+            }
 
             if ( Length >= len)
             {
@@ -2416,7 +2449,8 @@ NTSTATUS WINAPI NtQuerySystemInformationEx(SYSTEM_INFORMATION_CLASS SystemInform
  * NtSetSystemInformation [NTDLL.@]
  * ZwSetSystemInformation [NTDLL.@]
  */
-NTSTATUS WINAPI NtSetSystemInformation(SYSTEM_INFORMATION_CLASS SystemInformationClass, PVOID SystemInformation, ULONG Length)
+DEFINE_SYSCALL_ENTRYPOINT( NtSetSystemInformation, 3 );
+NTSTATUS WINAPI SYSCALL(NtSetSystemInformation)(SYSTEM_INFORMATION_CLASS SystemInformationClass, PVOID SystemInformation, ULONG Length)
 {
     FIXME("(0x%08x,%p,0x%08x) stub\n",SystemInformationClass,SystemInformation,Length);
     return STATUS_SUCCESS;
@@ -2426,7 +2460,8 @@ NTSTATUS WINAPI NtSetSystemInformation(SYSTEM_INFORMATION_CLASS SystemInformatio
  *  NtCreatePagingFile		[NTDLL.@]
  *  ZwCreatePagingFile		[NTDLL.@]
  */
-NTSTATUS WINAPI NtCreatePagingFile(
+DEFINE_SYSCALL_ENTRYPOINT( NtCreatePagingFile, 4 );
+NTSTATUS WINAPI SYSCALL(NtCreatePagingFile)(
 	PUNICODE_STRING PageFileName,
 	PLARGE_INTEGER MinimumSize,
 	PLARGE_INTEGER MaximumSize,
@@ -2441,7 +2476,8 @@ NTSTATUS WINAPI NtCreatePagingFile(
  *
  * writes a string to the nt-textmode screen eg. during startup
  */
-NTSTATUS WINAPI NtDisplayString ( PUNICODE_STRING string )
+DEFINE_SYSCALL_ENTRYPOINT( NtDisplayString, 1 );
+NTSTATUS WINAPI SYSCALL(NtDisplayString) ( PUNICODE_STRING string )
 {
     STRING stringA;
     NTSTATUS ret;
@@ -2458,7 +2494,8 @@ NTSTATUS WINAPI NtDisplayString ( PUNICODE_STRING string )
  *  NtInitiatePowerAction                       [NTDLL.@]
  *
  */
-NTSTATUS WINAPI NtInitiatePowerAction(
+DEFINE_SYSCALL_ENTRYPOINT( NtInitiatePowerAction, 4 );
+NTSTATUS WINAPI SYSCALL(NtInitiatePowerAction)(
 	IN POWER_ACTION SystemAction,
 	IN SYSTEM_POWER_STATE MinSystemState,
 	IN ULONG Flags,
@@ -2502,7 +2539,8 @@ static ULONG mhz_from_cpuinfo(void)
  *  NtPowerInformation				[NTDLL.@]
  *
  */
-NTSTATUS WINAPI NtPowerInformation(
+DEFINE_SYSCALL_ENTRYPOINT( NtPowerInformation, 5 );
+NTSTATUS WINAPI SYSCALL(NtPowerInformation)(
 	IN POWER_INFORMATION_LEVEL InformationLevel,
 	IN PVOID lpInputBuffer,
 	IN ULONG nInputBufferSize,
@@ -2692,7 +2730,8 @@ NTSTATUS WINAPI NtPowerInformation(
  *  NtShutdownSystem				[NTDLL.@]
  *
  */
-NTSTATUS WINAPI NtShutdownSystem(SHUTDOWN_ACTION Action)
+DEFINE_SYSCALL_ENTRYPOINT( NtShutdownSystem, 1 );
+NTSTATUS WINAPI SYSCALL(NtShutdownSystem)(SHUTDOWN_ACTION Action)
 {
     FIXME("%d\n",Action);
     return STATUS_SUCCESS;
@@ -2701,7 +2740,8 @@ NTSTATUS WINAPI NtShutdownSystem(SHUTDOWN_ACTION Action)
 /******************************************************************************
  *  NtAllocateLocallyUniqueId (NTDLL.@)
  */
-NTSTATUS WINAPI NtAllocateLocallyUniqueId(PLUID Luid)
+DEFINE_SYSCALL_ENTRYPOINT( NtAllocateLocallyUniqueId, 1 );
+NTSTATUS WINAPI SYSCALL(NtAllocateLocallyUniqueId)(PLUID Luid)
 {
     NTSTATUS status;
 
@@ -2759,7 +2799,8 @@ ULONGLONG WINAPI VerSetConditionMask( ULONGLONG dwlConditionMask, DWORD dwTypeBi
  *  NtAccessCheckAndAuditAlarm   (NTDLL.@)
  *  ZwAccessCheckAndAuditAlarm   (NTDLL.@)
  */
-NTSTATUS WINAPI NtAccessCheckAndAuditAlarm(PUNICODE_STRING SubsystemName, HANDLE HandleId, PUNICODE_STRING ObjectTypeName,
+DEFINE_SYSCALL_ENTRYPOINT( NtAccessCheckAndAuditAlarm, 11 );
+NTSTATUS WINAPI SYSCALL(NtAccessCheckAndAuditAlarm)(PUNICODE_STRING SubsystemName, HANDLE HandleId, PUNICODE_STRING ObjectTypeName,
                                            PUNICODE_STRING ObjectName, PSECURITY_DESCRIPTOR SecurityDescriptor,
                                            ACCESS_MASK DesiredAccess, PGENERIC_MAPPING GenericMapping, BOOLEAN ObjectCreation,
                                            PACCESS_MASK GrantedAccess, PBOOLEAN AccessStatus, PBOOLEAN GenerateOnClose)
@@ -2775,10 +2816,23 @@ NTSTATUS WINAPI NtAccessCheckAndAuditAlarm(PUNICODE_STRING SubsystemName, HANDLE
  *  NtSystemDebugControl   (NTDLL.@)
  *  ZwSystemDebugControl   (NTDLL.@)
  */
-NTSTATUS WINAPI NtSystemDebugControl(SYSDBG_COMMAND command, PVOID inbuffer, ULONG inbuflength, PVOID outbuffer,
+DEFINE_SYSCALL_ENTRYPOINT( NtSystemDebugControl, 6 );
+NTSTATUS WINAPI SYSCALL(NtSystemDebugControl)(SYSDBG_COMMAND command, PVOID inbuffer, ULONG inbuflength, PVOID outbuffer,
                                      ULONG outbuflength, PULONG retlength)
 {
     FIXME("(%d, %p, %d, %p, %d, %p), stub\n", command, inbuffer, inbuflength, outbuffer, outbuflength, retlength);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+/******************************************************************************
+ *  NtSetLdtEntries   (NTDLL.@)
+ *  ZwSetLdtEntries   (NTDLL.@)
+ */
+NTSTATUS WINAPI NtSetLdtEntries(ULONG selector1, ULONG entry1_low, ULONG entry1_high,
+                                ULONG selector2, ULONG entry2_low, ULONG entry2_high)
+{
+    FIXME("(%u, %u, %u, %u, %u, %u): stub\n", selector1, entry1_low, entry1_high, selector2, entry2_low, entry2_high);
 
     return STATUS_NOT_IMPLEMENTED;
 }

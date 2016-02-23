@@ -3016,93 +3016,199 @@ LSTATUS WINAPI RegDisablePredefinedCache(void)
     return ERROR_SUCCESS;
 }
 
+
+static LONG reg_get_buffers( HKEY hkey, WCHAR **name_buf, DWORD *name_size,
+                             BYTE **value_buf, DWORD *value_size )
+{
+    DWORD ret, max_subkey, max_name, max_value;
+
+    ret = RegQueryInfoKeyW( hkey, NULL, NULL, NULL, NULL, &max_subkey,
+                            NULL, NULL, &max_name, &max_value, NULL, NULL );
+    if (ret)
+        return ret;
+
+    /* allocate buffer for subkeys / names */
+    max_name = max( max_subkey, max_name ) + 1;
+    if (max_name > *name_size)
+    {
+        if (!(*name_buf = heap_alloc( max_name * sizeof(WCHAR) )))
+            return ERROR_NOT_ENOUGH_MEMORY;
+        *name_size = max_name;
+    }
+
+    /* allocate buffer for values */
+    if (value_buf && max_value > *value_size)
+    {
+        if (!(*value_buf = heap_alloc( max_value )))
+            return ERROR_NOT_ENOUGH_MEMORY;
+        *value_size = max_value;
+    }
+
+    return ERROR_SUCCESS;
+}
+
+
 /******************************************************************************
  * RegDeleteTreeW [ADVAPI32.@]
  *
  */
-LSTATUS WINAPI RegDeleteTreeW(HKEY hKey, LPCWSTR lpszSubKey)
+LSTATUS WINAPI RegDeleteTreeW( HKEY hkey, const WCHAR *subkey )
 {
+    static const WCHAR emptyW[] = {0};
+    WCHAR buf1[MAX_PATH], *name_buf = buf1;
+    DWORD name_size, max_name = sizeof(buf1) / sizeof(WCHAR);
     LONG ret;
-    DWORD dwMaxSubkeyLen, dwMaxValueLen;
-    DWORD dwMaxLen, dwSize;
-    WCHAR szNameBuf[MAX_PATH], *lpszName = szNameBuf;
-    HKEY hSubKey = hKey;
 
-    TRACE("(hkey=%p,%p %s)\n", hKey, lpszSubKey, debugstr_w(lpszSubKey));
+    TRACE( "(%p, %s)\n", hkey, debugstr_w(subkey) );
 
-    if(lpszSubKey)
+    if (subkey)
     {
-        ret = RegOpenKeyExW(hKey, lpszSubKey, 0, KEY_READ, &hSubKey);
+        ret = RegOpenKeyExW( hkey, subkey, 0, KEY_READ, &hkey );
         if (ret) return ret;
     }
 
-    /* Get highest length for keys, values */
-    ret = RegQueryInfoKeyW(hSubKey, NULL, NULL, NULL, NULL,
-            &dwMaxSubkeyLen, NULL, NULL, &dwMaxValueLen, NULL, NULL, NULL);
+    /* Allocate required buffers */
+    ret = reg_get_buffers( hkey, &name_buf, &max_name, NULL, NULL );
     if (ret) goto cleanup;
 
-    dwMaxSubkeyLen++;
-    dwMaxValueLen++;
-    dwMaxLen = max(dwMaxSubkeyLen, dwMaxValueLen);
-    if (dwMaxLen > sizeof(szNameBuf)/sizeof(WCHAR))
-    {
-        /* Name too big: alloc a buffer for it */
-        if (!(lpszName = heap_alloc( dwMaxLen*sizeof(WCHAR))))
-        {
-            ret = ERROR_NOT_ENOUGH_MEMORY;
-            goto cleanup;
-        }
-    }
-
-
     /* Recursively delete all the subkeys */
-    while (TRUE)
+    for (;;)
     {
-        dwSize = dwMaxLen;
-        if (RegEnumKeyExW(hSubKey, 0, lpszName, &dwSize, NULL,
-                          NULL, NULL, NULL)) break;
-
-        ret = RegDeleteTreeW(hSubKey, lpszName);
+        name_size = max_name;
+        ret = RegEnumKeyExW( hkey, 0, name_buf, &name_size, NULL, NULL, NULL, NULL );
+        if (ret == ERROR_NO_MORE_ITEMS) break;
+        if (ret) goto cleanup;
+        ret = RegDeleteTreeW( hkey, name_buf );
         if (ret) goto cleanup;
     }
 
-    if (lpszSubKey)
-        ret = RegDeleteKeyW(hKey, lpszSubKey);
-    else
-        while (TRUE)
-        {
-            dwSize = dwMaxLen;
-            if (RegEnumValueW(hKey, 0, lpszName, &dwSize,
-                  NULL, NULL, NULL, NULL)) break;
+    /* Delete the key itself */
+    if (subkey)
+    {
+        ret = RegDeleteKeyW( hkey, emptyW );
+        goto cleanup;
+    }
 
-            ret = RegDeleteValueW(hKey, lpszName);
-            if (ret) goto cleanup;
-        }
+    /* Delete the values */
+    for (;;)
+    {
+        name_size = max_name;
+        ret = RegEnumValueW( hkey, 0, name_buf, &name_size, NULL, NULL, NULL, NULL );
+        if (ret == ERROR_NO_MORE_ITEMS) break;
+        if (ret) goto cleanup;
+        ret = RegDeleteValueW( hkey, name_buf );
+        if (ret) goto cleanup;
+    }
+
+    ret = ERROR_SUCCESS;
 
 cleanup:
-    /* Free buffer if allocated */
-    if (lpszName != szNameBuf)
-        heap_free( lpszName);
-    if(lpszSubKey)
-        RegCloseKey(hSubKey);
+    if (name_buf != buf1)
+        heap_free( name_buf );
+    if (subkey)
+        RegCloseKey( hkey );
     return ret;
 }
+
 
 /******************************************************************************
  * RegDeleteTreeA [ADVAPI32.@]
  *
  */
-LSTATUS WINAPI RegDeleteTreeA(HKEY hKey, LPCSTR lpszSubKey)
+LSTATUS WINAPI RegDeleteTreeA( HKEY hkey, const char *subkey )
 {
+    UNICODE_STRING subkeyW;
     LONG ret;
-    UNICODE_STRING lpszSubKeyW;
 
-    if (lpszSubKey) RtlCreateUnicodeStringFromAsciiz( &lpszSubKeyW, lpszSubKey);
-    else lpszSubKeyW.Buffer = NULL;
-    ret = RegDeleteTreeW( hKey, lpszSubKeyW.Buffer);
-    RtlFreeUnicodeString( &lpszSubKeyW );
+    if (subkey) RtlCreateUnicodeStringFromAsciiz( &subkeyW, subkey );
+    else subkeyW.Buffer = NULL;
+    ret = RegDeleteTreeW( hkey, subkeyW.Buffer );
+    RtlFreeUnicodeString( &subkeyW );
     return ret;
 }
+
+
+/******************************************************************************
+ * RegCopyTreeW [ADVAPI32.@]
+ *
+ */
+LONG WINAPI RegCopyTreeW( HKEY hsrc, const WCHAR *subkey, HKEY hdst )
+{
+    WCHAR buf1[MAX_PATH], *name_buf = buf1;
+    BYTE buf2[MAX_PATH], *value_buf = buf2;
+    DWORD name_size, max_name = sizeof(buf1) / sizeof(WCHAR);
+    DWORD value_size, max_value = sizeof(buf2);
+    DWORD i, type;
+    HKEY hkey;
+    LONG ret;
+
+    TRACE( "(%p, %s, %p)\n", hsrc, debugstr_w(subkey), hdst );
+
+    if (subkey)
+    {
+        ret = RegOpenKeyExW( hsrc, subkey, 0, KEY_READ, &hsrc );
+        if (ret) return ret;
+    }
+
+    /* Allocate required buffers */
+    ret = reg_get_buffers( hsrc, &name_buf, &max_name, &value_buf, &max_value );
+    if (ret) goto cleanup;
+
+    /* Copy all the values */
+    for (i = 0;; i++)
+    {
+        name_size = max_name;
+        value_size = max_value;
+        ret = RegEnumValueW( hsrc, i, name_buf, &name_size, NULL, &type, value_buf, &value_size );
+        if (ret == ERROR_NO_MORE_ITEMS) break;
+        if (ret) goto cleanup;
+        ret = RegSetValueExW( hdst, name_buf, 0, type, value_buf, value_size );
+        if (ret) goto cleanup;
+    }
+
+    /* Recursively copy all the subkeys */
+    for (i = 0;; i++)
+    {
+        name_size = max_name;
+        ret = RegEnumKeyExW( hsrc, i, name_buf, &name_size, NULL, NULL, NULL, NULL );
+        if (ret == ERROR_NO_MORE_ITEMS) break;
+        if (ret) goto cleanup;
+        ret = RegCreateKeyExW( hdst, name_buf, 0, NULL, 0, KEY_WRITE, NULL, &hkey, NULL );
+        if (ret) goto cleanup;
+        ret = RegCopyTreeW( hsrc, name_buf, hkey );
+        RegCloseKey( hkey );
+        if (ret) goto cleanup;
+    }
+
+    ret = ERROR_SUCCESS;
+
+cleanup:
+    if (name_buf != buf1)
+        heap_free( name_buf );
+    if (value_buf != buf2)
+        heap_free( value_buf );
+    if (subkey)
+        RegCloseKey( hsrc );
+    return ret;
+}
+
+
+/******************************************************************************
+ * RegCopyTreeA [ADVAPI32.@]
+ *
+ */
+LONG WINAPI RegCopyTreeA( HKEY hsrc, const char *subkey, HKEY hdst )
+{
+    UNICODE_STRING subkeyW;
+    LONG ret;
+
+    if (subkey) RtlCreateUnicodeStringFromAsciiz( &subkeyW, subkey );
+    else subkeyW.Buffer = NULL;
+    ret = RegCopyTreeW( hsrc, subkeyW.Buffer, hdst );
+    RtlFreeUnicodeString( &subkeyW );
+    return ret;
+}
+
 
 /******************************************************************************
  * RegDisableReflectionKey [ADVAPI32.@]

@@ -30,6 +30,7 @@
 #include "wine/library.h"
 #include "x11drv.h"
 #include "wine/debug.h"
+#include "wine/unicode.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(x11drv);
 
@@ -43,6 +44,7 @@ static MONITORINFOEXW default_monitor =
     MONITORINFOF_PRIMARY,       /* dwFlags */
     { '\\','\\','.','\\','D','I','S','P','L','A','Y','1',0 }   /* szDevice */
 };
+static const WCHAR monitor_deviceW[] = { '\\','\\','.','\\','D','I','S','P','L','A','Y','%','d',0 };
 
 static MONITORINFOEXW *monitors;
 static int nb_monitors;
@@ -127,6 +129,8 @@ static int query_screens(void)
     if (monitors != &default_monitor) HeapFree( GetProcessHeap(), 0, monitors );
     if ((monitors = HeapAlloc( GetProcessHeap(), 0, count * sizeof(*monitors) )))
     {
+        int device = 2; /* 1 is reserved for primary */
+
         nb_monitors = count;
         for (i = 0; i < nb_monitors; i++)
         {
@@ -138,11 +142,15 @@ static int query_screens(void)
             monitors[i].dwFlags          = 0;
             if (!IntersectRect( &monitors[i].rcWork, &rc_work, &monitors[i].rcMonitor ))
                 monitors[i].rcWork = monitors[i].rcMonitor;
-            /* FIXME: using the same device name for all monitors for now */
-            lstrcpyW( monitors[i].szDevice, default_monitor.szDevice );
         }
 
         get_primary()->dwFlags |= MONITORINFOF_PRIMARY;
+
+        for (i = 0; i < nb_monitors; i++)
+        {
+            snprintfW( monitors[i].szDevice, sizeof(monitors[i].szDevice) / sizeof(WCHAR),
+                       monitor_deviceW, (monitors[i].dwFlags & MONITORINFOF_PRIMARY) ? 1 : device++ );
+        }
     }
     else count = 0;
 
@@ -243,6 +251,30 @@ BOOL CDECL X11DRV_GetMonitorInfo( HMONITOR handle, LPMONITORINFO info )
     return TRUE;
 }
 
+#ifdef __i386__
+/* MJ's Help Diagnostic expects that %ecx contains the address to rect,
+ * so we need a small assembly wrapper to call the proc. */
+extern BOOL enum_monitor_wrapper( void *callback, HMONITOR monitor, HDC hdc, RECT *rect, LPARAM data );
+__ASM_GLOBAL_FUNC( enum_monitor_wrapper,
+    "pushl %ebp\n\t"
+    __ASM_CFI(".cfi_adjust_cfa_offset 4\n\t")
+    __ASM_CFI(".cfi_rel_offset %ebp,0\n\t")
+    "movl %esp,%ebp\n\t"
+    __ASM_CFI(".cfi_def_cfa_register %ebp\n\t")
+    "subl $8,%esp\n\t"
+    "pushl 24(%ebp)\n\t"
+    "pushl 20(%ebp)\n\t"
+    "pushl 16(%ebp)\n\t"
+    "pushl 12(%ebp)\n\t"
+    "movl 20(%ebp),%ecx\n\t"
+    "call *8(%ebp)\n\t"
+    "leave\n\t"
+    __ASM_CFI(".cfi_def_cfa %esp,4\n\t")
+    __ASM_CFI(".cfi_same_value %ebp\n\t")
+    "ret" )
+#else
+#define enum_monitor_wrapper( callback, monitor, hdc, rect, data ) (callback)( (monitor), (hdc), (rect), (data) )
+#endif
 
 /***********************************************************************
  *		X11DRV_EnumDisplayMonitors  (X11DRV.@)
@@ -266,7 +298,7 @@ BOOL CDECL X11DRV_EnumDisplayMonitors( HDC hdc, LPRECT rect, MONITORENUMPROC pro
             RECT monrect = monitors[i].rcMonitor;
             OffsetRect( &monrect, -origin.x, -origin.y );
             if (IntersectRect( &monrect, &monrect, &limit ))
-                if (!proc( index_to_monitor(i), hdc, &monrect, lp ))
+                if (!enum_monitor_wrapper( proc, index_to_monitor(i), hdc, &monrect, lp ))
                     return FALSE;
         }
     }
@@ -276,7 +308,7 @@ BOOL CDECL X11DRV_EnumDisplayMonitors( HDC hdc, LPRECT rect, MONITORENUMPROC pro
         {
             RECT unused;
             if (!rect || IntersectRect( &unused, &monitors[i].rcMonitor, rect ))
-                if (!proc( index_to_monitor(i), 0, &monitors[i].rcMonitor, lp ))
+                if (!enum_monitor_wrapper( proc, index_to_monitor(i), 0, &monitors[i].rcMonitor, lp ))
                     return FALSE;
         }
     }

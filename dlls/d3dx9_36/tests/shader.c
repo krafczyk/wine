@@ -1,5 +1,6 @@
 /*
  * Copyright 2008 Luis Busquets
+ * Copyright 2010, 2013 Christian Costa
  * Copyright 2011 Travis Athougies
  *
  * This library is free software; you can redistribute it and/or
@@ -298,6 +299,26 @@ static const DWORD fx_shader_with_ctab[] =
     0x656e6957, 0x6f727020, 0x7463656a, 0xababab00,                         /* Creator name string      */
     0x0000ffff                                                              /* END                      */
 };
+
+static const DWORD semantics_vs11[] = {
+    0xfffe0101,                                                             /* vs_1_1                       */
+    0x0001fffe, D3DSIO_DCL,                                                 /* Comment                      */
+    0x00000051, 0xa00f0001, D3DSIO_DCL, D3DSIO_DCL, D3DSIO_DCL, D3DSIO_DCL, /* def c1 = dcl, dcl, dcl, dcl  */
+    0x0000001f, 0x80000000, 0x900f0000,                                     /* dcl_position0 v0 (input)     */
+    0x0000001f, 0x80000005, 0x900f0001,                                     /* dcl_texcoord0 v1 (input)     */
+    0x0000001f, 0x80010005, 0x900f0002,                                     /* dcl_texcoord1 v2 (input)     */
+    0x0000001f, 0x8000000a, 0xe00f0000,                                     /* dcl_color0    oD0 (output)   */
+    0x0000ffff};                                                            /* END                          */
+
+static const DWORD semantics_vs30[] = {
+    0xfffe0300,                                                             /* vs_3_0                       */
+    0x0001fffe, D3DSIO_DCL,                                                 /* Comment                      */
+    0x05000051, 0xa00f0001, D3DSIO_DCL, D3DSIO_DCL, D3DSIO_DCL, D3DSIO_DCL, /* def c1 = dcl, dcl, dcl, dcl  */
+    0x0200001f, 0x80000000, 0x900f0000,                                     /* dcl_position0 v0 (input)     */
+    0x0200001f, 0x80000005, 0x900f0001,                                     /* dcl_texcoord0 v1 (input)     */
+    0x0200001f, 0x80010005, 0x900f0002,                                     /* dcl_texcoord1 v2 (input)     */
+    0x0200001f, 0x8000000a, 0xe00f0000,                                     /* dcl_color0    o0 (output)    */
+    0x0000ffff};                                                            /* END                          */
 
 static void test_get_shader_size(void)
 {
@@ -6489,6 +6510,169 @@ static void test_registerset_defaults(void)
     if (wnd) DestroyWindow(wnd);
 }
 
+static void test_get_shader_semantics(void)
+{
+    HRESULT ret;
+    D3DXSEMANTIC semantics[MAXD3DDECLLENGTH];
+    UINT count;
+
+    /* Test D3DXGetShaderInputSemantics */
+
+    /* Check wrong parameters */
+    ret = D3DXGetShaderInputSemantics(NULL, NULL, NULL);
+    ok(ret == D3DERR_INVALIDCALL, "Returned %#x, expected %#x\n", ret, D3DERR_INVALIDCALL);
+    ret = D3DXGetShaderInputSemantics(NULL, NULL, &count);
+    ok(ret == D3DERR_INVALIDCALL, "Returned %#x, expected %#x\n", ret, D3DERR_INVALIDCALL);
+    ret = D3DXGetShaderInputSemantics(NULL, semantics, NULL);
+    ok(ret == D3DERR_INVALIDCALL, "Returned %#x, expected %#x\n", ret, D3DERR_INVALIDCALL);
+    ret = D3DXGetShaderInputSemantics(NULL, semantics, &count);
+    ok(ret == D3DERR_INVALIDCALL, "Returned %#x, expected %#x\n", ret, D3DERR_INVALIDCALL);
+    ret = D3DXGetShaderInputSemantics(semantics_vs11, NULL, NULL);
+    ok(ret == D3D_OK, "Failed with %#x\n", ret);
+
+    /* Check null semantics pointer */
+    count = 0xdeadbeef;
+    ret = D3DXGetShaderInputSemantics(semantics_vs11, NULL, &count);
+    ok(ret == D3D_OK, "Failed with %#x\n", ret);
+    ok(count == 3, "Got %u, expected 3\n", count);
+
+    /* Check null count pointer */
+    memset(semantics, 0xcc, sizeof(semantics));
+    ret = D3DXGetShaderInputSemantics(semantics_vs11, semantics, NULL);
+    ok(ret == D3D_OK, "Failed with %#x\n", ret);
+    ok(semantics[0].Usage == D3DDECLUSAGE_POSITION, "Got %u, expected %u\n", semantics[0].Usage, D3DDECLUSAGE_POSITION);
+    ok(semantics[0].UsageIndex == 0, "Got %u, expected 0\n", semantics[0].UsageIndex);
+    ok(semantics[1].Usage == D3DDECLUSAGE_TEXCOORD, "Got %u, expected %u\n", semantics[1].Usage, D3DDECLUSAGE_TEXCOORD);
+    ok(semantics[1].UsageIndex == 0, "Got %u, expected 0\n", semantics[0].UsageIndex);
+    ok(semantics[2].Usage == D3DDECLUSAGE_TEXCOORD, "Got %u, expected %u\n", semantics[2].Usage, D3DDECLUSAGE_TEXCOORD);
+    ok(semantics[2].UsageIndex == 1, "Got %u, expected 1\n", semantics[0].UsageIndex);
+
+    /* Check with vs11 shader */
+    count = 0xdeadbeef;
+    memset(semantics, 0xcc, sizeof(semantics));
+    ret = D3DXGetShaderInputSemantics(semantics_vs11, semantics, &count);
+    ok(ret == D3D_OK, "Failed with %#x\n", ret);
+    ok(count == 3, "Got %u, expected 3\n", count);
+    ok(semantics[0].Usage == D3DDECLUSAGE_POSITION, "Got %u, expected %u\n", semantics[0].Usage, D3DDECLUSAGE_POSITION);
+    ok(semantics[0].UsageIndex == 0, "Got %u, expected 0\n", semantics[0].UsageIndex);
+    ok(semantics[1].Usage == D3DDECLUSAGE_TEXCOORD, "Got %u, expected %u\n", semantics[1].Usage, D3DDECLUSAGE_TEXCOORD);
+    ok(semantics[1].UsageIndex == 0, "Got %u, expected 0\n", semantics[0].UsageIndex);
+    ok(semantics[2].Usage == D3DDECLUSAGE_TEXCOORD, "Got %u, expected %u\n", semantics[2].Usage, D3DDECLUSAGE_TEXCOORD);
+    ok(semantics[2].UsageIndex == 1, "Got %u, expected 1\n", semantics[0].UsageIndex);
+
+    /* Check with vs30 shader */
+    count = 0xdeadbeef;
+    memset(semantics, 0xcc, sizeof(semantics));
+    ret = D3DXGetShaderInputSemantics(semantics_vs30, semantics, &count);
+    ok(ret == D3D_OK, "Failed with %#x\n", ret);
+    ok(count == 3, "Got %u, expected 3\n", count);
+    ok(semantics[0].Usage == D3DDECLUSAGE_POSITION, "Got %u, expected %u\n", semantics[0].Usage, D3DDECLUSAGE_POSITION);
+    ok(semantics[0].UsageIndex == 0, "Got %u, expected 0\n", semantics[0].UsageIndex);
+    ok(semantics[1].Usage == D3DDECLUSAGE_TEXCOORD, "Got %u, expected %u\n", semantics[1].Usage, D3DDECLUSAGE_TEXCOORD);
+    ok(semantics[1].UsageIndex == 0, "Got %u, expected 0\n", semantics[0].UsageIndex);
+    ok(semantics[2].Usage == D3DDECLUSAGE_TEXCOORD, "Got %u, expected %u\n", semantics[2].Usage, D3DDECLUSAGE_TEXCOORD);
+    ok(semantics[2].UsageIndex == 1, "Got %u, expected 1\n", semantics[0].UsageIndex);
+
+    /* Test D3DXGetShaderOutputSemantics */
+
+    /* Check wrong parameters */
+    ret = D3DXGetShaderOutputSemantics(NULL, NULL, NULL);
+    ok(ret == D3DERR_INVALIDCALL, "Returned %#x, expected %#x\n", ret, D3DERR_INVALIDCALL);
+    ret = D3DXGetShaderOutputSemantics(NULL, NULL, &count);
+    ok(ret == D3DERR_INVALIDCALL, "Returned %#x, expected %#x\n", ret, D3DERR_INVALIDCALL);
+    ret = D3DXGetShaderOutputSemantics(NULL, semantics, NULL);
+    ok(ret == D3DERR_INVALIDCALL, "Returned %#x, expected %#x\n", ret, D3DERR_INVALIDCALL);
+    ret = D3DXGetShaderOutputSemantics(NULL, semantics, &count);
+    ok(ret == D3DERR_INVALIDCALL, "Returned %#x, expected %#x\n", ret, D3DERR_INVALIDCALL);
+if (0)
+{
+    /* Crashes on wvistau64 */
+    ret = D3DXGetShaderOutputSemantics(semantics_vs11, NULL, NULL);
+    ok(ret == D3D_OK, "Failed with %#x\n", ret);
+}
+
+    /* Check null semantics pointer */
+    count = 0xdeadbeef;
+    ret = D3DXGetShaderOutputSemantics(semantics_vs11, NULL, &count);
+    ok(ret == D3D_OK, "Failed with %#x\n", ret);
+    ok(count == 1, "Got %u, expected 1\n", count);
+
+    /* Check null count pointer */
+if (0)
+{
+    /* Crashes on wvistau64 */
+    memset(semantics, 0xcc, sizeof(semantics));
+    ret = D3DXGetShaderOutputSemantics(semantics_vs11, semantics, NULL);
+    ok(ret == D3D_OK, "Failed with %#x\n", ret);
+    ok(semantics[0].Usage == D3DDECLUSAGE_COLOR, "Got %u, expected %u\n", semantics[0].Usage, D3DDECLUSAGE_COLOR);
+    ok(semantics[0].UsageIndex == 0, "Got %u, expected 0\n", semantics[0].UsageIndex);
+}
+
+    /* Check with vs11 shader */
+    count = 0xdeadbeef;
+    memset(semantics, 0xcc, sizeof(semantics));
+    ret = D3DXGetShaderOutputSemantics(semantics_vs11, semantics, &count);
+    ok(ret == D3D_OK, "Failed with %#x\n", ret);
+    ok(count == 1, "Got %u, expected 1\n", count);
+    todo_wine
+    ok(semantics[0].Usage == D3DDECLUSAGE_TEXCOORD, "Got %u, expected %u\n", semantics[0].Usage, D3DDECLUSAGE_TEXCOORD);
+    ok(semantics[0].UsageIndex == 0, "Got %u, expected 0\n", semantics[0].UsageIndex);
+
+    /* Check with vs30 shader */
+    count = 0xdeadbeef;
+    memset(semantics, 0xcc, sizeof(semantics));
+    ret = D3DXGetShaderOutputSemantics(semantics_vs30, semantics, &count);
+    ok(ret == D3D_OK, "Failed with %#x\n", ret);
+    ok(count == 1, "Got %u, expected 1\n", count);
+    ok(semantics[0].Usage == D3DDECLUSAGE_COLOR, "Got %u, expected %u\n", semantics[0].Usage, D3DDECLUSAGE_COLOR);
+    ok(semantics[0].UsageIndex == 0, "Got %u, expected 0\n", semantics[0].UsageIndex);
+}
+
+static void test_disassemble_shader(void)
+{
+    static const char disasm_vs[] = "    vs_1_1\n"
+                                    "    dcl_position v0\n"
+                                    "    dp4 oPos.x, v0, c0\n"
+                                    "    dp4 oPos.y, v0, c1\n"
+                                    "    dp4 oPos.z, v0, c2\n"
+                                    "    dp4 oPos.w, v0, c3\n";
+    static const char disasm_ps[] = "    ps_1_1\n"
+                                    "    def c1, 1, 0, 0, 0\n"
+                                    "    tex t0\n"
+                                    "    dp3 r0, c1, c0\n"
+                                    "    mul r0, v0, r0\n"
+                                    "    mul r0, t0, r0\n";
+    ID3DXBuffer *disassembly;
+    HRESULT ret;
+    char *ptr;
+
+    /* Check wrong parameters */
+    ret = D3DXDisassembleShader(NULL, FALSE, NULL, NULL);
+    ok(ret == D3DERR_INVALIDCALL, "Returned %#x, expected %#x\n", ret, D3DERR_INVALIDCALL);
+    ret = D3DXDisassembleShader(NULL, FALSE, NULL, &disassembly);
+    ok(ret == D3DERR_INVALIDCALL, "Returned %#x, expected %#x\n", ret, D3DERR_INVALIDCALL);
+    ret = D3DXDisassembleShader(simple_vs, FALSE, NULL, NULL);
+    ok(ret == D3DERR_INVALIDCALL, "Returned %#x, expected %#x\n", ret, D3DERR_INVALIDCALL);
+
+    /* Test with vertex shader */
+    disassembly = (void *)0xdeadbeef;
+    ret = D3DXDisassembleShader(simple_vs, FALSE, NULL, &disassembly);
+    ok(ret == D3D_OK, "Failed with %#x\n", ret);
+    ptr = ID3DXBuffer_GetBufferPointer(disassembly);
+    ok(!memcmp(ptr, disasm_vs, sizeof(disasm_vs) - 1), /* compare beginning */
+       "Returned '%s', expected '%s'\n", ptr, disasm_vs);
+    ID3DXBuffer_Release(disassembly);
+
+    /* Test with pixel shader */
+    disassembly = (void *)0xdeadbeef;
+    ret = D3DXDisassembleShader(simple_ps, FALSE, NULL, &disassembly);
+    ok(ret == D3D_OK, "Failed with %#x\n", ret);
+    ptr = ID3DXBuffer_GetBufferPointer(disassembly);
+    todo_wine ok(!memcmp(ptr, disasm_ps, sizeof(disasm_ps) - 1), /* compare beginning */
+                 "Returned '%s', expected '%s'\n", ptr, disasm_ps);
+    ID3DXBuffer_Release(disassembly);
+}
+
 START_TEST(shader)
 {
     test_get_shader_size();
@@ -6502,4 +6686,6 @@ START_TEST(shader)
     test_get_shader_constant_variables();
     test_registerset();
     test_registerset_defaults();
+    test_get_shader_semantics();
+    test_disassemble_shader();
 }
