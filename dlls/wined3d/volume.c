@@ -71,7 +71,11 @@ void wined3d_volume_upload_data(struct wined3d_volume *volume, const struct wine
         dst_row_pitch = width * format->conv_byte_count;
         dst_slice_pitch = dst_row_pitch * height;
 
+#if defined(STAGING_CSMT)
+        wined3d_resource_get_pitch(&volume->resource, &src_row_pitch, &src_slice_pitch);
+#else  /* STAGING_CSMT */
         wined3d_texture_get_pitch(volume->container, volume->texture_level, &src_row_pitch, &src_slice_pitch);
+#endif /* STAGING_CSMT */
 
         converted_mem = HeapAlloc(GetProcessHeap(), 0, dst_slice_pitch * depth);
         format->convert(data->addr, converted_mem, src_row_pitch, src_slice_pitch,
@@ -99,6 +103,7 @@ void wined3d_volume_upload_data(struct wined3d_volume *volume, const struct wine
     HeapFree(GetProcessHeap(), 0, converted_mem);
 }
 
+#if !defined(STAGING_CSMT)
 void wined3d_volume_validate_location(struct wined3d_volume *volume, DWORD location)
 {
     TRACE("Volume %p, setting %s.\n", volume, wined3d_debug_location(location));
@@ -117,6 +122,7 @@ void wined3d_volume_invalidate_location(struct wined3d_volume *volume, DWORD loc
     TRACE("new location flags are %s.\n", wined3d_debug_location(volume->locations));
 }
 
+#endif /* STAGING_CSMT */
 /* Context activation is done by the caller. */
 static void wined3d_volume_download_data(struct wined3d_volume *volume,
         const struct wined3d_context *context, const struct wined3d_bo_address *data)
@@ -152,6 +158,10 @@ static void wined3d_volume_download_data(struct wined3d_volume *volume,
 static void wined3d_volume_evict_sysmem(struct wined3d_volume *volume)
 {
     wined3d_resource_free_sysmem(&volume->resource);
+#if defined(STAGING_CSMT)
+    volume->resource.map_heap_memory = NULL;
+    wined3d_resource_invalidate_location(&volume->resource, WINED3D_LOCATION_SYSMEM);
+#else  /* STAGING_CSMT */
     wined3d_volume_invalidate_location(volume, WINED3D_LOCATION_SYSMEM);
 }
 
@@ -174,6 +184,7 @@ static DWORD volume_access_from_location(DWORD location)
             FIXME("Unhandled location %#x.\n", location);
             return 0;
     }
+#endif /* STAGING_CSMT */
 }
 
 /* Context activation is done by the caller. */
@@ -213,6 +224,18 @@ static BOOL wined3d_volume_can_evict(const struct wined3d_volume *volume)
 
     return TRUE;
 }
+#if defined(STAGING_CSMT)
+
+/* Context activation is done by the caller. */
+static void wined3d_volume_load_location(struct wined3d_resource *resource,
+        struct wined3d_context *context, DWORD location)
+{
+    struct wined3d_volume *volume = volume_from_resource(resource);
+    DWORD required_access = wined3d_resource_access_from_location(location);
+
+    TRACE("Volume %p, loading %s, have %s.\n", volume, wined3d_debug_location(location),
+        wined3d_debug_location(volume->resource.locations));
+#else  /* STAGING_CSMT */
 /* Context activation is done by the caller. */
 static void wined3d_volume_load_location(struct wined3d_volume *volume,
         struct wined3d_context *context, DWORD location)
@@ -228,6 +251,7 @@ static void wined3d_volume_load_location(struct wined3d_volume *volume,
         TRACE("Location(s) already up to date.\n");
         return;
     }
+#endif /* STAGING_CSMT */
 
     if ((volume->resource.access_flags & required_access) != required_access)
     {
@@ -241,6 +265,46 @@ static void wined3d_volume_load_location(struct wined3d_volume *volume,
         case WINED3D_LOCATION_TEXTURE_RGB:
         case WINED3D_LOCATION_TEXTURE_SRGB:
             if ((location == WINED3D_LOCATION_TEXTURE_RGB
+#if defined(STAGING_CSMT)
+                    && !(volume->container->flags & WINED3D_TEXTURE_RGB_ALLOCATED))
+                    || (location == WINED3D_LOCATION_TEXTURE_SRGB
+                    && !(volume->container->flags & WINED3D_TEXTURE_SRGB_ALLOCATED)))
+                ERR("Trying to load (s)RGB texture without prior allocation.\n");
+
+            if (volume->resource.locations & WINED3D_LOCATION_DISCARDED)
+            {
+                TRACE("Volume previously discarded, nothing to do.\n");
+                wined3d_resource_invalidate_location(&volume->resource, WINED3D_LOCATION_DISCARDED);
+            }
+            else if (volume->resource.locations & WINED3D_LOCATION_SYSMEM)
+            {
+                struct wined3d_const_bo_address data = {0, volume->resource.heap_memory};
+                wined3d_texture_bind_and_dirtify(volume->container, context,
+                        location == WINED3D_LOCATION_TEXTURE_SRGB);
+                wined3d_volume_upload_data(volume, context, &data);
+            }
+            else if (volume->resource.locations & WINED3D_LOCATION_BUFFER)
+            {
+                struct wined3d_const_bo_address data = {volume->resource.buffer->name, NULL};
+                wined3d_texture_bind_and_dirtify(volume->container, context,
+                        location == WINED3D_LOCATION_TEXTURE_SRGB);
+                wined3d_volume_upload_data(volume, context, &data);
+            }
+            else if (volume->resource.locations & WINED3D_LOCATION_TEXTURE_RGB)
+            {
+                wined3d_volume_srgb_transfer(volume, context, TRUE);
+            }
+            else if (volume->resource.locations & WINED3D_LOCATION_TEXTURE_SRGB)
+            {
+                wined3d_volume_srgb_transfer(volume, context, FALSE);
+            }
+            else
+            {
+                FIXME("Implement texture loading from %s.\n", wined3d_debug_location(volume->resource.locations));
+                return;
+            }
+            wined3d_resource_validate_location(&volume->resource, location);
+#else  /* STAGING_CSMT */
                     && !(texture->flags & WINED3D_TEXTURE_RGB_ALLOCATED))
                     || (location == WINED3D_LOCATION_TEXTURE_SRGB
                     && !(texture->flags & WINED3D_TEXTURE_SRGB_ALLOCATED)))
@@ -283,6 +347,7 @@ static void wined3d_volume_load_location(struct wined3d_volume *volume,
                 return;
             }
             wined3d_volume_validate_location(volume, location);
+#endif /* STAGING_CSMT */
 
             if (wined3d_volume_can_evict(volume))
                 wined3d_volume_evict_sysmem(volume);
@@ -293,6 +358,16 @@ static void wined3d_volume_load_location(struct wined3d_volume *volume,
             if (!volume->resource.heap_memory)
                 ERR("Trying to load WINED3D_LOCATION_SYSMEM without setting it up first.\n");
 
+#if defined(STAGING_CSMT)
+            if (volume->resource.locations & (WINED3D_LOCATION_TEXTURE_RGB | WINED3D_LOCATION_TEXTURE_SRGB))
+            {
+                struct wined3d_bo_address data = {0, volume->resource.heap_memory};
+
+                if (volume->resource.locations & WINED3D_LOCATION_TEXTURE_RGB)
+                    wined3d_texture_bind_and_dirtify(volume->container, context, FALSE);
+                else
+                    wined3d_texture_bind_and_dirtify(volume->container, context, TRUE);
+#else  /* STAGING_CSMT */
             if (volume->locations & WINED3D_LOCATION_DISCARDED)
             {
                 TRACE("Volume previously discarded, nothing to do.\n");
@@ -306,6 +381,7 @@ static void wined3d_volume_load_location(struct wined3d_volume *volume,
                     wined3d_texture_bind_and_dirtify(texture, context, FALSE);
                 else
                     wined3d_texture_bind_and_dirtify(texture, context, TRUE);
+#endif /* STAGING_CSMT */
 
                 volume->download_count++;
                 wined3d_volume_download_data(volume, context, &data);
@@ -313,6 +389,41 @@ static void wined3d_volume_load_location(struct wined3d_volume *volume,
             else
             {
                 FIXME("Implement WINED3D_LOCATION_SYSMEM loading from %s.\n",
+#if defined(STAGING_CSMT)
+                        wined3d_debug_location(volume->resource.locations));
+                return;
+            }
+            wined3d_resource_validate_location(&volume->resource, WINED3D_LOCATION_SYSMEM);
+            break;
+
+        case WINED3D_LOCATION_BUFFER:
+            if (!volume->resource.buffer)
+                ERR("Trying to load WINED3D_LOCATION_BUFFER without setting it up first.\n");
+
+            if (volume->resource.locations & (WINED3D_LOCATION_TEXTURE_RGB | WINED3D_LOCATION_TEXTURE_SRGB))
+            {
+                struct wined3d_bo_address data = {volume->resource.buffer->name, NULL};
+
+                if (volume->resource.locations & WINED3D_LOCATION_TEXTURE_RGB)
+                    wined3d_texture_bind_and_dirtify(volume->container, context, FALSE);
+                else
+                    wined3d_texture_bind_and_dirtify(volume->container, context, TRUE);
+
+                wined3d_volume_download_data(volume, context, &data);
+            }
+            else
+            {
+                FIXME("Implement WINED3D_LOCATION_BUFFER loading from %s.\n",
+                        wined3d_debug_location(volume->resource.locations));
+                return;
+            }
+            wined3d_resource_validate_location(&volume->resource, WINED3D_LOCATION_BUFFER);
+            break;
+
+        default:
+            FIXME("Implement %s loading from %s.\n", wined3d_debug_location(location),
+                    wined3d_debug_location(volume->resource.locations));
+#else  /* STAGING_CSMT */
                         wined3d_debug_location(volume->locations));
                 return;
             }
@@ -355,6 +466,7 @@ static void wined3d_volume_load_location(struct wined3d_volume *volume,
         default:
             FIXME("Implement %s loading from %s.\n", wined3d_debug_location(location),
                     wined3d_debug_location(volume->locations));
+#endif /* STAGING_CSMT */
     }
 }
 
@@ -362,6 +474,20 @@ static void wined3d_volume_load_location(struct wined3d_volume *volume,
 void wined3d_volume_load(struct wined3d_volume *volume, struct wined3d_context *context, BOOL srgb_mode)
 {
     wined3d_texture_prepare_texture(volume->container, context, srgb_mode);
+#if defined(STAGING_CSMT)
+    wined3d_resource_load_location(&volume->resource, context,
+            srgb_mode ? WINED3D_LOCATION_TEXTURE_SRGB : WINED3D_LOCATION_TEXTURE_RGB);
+}
+
+void wined3d_volume_destroy(struct wined3d_volume *volume)
+{
+    struct wined3d_device *device = volume->resource.device;
+    TRACE("volume %p.\n", volume);
+
+    resource_cleanup(&volume->resource);
+    volume->resource.parent_ops->wined3d_object_destroyed(volume->resource.parent);
+    wined3d_cs_emit_volume_cleanup(device->cs, volume);
+#else  /* STAGING_CSMT */
     wined3d_volume_load_location(volume, context,
             srgb_mode ? WINED3D_LOCATION_TEXTURE_SRGB : WINED3D_LOCATION_TEXTURE_RGB);
 }
@@ -371,6 +497,7 @@ void wined3d_volume_cleanup(struct wined3d_volume *volume)
     TRACE("volume %p.\n", volume);
 
     resource_cleanup(&volume->resource);
+#endif /* STAGING_CSMT */
 }
 
 static void volume_unload(struct wined3d_resource *resource)
@@ -384,6 +511,20 @@ static void volume_unload(struct wined3d_resource *resource)
 
     TRACE("texture %p.\n", resource);
 
+#if defined(STAGING_CSMT)
+    if (wined3d_resource_prepare_system_memory(&volume->resource))
+    {
+        context = context_acquire(device, NULL);
+        wined3d_resource_load_location(&volume->resource, context, WINED3D_LOCATION_SYSMEM);
+        context_release(context);
+        wined3d_resource_invalidate_location(&volume->resource, ~WINED3D_LOCATION_SYSMEM);
+    }
+    else
+    {
+        ERR("Out of memory when unloading volume %p.\n", volume);
+        wined3d_resource_validate_location(&volume->resource, WINED3D_LOCATION_DISCARDED);
+        wined3d_resource_invalidate_location(&volume->resource, ~WINED3D_LOCATION_DISCARDED);
+#else  /* STAGING_CSMT */
     if (volume_prepare_system_memory(volume))
     {
         context = context_acquire(device, NULL);
@@ -396,6 +537,7 @@ static void volume_unload(struct wined3d_resource *resource)
         ERR("Out of memory when unloading volume %p.\n", volume);
         wined3d_volume_validate_location(volume, WINED3D_LOCATION_DISCARDED);
         wined3d_volume_invalidate_location(volume, ~WINED3D_LOCATION_DISCARDED);
+#endif /* STAGING_CSMT */
     }
 
     /* The texture name is managed by the container. */
@@ -428,6 +570,11 @@ static BOOL wined3d_volume_check_box_dimensions(const struct wined3d_volume *vol
 HRESULT wined3d_volume_map(struct wined3d_volume *volume,
         struct wined3d_map_desc *map_desc, const struct wined3d_box *box, DWORD flags)
 {
+#if defined(STAGING_CSMT)
+    HRESULT hr;
+    const struct wined3d_format *format = volume->resource.format;
+    const unsigned int fmt_flags = volume->container->resource.format_flags;
+#else  /* STAGING_CSMT */
     struct wined3d_device *device = volume->resource.device;
     struct wined3d_texture *texture = volume->container;
     struct wined3d_context *context;
@@ -438,6 +585,7 @@ HRESULT wined3d_volume_map(struct wined3d_volume *volume,
 
     TRACE("volume %p, map_desc %p, box %s, flags %#x.\n",
             volume, map_desc, debug_box(box), flags);
+#endif /* STAGING_CSMT */
 
     map_desc->data = NULL;
     if (!(volume->resource.access_flags & WINED3D_RESOURCE_ACCESS_CPU))
@@ -445,6 +593,38 @@ HRESULT wined3d_volume_map(struct wined3d_volume *volume,
         WARN("Volume %p is not CPU accessible.\n", volume);
         return WINED3DERR_INVALIDCALL;
     }
+#if defined(STAGING_CSMT)
+    if (!wined3d_volume_check_box_dimensions(volume, box))
+    {
+        WARN("Map box is invalid.\n");
+        return WINED3DERR_INVALIDCALL;
+    }
+    if ((fmt_flags & WINED3DFMT_FLAG_BLOCKS) && !wined3d_resource_check_block_align(&volume->resource, box))
+    {
+        WARN("Map box %s is misaligned for %ux%u blocks.\n",
+                debug_box(box), format->block_width, format->block_height);
+        return WINED3DERR_INVALIDCALL;
+    }
+
+    hr = wined3d_resource_map(&volume->resource, map_desc, box, flags);
+    if (FAILED(hr))
+        return hr;
+
+    return hr;
+}
+
+HRESULT wined3d_volume_unmap(struct wined3d_volume *volume)
+{
+    HRESULT hr;
+
+    if (volume->resource.unmap_dirtify)
+        wined3d_texture_set_dirty(volume->container);
+
+    hr = wined3d_resource_unmap(&volume->resource);
+    if (hr == WINEDDERR_NOTLOCKED)
+        return WINED3DERR_INVALIDCALL;
+    return hr;
+#else  /* STAGING_CSMT */
     if (volume->resource.map_count)
     {
         WARN("Volume is already mapped.\n");
@@ -594,6 +774,7 @@ HRESULT wined3d_volume_unmap(struct wined3d_volume *volume)
     volume->resource.map_count--;
 
     return WINED3D_OK;
+#endif /* STAGING_CSMT */
 }
 
 static ULONG volume_resource_incref(struct wined3d_resource *resource)
@@ -604,6 +785,13 @@ static ULONG volume_resource_incref(struct wined3d_resource *resource)
     return wined3d_texture_incref(volume->container);
 }
 
+#if defined(STAGING_CSMT)
+void wined3d_volume_cleanup_cs(struct wined3d_volume *volume)
+{
+    HeapFree(GetProcessHeap(), 0, volume);
+}
+
+#endif /* STAGING_CSMT */
 static ULONG volume_resource_decref(struct wined3d_resource *resource)
 {
     struct wined3d_volume *volume = volume_from_resource(resource);
@@ -625,6 +813,16 @@ static HRESULT volume_resource_sub_resource_unmap(struct wined3d_resource *resou
     return WINED3DERR_INVALIDCALL;
 }
 
+#if defined(STAGING_CSMT)
+static void wined3d_volume_location_invalidated(struct wined3d_resource *resource, DWORD location)
+{
+    struct wined3d_volume *volume = volume_from_resource(resource);
+
+    if (location & (WINED3D_LOCATION_TEXTURE_RGB | WINED3D_LOCATION_TEXTURE_SRGB))
+        wined3d_texture_set_dirty(volume->container);
+}
+
+#endif /* STAGING_CSMT */
 static const struct wined3d_resource_ops volume_resource_ops =
 {
     volume_resource_incref,
@@ -632,9 +830,17 @@ static const struct wined3d_resource_ops volume_resource_ops =
     volume_unload,
     volume_resource_sub_resource_map,
     volume_resource_sub_resource_unmap,
+#if defined(STAGING_CSMT)
+    wined3d_volume_location_invalidated,
+    wined3d_volume_load_location,
+};
+
+static HRESULT volume_init(struct wined3d_volume *volume, struct wined3d_texture *container,
+#else  /* STAGING_CSMT */
 };
 
 HRESULT wined3d_volume_init(struct wined3d_volume *volume, struct wined3d_texture *container,
+#endif /* STAGING_CSMT */
         const struct wined3d_resource_desc *desc, UINT level)
 {
     struct wined3d_device *device = container->resource.device;
@@ -663,7 +869,11 @@ HRESULT wined3d_volume_init(struct wined3d_volume *volume, struct wined3d_textur
     }
 
     volume->texture_level = level;
+#if defined(STAGING_CSMT)
+    volume->resource.locations = WINED3D_LOCATION_DISCARDED;
+#else  /* STAGING_CSMT */
     volume->locations = WINED3D_LOCATION_DISCARDED;
+#endif /* STAGING_CSMT */
 
     if (desc->pool == WINED3D_POOL_DEFAULT && desc->usage & WINED3DUSAGE_DYNAMIC
             && gl_info->supported[ARB_PIXEL_BUFFER_OBJECT]
@@ -671,9 +881,57 @@ HRESULT wined3d_volume_init(struct wined3d_volume *volume, struct wined3d_textur
     {
         wined3d_resource_free_sysmem(&volume->resource);
         volume->resource.map_binding = WINED3D_LOCATION_BUFFER;
+#if defined(STAGING_CSMT)
+        volume->resource.map_heap_memory = NULL;
     }
 
     volume->container = container;
+
+    return WINED3D_OK;
+}
+
+HRESULT wined3d_volume_create(struct wined3d_texture *container, const struct wined3d_resource_desc *desc,
+        unsigned int level, struct wined3d_volume **volume)
+{
+    struct wined3d_device_parent *device_parent = container->resource.device->device_parent;
+    const struct wined3d_parent_ops *parent_ops;
+    struct wined3d_volume *object;
+    void *parent;
+    HRESULT hr;
+
+    TRACE("container %p, width %u, height %u, depth %u, level %u, format %s, "
+            "usage %#x, pool %s, volume %p.\n",
+            container, desc->width, desc->height, desc->depth, level, debug_d3dformat(desc->format),
+            desc->usage, debug_d3dpool(desc->pool), volume);
+
+    if (!(object = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(*object))))
+        return E_OUTOFMEMORY;
+
+    if (FAILED(hr = volume_init(object, container, desc, level)))
+    {
+        WARN("Failed to initialize volume, returning %#x.\n", hr);
+        HeapFree(GetProcessHeap(), 0, object);
+        return hr;
+    }
+
+    if (FAILED(hr = device_parent->ops->volume_created(device_parent,
+            container, level, &parent, &parent_ops)))
+    {
+        WARN("Failed to create volume parent, hr %#x.\n", hr);
+        wined3d_volume_destroy(object);
+        return hr;
+    }
+
+    TRACE("Created volume %p, parent %p, parent_ops %p.\n", object, parent, parent_ops);
+
+    object->resource.parent = parent;
+    object->resource.parent_ops = parent_ops;
+    *volume = object;
+#else  /* STAGING_CSMT */
+    }
+
+    volume->container = container;
+#endif /* STAGING_CSMT */
 
     return WINED3D_OK;
 }

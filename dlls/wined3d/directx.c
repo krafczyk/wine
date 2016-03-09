@@ -225,6 +225,7 @@ static const struct wined3d_extension_map gl_extension_map[] =
     {"GL_NV_vertex_program2",               NV_VERTEX_PROGRAM2            },
     {"GL_NV_vertex_program2_option",        NV_VERTEX_PROGRAM2_OPTION     },
     {"GL_NV_vertex_program3",               NV_VERTEX_PROGRAM3            },
+    {"GL_NVX_gpu_memory_info",              NVX_GPU_MEMORY_INFO           },
 
     /* SGI */
     {"GL_SGIS_generate_mipmap",             SGIS_GENERATE_MIPMAP          },
@@ -235,6 +236,7 @@ static const struct wined3d_extension_map wgl_extension_map[] =
     {"WGL_ARB_pixel_format",                WGL_ARB_PIXEL_FORMAT             },
     {"WGL_EXT_swap_control",                WGL_EXT_SWAP_CONTROL             },
     {"WGL_WINE_pixel_format_passthrough",   WGL_WINE_PIXEL_FORMAT_PASSTHROUGH},
+    {"WGL_WINE_gpu_info",                   WGL_WINE_GPU_INFO                },
 };
 
 /**********************************************************
@@ -1242,6 +1244,7 @@ static const struct gpu_description gpu_description_table[] =
     {HW_VENDOR_NVIDIA,     CARD_NVIDIA_GEFORCE_GTS350M,    "NVIDIA GeForce GTS 350M",          DRIVER_NVIDIA_GEFORCE8,  1024},
     {HW_VENDOR_NVIDIA,     CARD_NVIDIA_GEFORCE_410M,       "NVIDIA GeForce 410M",              DRIVER_NVIDIA_GEFORCE8,  512},
     {HW_VENDOR_NVIDIA,     CARD_NVIDIA_GEFORCE_GT420,      "NVIDIA GeForce GT 420",            DRIVER_NVIDIA_GEFORCE8,  2048},
+    {HW_VENDOR_NVIDIA,     CARD_NVIDIA_GEFORCE_GT425M,     "NVIDIA GeForce GT 425M",           DRIVER_NVIDIA_GEFORCE8,  1024},
     {HW_VENDOR_NVIDIA,     CARD_NVIDIA_GEFORCE_GT430,      "NVIDIA GeForce GT 430",            DRIVER_NVIDIA_GEFORCE8,  1024},
     {HW_VENDOR_NVIDIA,     CARD_NVIDIA_GEFORCE_GT440,      "NVIDIA GeForce GT 440",            DRIVER_NVIDIA_GEFORCE8,  1024},
     {HW_VENDOR_NVIDIA,     CARD_NVIDIA_GEFORCE_GTS450,     "NVIDIA GeForce GTS 450",           DRIVER_NVIDIA_GEFORCE8,  1024},
@@ -1401,7 +1404,8 @@ static const struct gpu_description *get_gpu_description(enum wined3d_pci_vendor
     return NULL;
 }
 
-static void init_driver_info(struct wined3d_driver_info *driver_info,
+/* Context activation is done by the caller. */
+static void init_driver_info(struct wined3d_gl_info *gl_info, struct wined3d_driver_info *driver_info,
         enum wined3d_pci_vendor vendor, enum wined3d_pci_device device)
 {
     OSVERSIONINFOW os_version;
@@ -1414,8 +1418,21 @@ static void init_driver_info(struct wined3d_driver_info *driver_info,
     if (driver_info->vendor != PCI_VENDOR_NONE || driver_info->device != PCI_DEVICE_NONE)
     {
         static unsigned int once;
+        unsigned int real_vendor, real_device;
 
         TRACE("GPU override %04x:%04x.\n", wined3d_settings.pci_vendor_id, wined3d_settings.pci_device_id);
+
+        if (gl_info->supported[WGL_WINE_GPU_INFO] &&
+            gl_info->gl_ops.ext.p_wglGetPCIInfoWINE(&real_vendor, &real_device))
+        {
+            if (get_gpu_description(real_vendor, real_device))
+            {
+                vendor = real_vendor;
+                device = real_device;
+            }
+            else if (!once++)
+                ERR_(winediag)("Could not find GPU info for %04x:%04x.\n", real_vendor, real_device);
+        }
 
         driver_info->vendor = wined3d_settings.pci_vendor_id;
         if (driver_info->vendor == PCI_VENDOR_NONE)
@@ -1508,6 +1525,27 @@ static void init_driver_info(struct wined3d_driver_info *driver_info,
         driver_info->description = "Direct3D HAL";
         driver_info->vram_bytes = WINE_DEFAULT_VIDMEM;
         driver = DRIVER_UNKNOWN;
+    }
+
+    if (gl_info->supported[NVX_GPU_MEMORY_INFO])
+    {
+        GLint vram_kb;
+        gl_info->gl_ops.gl.p_glGetIntegerv(GL_GPU_MEMORY_INFO_DEDICATED_VIDMEM_NVX, &vram_kb);
+
+        driver_info->vram_bytes = (UINT64)vram_kb * 1024;
+        TRACE("Got 0x%s as video memory from NVX_GPU_MEMORY_INFO extension.\n",
+                wine_dbgstr_longlong(driver_info->vram_bytes));
+    }
+
+    if (gl_info->supported[WGL_WINE_GPU_INFO])
+    {
+        unsigned int vram_mb;
+        if (gl_info->gl_ops.ext.p_wglGetMemoryInfoWINE(&vram_mb))
+        {
+            driver_info->vram_bytes = (UINT64)vram_mb * 1024 * 1024;
+            TRACE("Got 0x%s as video memory from wglGetGPUInfoWINE.\n",
+                    wine_dbgstr_longlong(driver_info->vram_bytes));
+        }
     }
 
     if (wined3d_settings.emulated_textureram)
@@ -1750,6 +1788,7 @@ cards_nvidia_binary[] =
     {"GTS 450",                     CARD_NVIDIA_GEFORCE_GTS450},    /* Geforce 400 - midend low */
     {"GT 440",                      CARD_NVIDIA_GEFORCE_GT440},     /* Geforce 400 - lowend */
     {"GT 430",                      CARD_NVIDIA_GEFORCE_GT430},     /* Geforce 400 - lowend */
+    {"GT 425M",                     CARD_NVIDIA_GEFORCE_GT425M},    /* Geforce 400 - lowend mobile */
     {"GT 420",                      CARD_NVIDIA_GEFORCE_GT420},     /* Geforce 400 - lowend */
     {"410M",                        CARD_NVIDIA_GEFORCE_410M},      /* Geforce 400 - lowend mobile */
     {"GT 330",                      CARD_NVIDIA_GEFORCE_GT330},     /* Geforce 300 - highend */
@@ -3836,7 +3875,7 @@ static BOOL wined3d_adapter_init_gl_caps(struct wined3d_adapter *adapter, DWORD 
     }
 
     fixup_extensions(gl_info, gl_renderer_str, gl_vendor, card_vendor, device);
-    init_driver_info(driver_info, card_vendor, device);
+    init_driver_info(gl_info, driver_info, card_vendor, device);
     gl_ext_emul_mask = adapter->vertex_pipe->vp_get_emul_mask(gl_info)
             | adapter->fragment_pipe->get_emul_mask(gl_info);
     if (gl_ext_emul_mask & GL_EXT_EMUL_ARB_MULTITEXTURE)
@@ -4758,7 +4797,9 @@ UINT CDECL wined3d_calculate_format_pitch(const struct wined3d *wined3d, UINT ad
         enum wined3d_format_id format_id, UINT width)
 {
     const struct wined3d_gl_info *gl_info;
+#if !defined(STAGING_CSMT)
     unsigned int row_pitch, slice_pitch;
+#endif /* STAGING_CSMT */
 
     TRACE("wined3d %p, adapter_idx %u, format_id %s, width %u.\n",
             wined3d, adapter_idx, debug_d3dformat(format_id), width);
@@ -4767,10 +4808,14 @@ UINT CDECL wined3d_calculate_format_pitch(const struct wined3d *wined3d, UINT ad
         return ~0u;
 
     gl_info = &wined3d->adapters[adapter_idx].gl_info;
+#if defined(STAGING_CSMT)
+    return wined3d_format_calculate_pitch(wined3d_get_format(gl_info, format_id), width);
+#else  /* STAGING_CSMT */
     wined3d_format_calculate_pitch(wined3d_get_format(gl_info, format_id),
             1, width, 1, &row_pitch, &slice_pitch);
 
     return row_pitch;
+#endif /* STAGING_CSMT */
 }
 
 HRESULT CDECL wined3d_check_device_format_conversion(const struct wined3d *wined3d, UINT adapter_idx,
@@ -5524,9 +5569,15 @@ static void WINE_GLAPI invalid_texcoord_func(GLenum unit, const void *data)
     DebugBreak();
 }
 
+#if defined(STAGING_CSMT)
+/* Helper functions for providing vertex data to opengl. The arrays are initialized based on
+ * the extension detection and are used in draw_strided_slow
+ */
+#else  /* STAGING_CSMT */
 /* Helper functions for providing vertex data to opengl. The arrays are initialized based on
  * the extension detection and are used in drawStridedSlow
  */
+#endif /* STAGING_CSMT */
 static void WINE_GLAPI position_d3dcolor(const void *data)
 {
     DWORD pos = *((const DWORD *)data);

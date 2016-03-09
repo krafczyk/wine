@@ -392,6 +392,7 @@ static BOOL UNIXFS_get_unix_path(LPCWSTR pszDosPath, char *pszCanonicalPath)
     BOOL has_failed = FALSE;
     WCHAR wszDrive[] = { '?', ':', '\\', 0 }, dospath[MAX_PATH], *dospath_end;
     int cDriveSymlinkLen;
+    BOOL is_wow64;
     void *redir;
 
     TRACE("(pszDosPath=%s, pszCanonicalPath=%p)\n", debugstr_w(pszDosPath), pszCanonicalPath);
@@ -408,13 +409,14 @@ static BOOL UNIXFS_get_unix_path(LPCWSTR pszDosPath, char *pszCanonicalPath)
     HeapFree(GetProcessHeap(), 0, pszUnixPath);
     if (!pElement) return FALSE;
     if (szPath[strlen(szPath)-1] != '/') strcat(szPath, "/");
+    if (!IsWow64Process(GetCurrentProcess(), &is_wow64)) is_wow64 = FALSE;
 
     /* Append the part relative to the drive symbolic link target. */
     lstrcpyW(dospath, pszDosPath);
     dospath_end = dospath + lstrlenW(dospath);
     /* search for the most valid UNIX path possible, then append missing
      * path parts */
-    Wow64DisableWow64FsRedirection(&redir);
+    if(is_wow64) Wow64DisableWow64FsRedirection(&redir);
     while(!(pszUnixPath = wine_get_unix_file_name(dospath))){
         if(has_failed){
             *dospath_end = '/';
@@ -428,7 +430,7 @@ static BOOL UNIXFS_get_unix_path(LPCWSTR pszDosPath, char *pszCanonicalPath)
         }
         *dospath_end = '\0';
     }
-    Wow64RevertWow64FsRedirection(redir);
+    if(is_wow64) Wow64RevertWow64FsRedirection(redir);
     if(dospath_end < dospath)
         return FALSE;
     strcat(szPath, pszUnixPath + cDriveSymlinkLen);
@@ -1143,8 +1145,10 @@ static HRESULT WINAPI ShellFolder2_GetAttributesOf(IShellFolder2* iface, UINT ci
             SFGAO_HASPROPSHEET | SFGAO_DROPTARGET | SFGAO_FILESYSTEM;
         lstrcpyA(szAbsolutePath, This->m_pszPath);
         pszRelativePath = szAbsolutePath + lstrlenA(szAbsolutePath);
-        for (i=0; i<cidl; i++) {
-            if (!(This->m_dwAttributes & SFGAO_FILESYSTEM)) {
+        for (i=0; i<cidl; i++)
+        {
+            if (!(This->m_dwAttributes & SFGAO_FILESYSTEM))
+            {
                 WCHAR *dos_name;
                 if (!UNIXFS_filename_from_shitemid(apidl[i], pszRelativePath)) 
                     return E_INVALIDARG;
@@ -1154,8 +1158,23 @@ static HRESULT WINAPI ShellFolder2_GetAttributesOf(IShellFolder2* iface, UINT ci
                     HeapFree( GetProcessHeap(), 0, dos_name );
             }
             if (_ILIsFolder(apidl[i])) 
-                *attrs |= SFGAO_FOLDER | SFGAO_HASSUBFOLDER | SFGAO_FILESYSANCESTOR |
-                    SFGAO_STORAGEANCESTOR | SFGAO_STORAGE;
+            {
+                IEnumIDList *enum_list;
+                IShellFolder2 *child;
+
+                *attrs |= SFGAO_FOLDER | SFGAO_FILESYSANCESTOR | SFGAO_STORAGEANCESTOR | SFGAO_STORAGE;
+
+                if (SUCCEEDED(IShellFolder2_BindToObject(iface, apidl[i], NULL, &IID_IShellFolder2, (void **)&child)))
+                {
+                    if (IShellFolder2_EnumObjects(child, NULL, SHCONTF_FOLDERS|SHCONTF_INCLUDEHIDDEN, &enum_list) == S_OK)
+                    {
+                        if (IEnumIDList_Skip(enum_list, 1) == S_OK)
+                            *attrs |= SFGAO_HASSUBFOLDER;
+                        IEnumIDList_Release(enum_list);
+                    }
+                    IShellFolder2_Release(child);
+                }
+            }
             else
                 *attrs |= SFGAO_STREAM;
         }

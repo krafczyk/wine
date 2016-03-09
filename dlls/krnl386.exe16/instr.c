@@ -67,7 +67,7 @@ static inline void *get_stack( CONTEXT *context )
 }
 
 #include "pshpack1.h"
-struct idtr
+struct dtr
 {
     WORD  limit;
     BYTE *base;
@@ -75,19 +75,41 @@ struct idtr
 #include "poppack.h"
 
 static LDT_ENTRY idt[256];
+static LDT_ENTRY gdt[8192];
+static LDT_ENTRY ldt[8192];
 
-static inline struct idtr get_idtr(void)
+static BOOL emulate_idtr( BYTE *data, unsigned int data_size, unsigned int *offset )
 {
-    struct idtr ret;
 #if defined(__i386__) && defined(__GNUC__)
+    struct dtr ret;
     __asm__( "sidtl %0" : "=m" (ret) );
+    *offset = data - ret.base;
+    return (*offset <= ret.limit + 1 - data_size);
 #else
-    ret.base = (BYTE *)idt;
-    ret.limit = sizeof(idt) - 1;
+    return FALSE;
 #endif
-    return ret;
 }
 
+static BOOL emulate_gdtr( BYTE *data, unsigned int data_size, unsigned int *offset )
+{
+#if defined(__i386__) && defined(__GNUC__)
+    struct dtr ret;
+    __asm__( "sgdtl %0" : "=m" (ret) );
+    *offset = data - ret.base;
+    return (*offset <= ret.limit + 1 - data_size);
+#else
+    return FALSE;
+#endif
+}
+
+static inline WORD get_ldt(void)
+{
+    WORD seg = 1;
+#if defined(__i386__) && defined(__GNUC__)
+    __asm__( "sldt %0" : "=m" (seg) );
+#endif
+    return seg;
+}
 
 /***********************************************************************
  *           INSTR_ReplaceSelector
@@ -113,7 +135,7 @@ static BOOL INSTR_ReplaceSelector( CONTEXT *context, WORD *sel )
 
 
 /* store an operand into a register */
-static void store_reg( CONTEXT *context, BYTE regmodrm, const BYTE *addr, int long_op )
+static void store_reg_word( CONTEXT *context, BYTE regmodrm, const BYTE *addr, int long_op )
 {
     switch((regmodrm >> 3) & 7)
     {
@@ -149,6 +171,22 @@ static void store_reg( CONTEXT *context, BYTE regmodrm, const BYTE *addr, int lo
         if (long_op) context->Edi = *(const DWORD *)addr;
         else SET_LOWORD(context->Edi, *(const WORD *)addr);
         break;
+    }
+}
+
+/* store an operand into a byte register */
+static void store_reg_byte( CONTEXT *context, BYTE regmodrm, const BYTE *addr )
+{
+    switch((regmodrm >> 3) & 7)
+    {
+    case 0: context->Eax = (context->Eax & 0xffffff00) | *addr; break;
+    case 1: context->Ecx = (context->Ecx & 0xffffff00) | *addr; break;
+    case 2: context->Edx = (context->Edx & 0xffffff00) | *addr; break;
+    case 3: context->Ebx = (context->Ebx & 0xffffff00) | *addr; break;
+    case 4: context->Eax = (context->Eax & 0xffff00ff) | (*addr << 8); break;
+    case 5: context->Ecx = (context->Ecx & 0xffff00ff) | (*addr << 8); break;
+    case 6: context->Edx = (context->Edx & 0xffff00ff) | (*addr << 8); break;
+    case 7: context->Ebx = (context->Ebx & 0xffff00ff) | (*addr << 8); break;
     }
 }
 
@@ -333,7 +371,7 @@ static BOOL INSTR_EmulateLDS( CONTEXT *context, BYTE *instr, int long_op,
 
     /* Now store the offset in the correct register */
 
-    store_reg( context, *regmodrm, addr, long_op );
+    store_reg_word( context, *regmodrm, addr, long_op );
 
     /* Store the correct segment in the segment register */
 
@@ -689,19 +727,50 @@ DWORD __wine_emulate_instruction( EXCEPTION_RECORD *rec, CONTEXT *context )
 	    }
             return ExceptionContinueExecution;
 
+        case 0x8a: /* mov Eb, Gb */
         case 0x8b: /* mov Ev, Gv */
             {
-                BYTE *addr = INSTR_GetOperandAddr(context, instr + 1, long_addr,
+                BYTE *data = INSTR_GetOperandAddr(context, instr + 1, long_addr,
                                                   segprefix, &len);
-                struct idtr idtr = get_idtr();
-                unsigned int offset = addr - idtr.base;
+                unsigned int data_size = (*instr == 0x8b) ? (long_op ? 4 : 2) : 1;
+                unsigned int offset;
 
-                if (offset <= idtr.limit + 1 - (long_op ? 4 : 2))
+                if (emulate_idtr( data, data_size, &offset ))
                 {
                     idt[1].LimitLow = 0x100; /* FIXME */
                     idt[2].LimitLow = 0x11E; /* FIXME */
                     idt[3].LimitLow = 0x500; /* FIXME */
-                    store_reg( context, instr[1], (BYTE *)idt + offset, long_op );
+
+                    switch (*instr)
+                    {
+                    case 0x8a: store_reg_byte( context, instr[1], (BYTE *)idt + offset ); break;
+                    case 0x8b: store_reg_word( context, instr[1], (BYTE *)idt + offset, long_op ); break;
+                    }
+                    context->Eip += prefixlen + len + 1;
+                    return ExceptionContinueExecution;
+                }
+
+                if (emulate_gdtr( data, data_size, &offset ))
+                {
+                    static BOOL initialized;
+
+                    if (!initialized)
+                    {
+                        WORD index = get_ldt() >> 3;
+                        gdt[index].BaseLow                = ((DWORD_PTR)ldt & 0x0000FFFF);
+                        gdt[index].HighWord.Bytes.BaseMid = ((DWORD_PTR)ldt & 0x00FF0000) >> 16;
+                        gdt[index].HighWord.Bytes.BaseHi  = ((DWORD_PTR)ldt & 0xFF000000) >> 24;
+                        gdt[index].LimitLow               = 0xFFFF;
+                        gdt[index].HighWord.Bits.Pres     = 1;
+
+                        initialized = TRUE;
+                    }
+
+                    switch (*instr)
+                    {
+                    case 0x8a: store_reg_byte( context, instr[1], (BYTE *)gdt + offset ); break;
+                    case 0x8b: store_reg_word( context, instr[1], (BYTE *)gdt + offset, long_op ); break;
+                    }
                     context->Eip += prefixlen + len + 1;
                     return ExceptionContinueExecution;
                 }
