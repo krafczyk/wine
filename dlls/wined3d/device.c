@@ -1243,7 +1243,30 @@ void CDECL wined3d_device_set_multithreaded(struct wined3d_device *device)
 
 UINT CDECL wined3d_device_get_available_texture_mem(const struct wined3d_device *device)
 {
+    const struct wined3d_gl_info *gl_info = &device->adapter->gl_info;
+
     TRACE("device %p.\n", device);
+
+    /* We can not acquire the context unless there is a swapchain. */
+    if (device->swapchains && gl_info->supported[NVX_GPU_MEMORY_INFO] &&
+            !wined3d_settings.emulated_textureram)
+    {
+        GLint vram_free_kb;
+        UINT64 vram_free;
+
+        struct wined3d_context *context = context_acquire(device, NULL);
+        gl_info->gl_ops.gl.p_glGetIntegerv(GL_GPU_MEMORY_INFO_CURRENT_AVAILABLE_VIDMEM_NVX, &vram_free_kb);
+        vram_free = (UINT64)vram_free_kb * 1024;
+        context_release(context);
+
+        TRACE("Total 0x%s bytes. emulation 0x%s left, driver 0x%s left.\n",
+                wine_dbgstr_longlong(device->adapter->vram_bytes),
+                wine_dbgstr_longlong(device->adapter->vram_bytes - device->adapter->vram_bytes_used),
+                wine_dbgstr_longlong(vram_free));
+
+        vram_free = min(vram_free, device->adapter->vram_bytes - device->adapter->vram_bytes_used);
+        return min(UINT_MAX, vram_free);
+    }
 
     TRACE("Emulating 0x%s bytes. 0x%s used, returning 0x%s left.\n",
             wine_dbgstr_longlong(device->adapter->vram_bytes),
@@ -3560,7 +3583,7 @@ static HRESULT wined3d_device_update_texture_3d(struct wined3d_device *device,
 
     for (i = 0; i < level_count; ++i)
     {
-        if (FAILED(hr = wined3d_resource_map(&src_texture->resource,
+        if (FAILED(hr = wined3d_resource_sub_resource_map(&src_texture->resource,
                 src_level + i, &src, NULL, WINED3D_MAP_READONLY)))
             goto done;
 
@@ -3569,7 +3592,7 @@ static HRESULT wined3d_device_update_texture_3d(struct wined3d_device *device,
         wined3d_volume_upload_data(dst_texture->sub_resources[i].u.volume, context, &data);
         wined3d_volume_invalidate_location(dst_texture->sub_resources[i].u.volume, ~WINED3D_LOCATION_TEXTURE_RGB);
 
-        if (FAILED(hr = wined3d_resource_unmap(&src_texture->resource, src_level + i)))
+        if (FAILED(hr = wined3d_resource_sub_resource_unmap(&src_texture->resource, src_level + i)))
             goto done;
     }
 
@@ -4237,7 +4260,7 @@ static struct wined3d_texture *wined3d_device_create_cursor_texture(struct wined
     struct wined3d_texture *texture;
     HRESULT hr;
 
-    if (FAILED(wined3d_resource_map(&cursor_image->resource, sub_resource_idx, &map_desc, NULL, WINED3D_MAP_READONLY)))
+    if (FAILED(wined3d_resource_sub_resource_map(&cursor_image->resource, sub_resource_idx, &map_desc, NULL, WINED3D_MAP_READONLY)))
     {
         ERR("Failed to map source texture.\n");
         return NULL;
@@ -4260,7 +4283,7 @@ static struct wined3d_texture *wined3d_device_create_cursor_texture(struct wined
 
     hr = wined3d_texture_create(device, &desc, 1, WINED3D_TEXTURE_CREATE_MAPPABLE,
             &data, NULL, &wined3d_null_parent_ops, &texture);
-    wined3d_resource_unmap(&cursor_image->resource, sub_resource_idx);
+    wined3d_resource_sub_resource_unmap(&cursor_image->resource, sub_resource_idx);
     if (FAILED(hr))
     {
         ERR("Failed to create cursor texture.\n");
@@ -4341,7 +4364,7 @@ HRESULT CDECL wined3d_device_set_cursor_properties(struct wined3d_device *device
             return E_OUTOFMEMORY;
         memset(mask_bits, 0xff, mask_size);
 
-        wined3d_resource_map(&texture->resource, sub_resource_idx, &map_desc, NULL,
+        wined3d_resource_sub_resource_map(&texture->resource, sub_resource_idx, &map_desc, NULL,
                 WINED3D_MAP_NO_DIRTY_UPDATE | WINED3D_MAP_READONLY);
         cursor_info.fIcon = FALSE;
         cursor_info.xHotspot = x_hotspot;
@@ -4350,7 +4373,7 @@ HRESULT CDECL wined3d_device_set_cursor_properties(struct wined3d_device *device
                 cursor_image->resource.height, 1, 1, mask_bits);
         cursor_info.hbmColor = CreateBitmap(cursor_image->resource.width,
                 cursor_image->resource.height, 1, 32, map_desc.data);
-        wined3d_resource_unmap(&texture->resource, sub_resource_idx);
+        wined3d_resource_sub_resource_unmap(&texture->resource, sub_resource_idx);
 
         /* Create our cursor and clean up. */
         cursor = CreateIconIndirect(&cursor_info);

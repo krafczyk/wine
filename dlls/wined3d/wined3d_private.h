@@ -1286,10 +1286,8 @@ struct wined3d_context
     DWORD use_immediate_mode_draw : 1;
     DWORD rebind_fbo : 1;
     DWORD needs_set : 1;
-    DWORD hdc_is_private : 1;
-    DWORD hdc_has_format : 1;           /* only meaningful if hdc_is_private */
     DWORD update_shader_resource_bindings : 1;
-    DWORD padding : 14;
+    DWORD padding : 16;
     DWORD shader_update_mask;
     DWORD constant_update_mask;
     DWORD                   numbered_array_mask;
@@ -1307,7 +1305,6 @@ struct wined3d_context
     HGLRC restore_ctx;
     HDC restore_dc;
     int restore_pf;
-    HWND restore_pf_win;
     HGLRC                   glCtx;
     HWND                    win_handle;
     HDC                     hdc;
@@ -1678,6 +1675,7 @@ enum wined3d_pci_device
     CARD_NVIDIA_GEFORCE_GTS350M     = 0x0cb0,
     CARD_NVIDIA_GEFORCE_410M        = 0x1055,
     CARD_NVIDIA_GEFORCE_GT420       = 0x0de2,
+    CARD_NVIDIA_GEFORCE_GT425M      = 0x0df0,
     CARD_NVIDIA_GEFORCE_GT430       = 0x0de1,
     CARD_NVIDIA_GEFORCE_GT440       = 0x0de0,
     CARD_NVIDIA_GEFORCE_GTS450      = 0x0dc4,
@@ -3434,6 +3432,9 @@ static inline BOOL needs_srgb_write(const struct wined3d_context *context,
             || state->render_states[WINED3D_RS_SRGBWRITEENABLE])
             && fb->render_targets[0]->format_flags & WINED3DFMT_FLAG_SRGB_WRITE;
 }
+
+BOOL wined3d_dxtn_init(void) DECLSPEC_HIDDEN;
+void wined3d_dxtn_free(void) DECLSPEC_HIDDEN;
 
 /* The WNDCLASS-Name for the fake window which we use to retrieve the GL capabilities */
 #define WINED3D_OPENGL_WINDOW_CLASS_NAME "WineD3D_OpenGL"

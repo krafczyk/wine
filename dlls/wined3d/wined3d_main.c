@@ -327,8 +327,15 @@ static BOOL wined3d_dll_init(HINSTANCE hInstDLL)
         }
     }
 
+#if defined(STAGING_CSMT)
+    FIXME_(winediag)("Please note that the experimental wined3d CSMT patchset has been disabled in this\n");
+    FIXME_(winediag)("version of Wine Staging. Check out the release notes for further information.\n");
+#endif /* STAGING_CSMT */
+
     if (appkey) RegCloseKey( appkey );
     if (hkey) RegCloseKey( hkey );
+
+    wined3d_dxtn_init();
 
     return TRUE;
 }
@@ -361,6 +368,9 @@ static BOOL wined3d_dll_destroy(HINSTANCE hInstDLL)
 
     DeleteCriticalSection(&wined3d_wndproc_cs);
     DeleteCriticalSection(&wined3d_cs);
+
+    wined3d_dxtn_free();
+
     return TRUE;
 }
 
@@ -524,6 +534,11 @@ void wined3d_unregister_window(HWND window)
     if (entry != last) *entry = *last;
 
     wined3d_wndproc_mutex_unlock();
+}
+
+void CDECL wined3d_strictdrawing_set(int value)
+{
+    wined3d_settings.strict_draw_ordering = value;
 }
 
 /* At process attach */

@@ -473,6 +473,7 @@ static inline const char *debugstr_optval(const char *optval, int optlenval)
 struct ws2_async_io
 {
     struct ws2_async_io *next;
+    DWORD                size;
 };
 
 struct ws2_async_shutdown
@@ -548,16 +549,30 @@ static struct ws2_async_io *alloc_async_io( DWORD size )
 {
     /* first free remaining previous fileinfos */
 
-    struct ws2_async_io *io = InterlockedExchangePointer( (void **)&async_io_freelist, NULL );
+    struct ws2_async_io *old_io = InterlockedExchangePointer( (void **)&async_io_freelist, NULL );
+    struct ws2_async_io *io = NULL;
 
-    while (io)
+    while (old_io)
     {
-        struct ws2_async_io *next = io->next;
-        HeapFree( GetProcessHeap(), 0, io );
-        io = next;
+        if (!io && old_io->size >= size && old_io->size <= max(4096, 4 * size))
+        {
+            io     = old_io;
+            size   = old_io->size;
+            old_io = old_io->next;
+        }
+        else
+        {
+            struct ws2_async_io *next = old_io->next;
+            HeapFree( GetProcessHeap(), 0, old_io );
+            old_io = next;
+        }
     }
 
-    return HeapAlloc( GetProcessHeap(), 0, size );
+    if (io || (io = HeapAlloc( GetProcessHeap(), 0, size )))
+    {
+        io->size = size;
+    }
+    return io;
 }
 
 /****************************************************************/
@@ -596,7 +611,7 @@ struct per_thread_data
 struct route {
     struct in_addr addr;
     IF_INDEX interface;
-    DWORD metric;
+    DWORD metric, default_route;
 };
 
 static INT num_startup;          /* reference counter */
@@ -1097,6 +1112,21 @@ static NTSTATUS _is_blocking(SOCKET s, BOOL *ret)
     return status;
 }
 
+static DWORD _get_connect_time(SOCKET s)
+{
+    NTSTATUS status;
+    DWORD connect_time = ~0u;
+    SERVER_START_REQ( get_socket_info )
+    {
+        req->handle  = wine_server_obj_handle( SOCKET2HANDLE(s) );
+        status = wine_server_call( req );
+        if (!status)
+            connect_time = reply->connect_time / -10000000;
+    }
+    SERVER_END_REQ;
+    return connect_time;
+}
+
 static unsigned int _get_sock_mask(SOCKET s)
 {
     unsigned int ret;
@@ -1532,13 +1562,24 @@ int WINAPI WSAStartup(WORD wVersionRequested, LPWSADATA lpWSAData)
  */
 INT WINAPI WSACleanup(void)
 {
-    if (num_startup) {
-        num_startup--;
-        TRACE("pending cleanups: %d\n", num_startup);
-        return 0;
+    if (!num_startup)
+    {
+        SetLastError(WSANOTINITIALISED);
+        return SOCKET_ERROR;
     }
-    SetLastError(WSANOTINITIALISED);
-    return SOCKET_ERROR;
+
+    if (!--num_startup)
+    {
+        wine_server_close_fds_by_type( FD_TYPE_SOCKET );
+        SERVER_START_REQ(socket_cleanup)
+        {
+            wine_server_call( req );
+        }
+        SERVER_END_REQ;
+    }
+
+    TRACE("pending cleanups: %d\n", num_startup);
+    return 0;
 }
 
 
@@ -2226,7 +2267,17 @@ static int WS2_recv( int fd, struct ws2_async *wsa, int flags )
 
     while ((n = recvmsg(fd, &hdr, flags)) == -1)
     {
-        if (errno != EINTR)
+        if (errno == EFAULT)
+        {
+            unsigned int i;
+            for (i = wsa->first_iovec; i < wsa->n_iovecs; i++)
+            {
+                struct iovec *iov = &wsa->iovec[i];
+                if (wine_uninterrupted_write_memory( iov->iov_base, NULL, iov->iov_len ) < iov->iov_len)
+                    return -1;
+            }
+        }
+        else if (errno != EINTR)
             return -1;
     }
 
@@ -2930,7 +2981,27 @@ static NTSTATUS WS2_transmitfile_base( int fd, struct ws2_transmitfile_async *ws
             return wsaErrStatus();
     }
 
-    return status;
+    if (status != STATUS_SUCCESS)
+        return status;
+
+    if (wsa->flags & TF_REUSE_SOCKET)
+    {
+        SERVER_START_REQ( reuse_socket )
+        {
+            req->handle = wine_server_obj_handle( wsa->write.hSocket );
+            status = wine_server_call( req );
+        }
+        SERVER_END_REQ;
+        if (status != STATUS_SUCCESS)
+            return status;
+    }
+    if (wsa->flags & TF_DISCONNECT)
+    {
+        /* we can't use WS_closesocket because it modifies the last error */
+        NtClose( SOCKET2HANDLE(wsa->write.hSocket) );
+    }
+
+    return STATUS_SUCCESS;
 }
 
 /***********************************************************************
@@ -2967,6 +3038,7 @@ static BOOL WINAPI WS2_TransmitFile( SOCKET s, HANDLE h, DWORD file_bytes, DWORD
                                      LPOVERLAPPED overlapped, LPTRANSMIT_FILE_BUFFERS buffers,
                                      DWORD flags )
 {
+    DWORD unsupported_flags = flags & ~(TF_DISCONNECT|TF_REUSE_SOCKET);
     union generic_unix_sockaddr uaddr;
     unsigned int uaddrlen = sizeof(uaddr);
     struct ws2_transmitfile_async *wsa;
@@ -2988,8 +3060,8 @@ static BOOL WINAPI WS2_TransmitFile( SOCKET s, HANDLE h, DWORD file_bytes, DWORD
         WSASetLastError( WSAENOTCONN );
         return FALSE;
     }
-    if (flags)
-        FIXME("Flags are not currently supported (0x%x).\n", flags);
+    if (unsupported_flags)
+        FIXME("Flags are not currently supported (0x%x).\n", unsupported_flags);
 
     if (h && GetFileType( h ) != FILE_TYPE_DISK)
     {
@@ -3552,6 +3624,24 @@ connection_success:
     return TRUE;
 }
 
+/***********************************************************************
+ *             DisconnectEx
+ */
+static BOOL WINAPI WS2_DisconnectEx( SOCKET s, LPOVERLAPPED ov, DWORD flags, DWORD reserved )
+{
+    FIXME( "socket %04lx, ov %p, flags 0x%x, reserved 0x%x: semi-stub\n", s, ov, flags, reserved );
+
+    if (flags & TF_REUSE_SOCKET)
+        FIXME( "Reusing sockets is not supported, problems ahead.\n" );
+
+    if (ov)
+    {
+        ov->Internal = STATUS_PENDING;
+        ov->InternalHigh = 0;
+    }
+
+    return !WS_shutdown( s, SD_BOTH );
+}
 
 /***********************************************************************
  *		getpeername		(WS2_32.5)
@@ -3736,6 +3826,14 @@ INT WINAPI WS_getsockopt(SOCKET s, INT level,
                 SetLastError(wsaErrno());
                 ret = SOCKET_ERROR;
             }
+        #ifdef __linux__
+            else if (optname == SO_RCVBUF || optname == SO_SNDBUF)
+            {
+                /* For SO_RCVBUF / SO_SNDBUF, the Linux kernel always sets twice the value.
+                 * Divide by two to ensure applications do not get confused by the result. */
+                *(int *)optval /= 2;
+            }
+        #endif
             release_sock_fd( s, fd );
             return ret;
         case WS_SO_ACCEPTCONN:
@@ -3855,7 +3953,6 @@ INT WINAPI WS_getsockopt(SOCKET s, INT level,
 
         case WS_SO_CONNECT_TIME:
         {
-            static int pretendtime = 0;
             struct WS_sockaddr addr;
             int len = sizeof(addr);
 
@@ -3867,10 +3964,7 @@ INT WINAPI WS_getsockopt(SOCKET s, INT level,
             if (WS_getpeername(s, &addr, &len) == SOCKET_ERROR)
                 *(DWORD *)optval = ~0u;
             else
-            {
-                if (!pretendtime) FIXME("WS_SO_CONNECT_TIME - faking results\n");
-                *(DWORD *)optval = pretendtime++;
-            }
+                *(DWORD *)optval = _get_connect_time(s);
             *optlen = sizeof(DWORD);
             return ret;
         }
@@ -4767,7 +4861,8 @@ INT WINAPI WSAIoctl(SOCKET s, DWORD code, LPVOID in_buff, DWORD in_size, LPVOID 
         }
         else if ( IsEqualGUID(&disconnectex_guid, in_buff) )
         {
-            FIXME("SIO_GET_EXTENSION_FUNCTION_POINTER: unimplemented DisconnectEx\n");
+            *(LPFN_DISCONNECTEX *)out_buff = WS2_DisconnectEx;
+            break;
         }
         else if ( IsEqualGUID(&acceptex_guid, in_buff) )
         {
@@ -6025,7 +6120,14 @@ struct WS_hostent* WINAPI WS_gethostbyaddr(const char *addr, int len, int type)
  */
 static int WS_compare_routes_by_metric_asc(const void *left, const void *right)
 {
-    return ((const struct route*)left)->metric - ((const struct route*)right)->metric;
+    const struct route *a = left, *b = right;
+    if (a->default_route && b->default_route)
+        return a->default_route - b->default_route;
+    if (a->default_route && !b->default_route)
+        return -1;
+    if (b->default_route && !a->default_route)
+        return 1;
+    return a->metric - b->metric;
 }
 
 /***********************************************************************
@@ -6042,7 +6144,7 @@ static int WS_compare_routes_by_metric_asc(const void *left, const void *right)
  */
 static struct WS_hostent* WS_get_local_ips( char *hostname )
 {
-    int numroutes = 0, i, j;
+    int numroutes = 0, i, j, default_routes = 0;
     DWORD n;
     PIP_ADAPTER_INFO adapters = NULL, k;
     struct WS_hostent *hostlist = NULL;
@@ -6069,10 +6171,13 @@ static struct WS_hostent* WS_get_local_ips( char *hostname )
     for (n = 0; n < routes->dwNumEntries; n++)
     {
         IF_INDEX ifindex;
-        DWORD ifmetric;
+        DWORD ifmetric, ifdefault = 0;
         BOOL exists = FALSE;
 
-        if (routes->table[n].u1.ForwardType != MIB_IPROUTE_TYPE_DIRECT)
+        /* Check if this is a default route (there may be more than one) */
+        if (!routes->table[n].dwForwardDest)
+            ifdefault = ++default_routes;
+        else if (routes->table[n].u1.ForwardType != MIB_IPROUTE_TYPE_DIRECT)
             continue;
         ifindex = routes->table[n].dwForwardIfIndex;
         ifmetric = routes->table[n].dwForwardMetric1;
@@ -6093,13 +6198,14 @@ static struct WS_hostent* WS_get_local_ips( char *hostname )
             goto cleanup; /* Memory allocation error, fail gracefully */
         route_addrs[numroutes].interface = ifindex;
         route_addrs[numroutes].metric = ifmetric;
+        route_addrs[numroutes].default_route = ifdefault;
         /* If no IP is found in the next step (for whatever reason)
          * then fall back to the magic loopback address.
          */
         memcpy(&(route_addrs[numroutes].addr.s_addr), magic_loopback_addr, 4);
         numroutes++;
     }
-   if (numroutes == 0)
+    if (numroutes == 0)
        goto cleanup; /* No routes, fall back to the Magic IP */
     /* Find the IP address associated with each found interface */
     for (i = 0; i < numroutes; i++)
@@ -6452,6 +6558,12 @@ int WINAPI WS_getaddrinfo(LPCSTR nodename, LPCSTR servname, const struct WS_addr
 
         else if (IS_IPX_PROTO(punixhints->ai_protocol) && punixhints->ai_socktype != SOCK_DGRAM)
             punixhints->ai_socktype = 0;
+
+        else if (punixhints->ai_protocol == IPPROTO_IPV6)
+        {
+            punixhints->ai_family = AF_INET6;
+            punixhints->ai_protocol = 0;
+        }
     }
 
     /* getaddrinfo(3) is thread safe, no need to wrap in CS */

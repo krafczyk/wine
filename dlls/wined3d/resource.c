@@ -50,7 +50,7 @@ static DWORD resource_access_from_pool(enum wined3d_pool pool)
 
 static void resource_check_usage(DWORD usage)
 {
-    static const DWORD handled = WINED3DUSAGE_RENDERTARGET
+    static DWORD handled = WINED3DUSAGE_RENDERTARGET
             | WINED3DUSAGE_DEPTHSTENCIL
             | WINED3DUSAGE_WRITEONLY
             | WINED3DUSAGE_DYNAMIC
@@ -67,7 +67,10 @@ static void resource_check_usage(DWORD usage)
      * driver. */
 
     if (usage & ~handled)
+    {
         FIXME("Unhandled usage flags %#x.\n", usage & ~handled);
+        handled |= usage;
+    }
     if ((usage & (WINED3DUSAGE_DYNAMIC | WINED3DUSAGE_WRITEONLY)) == WINED3DUSAGE_DYNAMIC)
         WARN_(d3d_perf)("WINED3DUSAGE_DYNAMIC used without WINED3DUSAGE_WRITEONLY.\n");
 }
@@ -302,7 +305,7 @@ void CDECL wined3d_resource_get_desc(const struct wined3d_resource *resource, st
     desc->size = resource->size;
 }
 
-HRESULT CDECL wined3d_resource_map(struct wined3d_resource *resource, unsigned int sub_resource_idx,
+HRESULT CDECL wined3d_resource_sub_resource_map(struct wined3d_resource *resource, unsigned int sub_resource_idx,
         struct wined3d_map_desc *map_desc, const struct wined3d_box *box, DWORD flags)
 {
     TRACE("resource %p, sub_resource_idx %u, map_desc %p, box %s, flags %#x.\n",
@@ -311,7 +314,7 @@ HRESULT CDECL wined3d_resource_map(struct wined3d_resource *resource, unsigned i
     return resource->resource_ops->resource_sub_resource_map(resource, sub_resource_idx, map_desc, box, flags);
 }
 
-HRESULT CDECL wined3d_resource_unmap(struct wined3d_resource *resource, unsigned int sub_resource_idx)
+HRESULT CDECL wined3d_resource_sub_resource_unmap(struct wined3d_resource *resource, unsigned int sub_resource_idx)
 {
     TRACE("resource %p, sub_resource_idx %u.\n", resource, sub_resource_idx);
 
