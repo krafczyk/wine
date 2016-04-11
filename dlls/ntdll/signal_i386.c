@@ -1675,13 +1675,13 @@ static BOOL check_atl_thunk( EXCEPTION_RECORD *rec, CONTEXT *context )
     union atl_thunk thunk_copy;
     SIZE_T thunk_len;
 
-    thunk_len = virtual_uninterrupted_read_memory( thunk, &thunk_copy, sizeof(*thunk) );
+    thunk_len = wine_uninterrupted_read_memory( thunk, &thunk_copy, sizeof(*thunk) );
     if (!thunk_len) return FALSE;
 
     if (thunk_len >= sizeof(thunk_copy.t1) && thunk_copy.t1.movl == 0x042444c7 &&
                                               thunk_copy.t1.jmp == 0xe9)
     {
-        if (virtual_uninterrupted_write_memory( (DWORD *)context->Esp + 1,
+        if (wine_uninterrupted_write_memory( (DWORD *)context->Esp + 1,
             &thunk_copy.t1.this, sizeof(DWORD) ) == sizeof(DWORD))
         {
             context->Eip = (DWORD_PTR)(&thunk->t1.func + 1) + thunk_copy.t1.func;
@@ -1725,11 +1725,11 @@ static BOOL check_atl_thunk( EXCEPTION_RECORD *rec, CONTEXT *context )
                                                    thunk_copy.t5.inst2 == 0x0460)
     {
         DWORD func, stack[2];
-        if (virtual_uninterrupted_read_memory( (DWORD *)context->Esp,
+        if (wine_uninterrupted_read_memory( (DWORD *)context->Esp,
             stack, sizeof(stack) ) == sizeof(stack) &&
-            virtual_uninterrupted_read_memory( (DWORD *)stack[1] + 1,
+            wine_uninterrupted_read_memory( (DWORD *)stack[1] + 1,
             &func, sizeof(DWORD) ) == sizeof(DWORD) &&
-            virtual_uninterrupted_write_memory( (DWORD *)context->Esp + 1,
+            wine_uninterrupted_write_memory( (DWORD *)context->Esp + 1,
             &stack[0], sizeof(stack[0]) ) == sizeof(stack[0]))
         {
             context->Ecx = stack[0];
@@ -2054,6 +2054,31 @@ static void usr2_handler( int signal, siginfo_t *siginfo, void *sigcontext )
 }
 #endif /* __HAVE_VM86 */
 
+
+/**********************************************************************
+ *    segv_handler_early
+ *
+ * Handler for SIGSEGV and related errors. Used only during the initialization
+ * of the process to handle virtual faults.
+ */
+static void segv_handler_early( int signal, siginfo_t *siginfo, void *sigcontext )
+{
+    WORD fs, gs;
+    ucontext_t *context = sigcontext;
+    init_handler( sigcontext, &fs, &gs );
+
+    switch(get_trap_code(context))
+    {
+    case TRAP_x86_PAGEFLT:  /* Page fault */
+        if (!virtual_handle_fault( siginfo->si_addr, (get_error_code(context) >> 1) & 0x09, TRUE ))
+            return;
+        /* fall-through */
+    default:
+        WINE_ERR( "Got unexpected trap %d during process initialization\n", get_trap_code(context) );
+        abort_thread(1);
+        break;
+    }
+}
 
 /**********************************************************************
  *		segv_handler
@@ -2394,11 +2419,17 @@ void signal_free_thread( TEB *teb )
     SIZE_T size;
     struct ntdll_thread_data *thread_data = (struct ntdll_thread_data *)teb->SpareBytes1;
 
-    if (thread_data) wine_ldt_free_fs( thread_data->fs );
+    wine_ldt_free_fs( thread_data->fs );
     if (teb->DeallocationStack)
     {
         size = 0;
         NtFreeVirtualMemory( GetCurrentProcess(), &teb->DeallocationStack, &size, MEM_RELEASE );
+    }
+    if ((ULONG_PTR)thread_data->pthread_stack & 1)
+    {
+        void *addr = (void *)((ULONG_PTR)thread_data->pthread_stack & ~1);
+        size = 0;
+        NtFreeVirtualMemory( GetCurrentProcess(), &addr, &size, MEM_RELEASE );
     }
     size = 0;
     NtFreeVirtualMemory( NtCurrentProcess(), (void **)&teb, &size, MEM_RELEASE );
@@ -2493,6 +2524,34 @@ void signal_init_process(void)
     exit(1);
 }
 
+/**********************************************************************
+ *    signal_init_early
+ */
+void signal_init_early(void)
+{
+    struct sigaction sig_act;
+
+    sig_act.sa_mask = server_block_set;
+    sig_act.sa_flags = SA_SIGINFO | SA_RESTART;
+#ifdef SA_ONSTACK
+    sig_act.sa_flags |= SA_ONSTACK;
+#endif
+#ifdef __ANDROID__
+    sig_act.sa_flags |= SA_RESTORER;
+    sig_act.sa_restorer = rt_sigreturn;
+#endif
+    sig_act.sa_sigaction = segv_handler_early;
+    if (sigaction( SIGSEGV, &sig_act, NULL ) == -1) goto error;
+    if (sigaction( SIGILL, &sig_act, NULL ) == -1) goto error;
+#ifdef SIGBUS
+    if (sigaction( SIGBUS, &sig_act, NULL ) == -1) goto error;
+#endif
+    return;
+
+error:
+    perror("sigaction");
+    exit(1);
+}
 
 #ifdef __HAVE_VM86
 /**********************************************************************
@@ -2644,7 +2703,8 @@ DEFINE_REGS_ENTRYPOINT( RtlUnwind, 4 )
 /*******************************************************************
  *		NtRaiseException (NTDLL.@)
  */
-NTSTATUS WINAPI NtRaiseException( EXCEPTION_RECORD *rec, CONTEXT *context, BOOL first_chance )
+DEFINE_SYSCALL_ENTRYPOINT( NtRaiseException, 3 );
+NTSTATUS WINAPI SYSCALL(NtRaiseException)( EXCEPTION_RECORD *rec, CONTEXT *context, BOOL first_chance )
 {
     NTSTATUS status = raise_exception( rec, context, first_chance );
     if (status == STATUS_SUCCESS)
@@ -2740,7 +2800,7 @@ __ASM_GLOBAL_FUNC(call_thread_func_wrapper,
                   __ASM_CFI(".cfi_rel_offset %ebp,0\n\t")
                   "movl %esp,%ebp\n\t"
                   __ASM_CFI(".cfi_def_cfa_register %ebp\n\t")
-                  "subl $4,%esp\n\t"
+                  "subl $20,%esp\n\t"
                   "pushl 12(%ebp)\n\t"
                   "call *8(%ebp)\n\t"
                   "leal -4(%ebp),%esp\n\t"
@@ -2882,5 +2942,13 @@ __ASM_GLOBAL_FUNC(call_exception_handler,
                    __ASM_CFI(".cfi_def_cfa %esp,4\n\t")
                    __ASM_CFI(".cfi_same_value %ebp\n\t")
                   "ret $20" )            /* (*4) */
+
+/**********************************************************************
+ *    call_syscall_func   (internal)
+ */
+__ASM_GLOBAL_FUNC( call_syscall_func,
+                   "addl $4,%esp\n\t"
+                   "jmp *%eax\n\t"
+                   "ret" )
 
 #endif  /* __i386__ */

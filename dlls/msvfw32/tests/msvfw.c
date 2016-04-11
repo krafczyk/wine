@@ -202,6 +202,11 @@ static void test_Locate(void)
         todo_wine ok(err == ICERR_OK, "Query MSVC->RGB16 height<0: %d\n", err);
         bo.biHeight = -bo.biHeight;
 
+        bo.biBitCount = 24;
+        err = ICDecompressQuery(h, &bi, &bo);
+        ok(err == ICERR_OK, "Query MSVC 16->24: %d\n", err);
+        bo.biBitCount = 16;
+
         bi.biCompression = mmioFOURCC('m','s','v','c');
         err = ICDecompressQuery(h, &bi, &bo);
         ok(err == ICERR_BADFORMAT, "Query msvc->RGB16: %d\n", err);
@@ -285,9 +290,268 @@ static void test_ICSeqCompress(void)
     ok(err == ICERR_BADHANDLE, "Expected -8, got %d\n", err);
 }
 
+struct msg_result
+{
+    int msg_index;
+    UINT msg;
+    BOOL output_format;
+    int width;
+    int height;
+    int bits;
+    int compression;
+    LRESULT result;
+    BOOL todo;
+};
+
+static struct msg_result expected_msgs[] =
+{
+    /* Wine bug - shouldn't be called */
+    { 0,  DRV_LOAD,                   FALSE,   0,   0,  0,            0,              TRUE, TRUE},
+    { 0,  DRV_ENABLE,                 FALSE,   0,   0,  0,            0,                 0, TRUE},
+
+    { 0,  DRV_OPEN,                   FALSE,   0,   0,  0,            0,        0xdeadbeef, FALSE},
+
+    /* test 1 */
+    { 1,  ICM_DECOMPRESS_QUERY,       FALSE,   0,   0,  0,            0,          ICERR_OK, FALSE},
+    { 2,  ICM_DECOMPRESS_GET_FORMAT,  TRUE,  320, 240, 16,       BI_RGB,   ICERR_BADFORMAT, FALSE},
+    { 3,  ICM_DECOMPRESS_QUERY,       TRUE,  640, 480,  8,       BI_RGB,   ICERR_BADFORMAT, FALSE},
+    { 4,  ICM_DECOMPRESS_QUERY,       TRUE,  640, 480, 16,       BI_RGB,   ICERR_BADFORMAT, FALSE},
+    { 5,  ICM_DECOMPRESS_QUERY,       TRUE,  640, 480, 16, BI_BITFIELDS,   ICERR_BADFORMAT, FALSE},
+    { 6,  ICM_DECOMPRESS_QUERY,       TRUE,  640, 480, 24,       BI_RGB,   ICERR_BADFORMAT, FALSE},
+    { 7,  ICM_DECOMPRESS_QUERY,       TRUE,  640, 480, 32,       BI_RGB,   ICERR_BADFORMAT, FALSE},
+    { 8,  ICM_DECOMPRESS_GET_FORMAT,  TRUE,  640, 480, 32,       BI_RGB,          ICERR_OK, FALSE},
+
+    /* test 2 */
+    { 9,  ICM_DECOMPRESS_QUERY,       FALSE,   0,   0,  0,            0,          ICERR_OK, FALSE},
+    {10,  ICM_DECOMPRESS_GET_FORMAT,  TRUE,  320, 240, 16,       BI_RGB,   ICERR_BADFORMAT, FALSE},
+    {11,  ICM_DECOMPRESS_QUERY,       TRUE,  640, 480,  8,       BI_RGB,   ICERR_BADFORMAT, FALSE},
+    {12,  ICM_DECOMPRESS_QUERY,       TRUE,  640, 480, 16,       BI_RGB,          ICERR_OK, FALSE},
+
+    /* test 3 */
+    {13,  ICM_DECOMPRESS_QUERY,       FALSE,   0,   0,  0,            0,          ICERR_OK, FALSE},
+    {14,  ICM_DECOMPRESS_GET_FORMAT,  TRUE,  320, 240, 16,       BI_RGB,          ICERR_OK, FALSE},
+    {15,  ICM_DECOMPRESS_QUERY,       TRUE,  640, 480,  8,       BI_RGB,   ICERR_BADFORMAT, FALSE},
+    {16,  ICM_DECOMPRESS_QUERY,       TRUE,  640, 480, 16,       BI_RGB,          ICERR_OK, FALSE},
+
+    /* test 4 */
+    {17,  ICM_DECOMPRESS_QUERY,       FALSE,   0,   0,  0,            0,          ICERR_OK, FALSE},
+    {18,  ICM_DECOMPRESS_GET_FORMAT,  TRUE,  320, 240, 16,       BI_RGB,   ICERR_BADFORMAT, FALSE},
+    {19,  ICM_DECOMPRESS_QUERY,       TRUE,  640, 480, 24,       BI_RGB,   ICERR_BADFORMAT, FALSE},
+    {20,  ICM_DECOMPRESS_QUERY,       TRUE,  640, 480, 32,       BI_RGB,   ICERR_BADFORMAT, FALSE},
+    {21,  ICM_DECOMPRESS_GET_FORMAT,  TRUE,  640, 480, 32,       BI_RGB,          ICERR_OK, FALSE},
+
+    /* test 5 */
+    {22,  ICM_DECOMPRESS_QUERY,       FALSE,   0,   0,  0,            0,          ICERR_OK, FALSE},
+    {23,  ICM_DECOMPRESS_GET_FORMAT,  TRUE,  320, 240, 16,       BI_RGB,          ICERR_OK, FALSE},
+    {24,  ICM_DECOMPRESS_QUERY,       TRUE,  640, 480, 32,       BI_RGB,          ICERR_OK, FALSE},
+
+    /* test 6 */
+    {25,  ICM_DECOMPRESS_QUERY,       FALSE,   0,   0,  0,            0,          ICERR_OK, FALSE},
+    {26,  ICM_DECOMPRESS_GET_FORMAT,  TRUE,  320, 240, 16,       BI_RGB,          ICERR_OK, FALSE},
+    {27,  ICM_DECOMPRESS_QUERY,       TRUE,  640, 480, 32,       BI_RGB,          ICERR_OK, FALSE},
+
+    /* test 7 */
+    {28,  ICM_DECOMPRESS_QUERY,       FALSE,   0,   0,  0,            0,          ICERR_OK, FALSE},
+    {29,  ICM_DECOMPRESS_GET_FORMAT,  TRUE,  320, 240, 16,       BI_RGB,          ICERR_OK, FALSE},
+    {30,  ICM_DECOMPRESS_QUERY,       TRUE,  640, 480,  9,       BI_RGB,   ICERR_BADFORMAT, FALSE},
+    {31,  ICM_DECOMPRESS_QUERY,       TRUE,  640, 480, 32,       BI_RGB,   ICERR_BADFORMAT, FALSE},
+    {32,  ICM_DECOMPRESS_GET_FORMAT,  TRUE,  640, 480, 32,       BI_RGB,          ICERR_OK, FALSE},
+
+    /* test 8 */
+    {33,  ICM_DECOMPRESS_QUERY,       FALSE,   0,   0,  0,            0,          ICERR_OK, FALSE},
+    {34,  ICM_DECOMPRESS_GET_FORMAT,  TRUE,  320, 240, 16,       BI_RGB,          ICERR_OK, FALSE},
+    {35,  ICM_DECOMPRESS_QUERY,       TRUE,  800, 600, 32,       BI_RGB,          ICERR_OK, FALSE},
+
+    /* test 9 */
+    {36,  ICM_DECOMPRESS_QUERY,       FALSE,   0,   0,  0,            0,          ICERR_OK, FALSE},
+    {37,  ICM_DECOMPRESS_GET_FORMAT,  TRUE,  320, 240, 16,       BI_RGB,          ICERR_OK, FALSE},
+    {38,  ICM_DECOMPRESS_QUERY,       TRUE,  640, 480, 32,       BI_RGB,          ICERR_OK, FALSE},
+
+    /* test 10 */
+    {39,  ICM_DECOMPRESS_QUERY,       FALSE,   0,   0,  0,            0,          ICERR_OK, FALSE},
+    {40,  ICM_DECOMPRESS_GET_FORMAT,  TRUE,  320, 240, 16,       BI_RGB,          ICERR_OK, FALSE},
+    {41,  ICM_DECOMPRESS_QUERY,       TRUE,  640, 480, 32,       BI_RGB,          ICERR_OK, FALSE},
+
+    /* Wine bug - shouldn't be called */
+    {42,  DRV_DISABLE,                FALSE,   0,   0,  0,            0,          ICERR_OK, TRUE},
+    {42,  DRV_FREE,                   FALSE,   0,   0,  0,            0,          ICERR_OK, TRUE},
+};
+
+static int msg_index = 0;
+
+static struct msg_result *get_expected_msg(UINT msg)
+{
+    int i = 0;
+    for(; i < sizeof(expected_msgs) / sizeof(expected_msgs[0]); i++)
+    {
+        if (expected_msgs[i].msg_index == msg_index && expected_msgs[i].msg == msg)
+            return &expected_msgs[i];
+    }
+    return NULL;
+}
+
+LRESULT WINAPI driver_proc_test(DWORD_PTR dwDriverId, HDRVR hdrvr, UINT msg,
+                                LPARAM lParam1, LPARAM lParam2)
+{
+    struct msg_result *expected = get_expected_msg(msg);
+    LRESULT res = expected ? expected->result : ICERR_UNSUPPORTED;
+
+    if (msg == DRV_CLOSE)
+        return ICERR_OK;
+
+    if (!expected)
+    {
+        ok(0, "unexpected message: %04x %ld %ld at msg index %d\n",
+           msg, lParam1, lParam2, msg_index);
+        return ICERR_UNSUPPORTED;
+    }
+    else if (expected->todo)
+    {
+        todo_wine ok(0, "unexpected message: %04x %ld %ld at msg index %d\n",
+                     msg, lParam1, lParam2, msg_index);
+        return res;
+    }
+
+    switch (msg)
+    {
+        case ICM_DECOMPRESS_QUERY:
+        {
+            BITMAPINFOHEADER *out = (BITMAPINFOHEADER *)lParam2;
+
+            if (!lParam2)
+            {
+                trace("query -> without format\n");
+                ok(!expected->output_format, "Expected no output format pointer\n");
+                break;
+            }
+
+            ok(expected->output_format, "Expected output format pointer\n");
+            ok(out->biWidth == expected->width,
+               "Expected width %d, got %d\n", expected->width, out->biWidth);
+            ok(out->biHeight == expected->height,
+               "Expected height %d, got %d\n", expected->height, out->biHeight);
+            ok(out->biBitCount == expected->bits,
+               "Expected biBitCount %d, got %d\n", expected->bits, out->biBitCount);
+            ok(out->biCompression == expected->compression,
+               "Expected compression %d, got %d\n", expected->compression, out->biCompression);
+            ok(out->biSizeImage == (out->biWidth * out->biHeight * out->biBitCount) / 8,
+               "Expected biSizeImage %d, got %d\n", (out->biWidth * out->biHeight * out->biBitCount) / 8,
+                out->biSizeImage);
+
+            trace("query -> width: %d, height: %d, bit: %d, compression: %d, size: %d\n",
+                  out->biWidth, out->biHeight, out->biBitCount, out->biCompression, out->biSizeImage);
+            break;
+        }
+
+        case ICM_DECOMPRESS_GET_FORMAT:
+        {
+            BITMAPINFOHEADER *out = (BITMAPINFOHEADER *)lParam2;
+
+            if (!lParam2)
+            {
+                trace("format -> without format\n");
+                ok(!expected->output_format, "Expected no output format pointer\n");
+                break;
+            }
+
+            ok(expected->output_format, "Expected output format pointer\n");
+            ok(out->biWidth == expected->width,
+               "Expected width %d, got %d\n", expected->width, out->biWidth);
+            ok(out->biHeight == expected->height,
+               "Expected height %d, got %d\n", expected->height, out->biHeight);
+            ok(out->biBitCount == expected->bits,
+               "Expected biBitCount %d, got %d\n", expected->bits, out->biBitCount);
+            ok(out->biCompression == expected->compression,
+               "Expected compression %d, got %d\n", expected->compression, out->biCompression);
+
+            trace("format -> width: %d, height: %d, bit: %d, compression: %d, size: %d\n",
+                  out->biWidth, out->biHeight, out->biBitCount, out->biCompression, out->biSizeImage);
+
+            out->biBitCount = 64;
+            break;
+        }
+    }
+
+    msg_index++;
+    return res;
+}
+
+
+void test_ICGetDisplayFormat(void)
+{
+    static const struct
+    {
+        int bits_wanted;
+        int bits_expected;
+        int dx;
+        int width_expected;
+        int dy;
+        int height_expected;
+        int msg_index;
+    }
+    tests[] =
+    {
+        { 8, 64,   0, 640,   0, 480, 9},
+        { 8, 16,   0, 640,   0, 480, 13},
+        { 8, 16,   0, 640,   0, 480, 17},
+        {24, 64,   0, 640,   0, 480, 22},
+        {32, 32,   0, 640,   0, 480, 25},
+        { 0, 32,   0, 640,   0, 480, 28},
+        { 9, 64,   0, 640,   0, 480, 33},
+        {32, 32, 800, 800, 600, 600, 36},
+        {32, 32,  -1, 640,  -1, 480, 39},
+        {32, 32, -90, 640, -60, 480, 42},
+    };
+
+    HIC ic, ic2;
+    BITMAPINFOHEADER in;
+    BITMAPINFOHEADER out;
+    int real_depth;
+    int i;
+
+    ic = ICOpenFunction(ICTYPE_VIDEO, 0xdeadbeef, ICMODE_DECOMPRESS, driver_proc_test);
+    ok(!!ic, "Opening driver failed\n");
+
+    for (i = 0; i < sizeof(tests) / sizeof(tests[0]); i++)
+    {
+        memset(&in, 0, sizeof(in));
+        memset(&out, 0, sizeof(out));
+
+        in.biSize = sizeof(in);
+        in.biWidth = 640;
+        in.biHeight = 480;
+        in.biPlanes = 1;
+        in.biBitCount = 32;
+        in.biCompression = BI_PNG;
+        in.biSizeImage = 1024;
+
+        out.biBitCount = 16;
+        out.biWidth = 320;
+        out.biHeight = 240;
+
+        ic2 = ICGetDisplayFormat(ic, &in, &out, tests[i].bits_wanted, tests[i].dx, tests[i].dy);
+        ok(!!ic2, "Expected ICGetDisplayFormat to succeeded\n");
+
+        ok(out.biBitCount == tests[i].bits_expected,
+           "Expected biBitCount %d, got %d\n", tests[i].bits_expected, out.biBitCount);
+        ok(out.biWidth == tests[i].width_expected,
+           "Expected biWidth %d, got %d\n", tests[i].width_expected, out.biWidth);
+        ok(out.biHeight == tests[i].height_expected,
+           "Expected biHeight %d, got %d\n", tests[i].height_expected, out.biHeight);
+        real_depth = (out.biBitCount > 32) ? 4 : out.biBitCount / 8;
+        ok(out.biSizeImage == out.biWidth * out.biHeight * real_depth,
+           "Expected biSizeImage %d, got %d\n", out.biWidth * out.biHeight * real_depth, out.biSizeImage);
+        ok(msg_index == tests[i].msg_index,
+           "Expected msg_index %d, got %d\n", tests[i].msg_index, msg_index);
+    }
+
+    ICClose(ic);
+}
+
 START_TEST(msvfw)
 {
     test_OpenCase();
     test_Locate();
     test_ICSeqCompress();
+    test_ICGetDisplayFormat();
 }
