@@ -392,6 +392,7 @@ static BOOL UNIXFS_get_unix_path(LPCWSTR pszDosPath, char *pszCanonicalPath)
     BOOL has_failed = FALSE;
     WCHAR wszDrive[] = { '?', ':', '\\', 0 }, dospath[MAX_PATH], *dospath_end;
     int cDriveSymlinkLen;
+    BOOL is_wow64;
     void *redir;
 
     TRACE("(pszDosPath=%s, pszCanonicalPath=%p)\n", debugstr_w(pszDosPath), pszCanonicalPath);
@@ -408,13 +409,14 @@ static BOOL UNIXFS_get_unix_path(LPCWSTR pszDosPath, char *pszCanonicalPath)
     HeapFree(GetProcessHeap(), 0, pszUnixPath);
     if (!pElement) return FALSE;
     if (szPath[strlen(szPath)-1] != '/') strcat(szPath, "/");
+    if (!IsWow64Process(GetCurrentProcess(), &is_wow64)) is_wow64 = FALSE;
 
     /* Append the part relative to the drive symbolic link target. */
     lstrcpyW(dospath, pszDosPath);
     dospath_end = dospath + lstrlenW(dospath);
     /* search for the most valid UNIX path possible, then append missing
      * path parts */
-    Wow64DisableWow64FsRedirection(&redir);
+    if(is_wow64) Wow64DisableWow64FsRedirection(&redir);
     while(!(pszUnixPath = wine_get_unix_file_name(dospath))){
         if(has_failed){
             *dospath_end = '/';
@@ -428,7 +430,7 @@ static BOOL UNIXFS_get_unix_path(LPCWSTR pszDosPath, char *pszCanonicalPath)
         }
         *dospath_end = '\0';
     }
-    Wow64RevertWow64FsRedirection(redir);
+    if(is_wow64) Wow64RevertWow64FsRedirection(redir);
     if(dospath_end < dospath)
         return FALSE;
     strcat(szPath, pszUnixPath + cDriveSymlinkLen);
@@ -847,7 +849,7 @@ static HRESULT UNIXFS_copy(LPCWSTR pwszDosSrc, LPCWSTR pwszDosDst)
         op.pFrom = pwszSrc;
         op.pTo = pwszDst;
         op.fFlags = FOF_ALLOWUNDO;
-        if (!SHFileOperationW(&op))
+        if (SHFileOperationW(&op))
         {
             WARN("SHFileOperationW failed\n");
             res = E_FAIL;
@@ -1143,8 +1145,10 @@ static HRESULT WINAPI ShellFolder2_GetAttributesOf(IShellFolder2* iface, UINT ci
             SFGAO_HASPROPSHEET | SFGAO_DROPTARGET | SFGAO_FILESYSTEM;
         lstrcpyA(szAbsolutePath, This->m_pszPath);
         pszRelativePath = szAbsolutePath + lstrlenA(szAbsolutePath);
-        for (i=0; i<cidl; i++) {
-            if (!(This->m_dwAttributes & SFGAO_FILESYSTEM)) {
+        for (i=0; i<cidl; i++)
+        {
+            if (!(This->m_dwAttributes & SFGAO_FILESYSTEM))
+            {
                 WCHAR *dos_name;
                 if (!UNIXFS_filename_from_shitemid(apidl[i], pszRelativePath)) 
                     return E_INVALIDARG;
@@ -1154,8 +1158,23 @@ static HRESULT WINAPI ShellFolder2_GetAttributesOf(IShellFolder2* iface, UINT ci
                     HeapFree( GetProcessHeap(), 0, dos_name );
             }
             if (_ILIsFolder(apidl[i])) 
-                *attrs |= SFGAO_FOLDER | SFGAO_HASSUBFOLDER | SFGAO_FILESYSANCESTOR |
-                    SFGAO_STORAGEANCESTOR | SFGAO_STORAGE;
+            {
+                IEnumIDList *enum_list;
+                IShellFolder2 *child;
+
+                *attrs |= SFGAO_FOLDER | SFGAO_FILESYSANCESTOR | SFGAO_STORAGEANCESTOR | SFGAO_STORAGE;
+
+                if (SUCCEEDED(IShellFolder2_BindToObject(iface, apidl[i], NULL, &IID_IShellFolder2, (void **)&child)))
+                {
+                    if (IShellFolder2_EnumObjects(child, NULL, SHCONTF_FOLDERS|SHCONTF_INCLUDEHIDDEN, &enum_list) == S_OK)
+                    {
+                        if (IEnumIDList_Skip(enum_list, 1) == S_OK)
+                            *attrs |= SFGAO_HASSUBFOLDER;
+                        IEnumIDList_Release(enum_list);
+                    }
+                    IShellFolder2_Release(child);
+                }
+            }
             else
                 *attrs |= SFGAO_STREAM;
         }
@@ -1939,7 +1958,7 @@ static HRESULT WINAPI SFHelper_AddFolder(ISFHelper* iface, HWND hwnd, LPCWSTR pw
  * be converted, S_FALSE is returned. In such situation DeleteItems will try to delete
  * the files using syscalls
  */
-static HRESULT UNIXFS_delete_with_shfileop(UnixFolder *This, UINT cidl, const LPCITEMIDLIST *apidl)
+static HRESULT UNIXFS_delete_with_shfileop(UnixFolder *This, UINT cidl, const LPCITEMIDLIST *apidl, BOOL confirm)
 {
     char szAbsolute[FILENAME_MAX], *pszRelative;
     LPWSTR wszPathsList, wszListPos;
@@ -1981,7 +2000,8 @@ static HRESULT UNIXFS_delete_with_shfileop(UnixFolder *This, UINT cidl, const LP
     op.wFunc = FO_DELETE;
     op.pFrom = wszPathsList;
     op.fFlags = FOF_ALLOWUNDO;
-    if (!SHFileOperationW(&op))
+    if (!confirm) op.fFlags |= FOF_NOCONFIRMATION;
+    if (SHFileOperationW(&op))
     {
         WARN("SHFileOperationW failed\n");
         ret = E_FAIL;
@@ -2019,7 +2039,7 @@ static HRESULT UNIXFS_delete_with_syscalls(UnixFolder *This, UINT cidl, const LP
     return S_OK;
 }
 
-static HRESULT WINAPI SFHelper_DeleteItems(ISFHelper* iface, UINT cidl, LPCITEMIDLIST* apidl)
+static HRESULT WINAPI SFHelper_DeleteItems(ISFHelper *iface, UINT cidl, LPCITEMIDLIST *apidl, BOOL confirm)
 {
     UnixFolder *This = impl_from_ISFHelper(iface);
     char szAbsolute[FILENAME_MAX], *pszRelative;
@@ -2030,7 +2050,7 @@ static HRESULT WINAPI SFHelper_DeleteItems(ISFHelper* iface, UINT cidl, LPCITEMI
     
     TRACE("(%p)->(%d %p)\n", This, cidl, apidl);
 
-    hr = UNIXFS_delete_with_shfileop(This, cidl, apidl);
+    hr = UNIXFS_delete_with_shfileop(This, cidl, apidl, confirm);
     if (hr == S_FALSE)
         hr = UNIXFS_delete_with_syscalls(This, cidl, apidl);
 

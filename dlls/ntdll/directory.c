@@ -23,6 +23,12 @@
 #include "config.h"
 #include "wine/port.h"
 
+/* The FreeBSD implementation to enumerate directory content is completely
+ * broken, which causes test failures in kernel32/file and ntdll/directory
+ * tests, and also causes bug 35397. Fallback to the POSIX implementation
+ * until this issue is fixed. */
+#undef HAVE_GETDIRENTRIES
+
 #include <assert.h>
 #include <sys/types.h>
 #ifdef HAVE_DIRENT_H
@@ -87,6 +93,9 @@
 #endif
 #ifdef HAVE_SYS_STATFS_H
 #include <sys/statfs.h>
+#endif
+#ifdef HAVE_TERMIOS_H
+# include <termios.h>
 #endif
 #include <time.h>
 #ifdef HAVE_UNISTD_H
@@ -178,6 +187,7 @@ union file_directory_info
     FILE_FULL_DIRECTORY_INFORMATION    full;
     FILE_ID_BOTH_DIRECTORY_INFORMATION id_both;
     FILE_ID_FULL_DIRECTORY_INFORMATION id_full;
+    FILE_NAMES_INFORMATION names;
 };
 
 static BOOL show_dot_files;
@@ -260,6 +270,8 @@ static inline unsigned int dir_info_size( FILE_INFORMATION_CLASS class, unsigned
         return (FIELD_OFFSET( FILE_ID_BOTH_DIRECTORY_INFORMATION, FileName[len] ) + 7) & ~7;
     case FileIdFullDirectoryInformation:
         return (FIELD_OFFSET( FILE_ID_FULL_DIRECTORY_INFORMATION, FileName[len] ) + 7) & ~7;
+    case FileNamesInformation:
+        return (FIELD_OFFSET( FILE_NAMES_INFORMATION, FileName[len] ) + 7) & ~7;
     default:
         assert(0);
         return 0;
@@ -326,6 +338,24 @@ static void flush_dir_queue(void)
     }
 }
 
+#ifdef linux
+/* Serial port device files almost always exist on Linux even if the corresponding serial
+ * ports don't exist. Do a basic functionality check before advertising a serial port. */
+static BOOL is_serial_device( const char *unix_name )
+{
+    struct termios tios;
+    BOOL ret = FALSE;
+    int fd;
+
+    if ((fd = open( unix_name, O_RDONLY )) != -1)
+    {
+        ret = tcgetattr( fd, &tios ) != -1;
+        close( fd );
+    }
+
+    return ret;
+}
+#endif
 
 /***********************************************************************
  *           get_default_com_device
@@ -341,6 +371,11 @@ static char *get_default_com_device( int num )
     ret = RtlAllocateHeap( GetProcessHeap(), 0, sizeof("/dev/ttyS256") );
     if (!ret) return NULL;
     sprintf( ret, "/dev/ttyS%d", num - 1 );
+    if (!is_serial_device( ret ))
+    {
+        RtlFreeHeap( GetProcessHeap(), 0, ret );
+        ret = NULL;
+    }
 #elif defined(__FreeBSD__) || defined(__FreeBSD_kernel__)
     ret = RtlAllocateHeap( GetProcessHeap(), 0, sizeof("/dev/cuau256") );
     if (!ret) return NULL;
@@ -1209,17 +1244,17 @@ static DWORD WINAPI init_options( RTL_RUN_ONCE *once, void *param, void **contex
  *
  * Check if the specified file should be hidden based on its name and the show dot files option.
  */
-BOOL DIR_is_hidden_file( const UNICODE_STRING *name )
+BOOL DIR_is_hidden_file( const char *name )
 {
-    WCHAR *p, *end;
+    char *p, *end;
 
     RtlRunOnceExecuteOnce( &init_once, init_options, NULL, NULL );
 
     if (show_dot_files) return FALSE;
 
-    end = p = name->Buffer + name->Length/sizeof(WCHAR);
-    while (p > name->Buffer && IS_SEPARATOR(p[-1])) p--;
-    while (p > name->Buffer && !IS_SEPARATOR(p[-1])) p--;
+    end = p = (char *)name + strlen(name);
+    while (p > name && IS_SEPARATOR(p[-1])) p--;
+    while (p > name && !IS_SEPARATOR(p[-1])) p--;
     if (p == end || *p != '.') return FALSE;
     /* make sure it isn't '.' or '..' */
     if (p + 1 == end) return FALSE;
@@ -1434,9 +1469,6 @@ static union file_directory_info *append_entry( void *info_ptr, IO_STATUS_BLOCK 
         TRACE( "ignoring file %s\n", long_name );
         return NULL;
     }
-    if (!show_dot_files && long_name[0] == '.' && long_name[1] && (long_name[1] != '.' || long_name[2]))
-        attributes |= FILE_ATTRIBUTE_HIDDEN;
-
     total_len = dir_info_size( class, long_len );
     if (io->Information + total_len > max_length)
     {
@@ -1483,6 +1515,11 @@ static union file_directory_info *append_entry( void *info_ptr, IO_STATUS_BLOCK 
         for (i = 0; i < short_len; i++) info->id_both.ShortName[i] = toupperW(short_nameW[i]);
         info->id_both.FileNameLength = long_len * sizeof(WCHAR);
         filename = info->id_both.FileName;
+        break;
+
+    case FileNamesInformation:
+        info->names.FileNameLength = long_len * sizeof(WCHAR);
+        filename = info->names.FileName;
         break;
 
     default:
@@ -2244,6 +2281,7 @@ NTSTATUS WINAPI NtQueryDirectoryFile( HANDLE handle, HANDLE event,
     case FileFullDirectoryInformation:
     case FileIdBothDirectoryInformation:
     case FileIdFullDirectoryInformation:
+    case FileNamesInformation:
         if (length < dir_info_size( info_class, 1 )) return STATUS_INFO_LENGTH_MISMATCH;
         if (!buffer) return STATUS_ACCESS_VIOLATION;
         break;
@@ -3106,6 +3144,7 @@ NTSTATUS CDECL wine_nt_to_unix_file_name( const UNICODE_STRING *nameW, ANSI_STRI
                                           UINT disposition, BOOLEAN check_case )
 {
     static const WCHAR unixW[] = {'u','n','i','x'};
+    static const WCHAR pipeW[] = {'p','i','p','e'};
     static const WCHAR invalid_charsW[] = { INVALID_NT_CHARS, 0 };
 
     NTSTATUS status = STATUS_SUCCESS;
@@ -3116,6 +3155,7 @@ NTSTATUS CDECL wine_nt_to_unix_file_name( const UNICODE_STRING *nameW, ANSI_STRI
     int pos, ret, name_len, unix_len, prefix_len, used_default;
     WCHAR prefix[MAX_DIR_ENTRY_LEN];
     BOOLEAN is_unix = FALSE;
+    BOOLEAN is_pipe = FALSE;
 
     name     = nameW->Buffer;
     name_len = nameW->Length / sizeof(WCHAR);
@@ -3149,13 +3189,17 @@ NTSTATUS CDECL wine_nt_to_unix_file_name( const UNICODE_STRING *nameW, ANSI_STRI
     name += prefix_len;
     name_len -= prefix_len;
 
-    /* check for invalid characters (all chars except 0 are valid for unix) */
-    is_unix = (prefix_len == 4 && !memcmp( prefix, unixW, sizeof(unixW) ));
-    if (is_unix)
+    /* check for invalid characters (all chars except 0 are valid for unix and pipes) */
+    if (prefix_len == 4)
+    {
+        is_unix = !memcmp( prefix, unixW, sizeof(unixW) );
+        is_pipe = !memcmp( prefix, pipeW, sizeof(pipeW) );
+    }
+    if (is_unix || is_pipe)
     {
         for (p = name; p < name + name_len; p++)
             if (!*p) return STATUS_OBJECT_NAME_INVALID;
-        check_case = TRUE;
+        check_case |= is_unix;
     }
     else
     {

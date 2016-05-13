@@ -325,8 +325,9 @@ BOOL WINAPI AreFileApisANSI(void)
 static void WINAPI FILE_ReadWriteApc(void* apc_user, PIO_STATUS_BLOCK io_status, ULONG reserved)
 {
     LPOVERLAPPED_COMPLETION_ROUTINE  cr = apc_user;
-
-    cr(RtlNtStatusToDosError(io_status->u.Status), io_status->Information, (LPOVERLAPPED)io_status);
+    NTSTATUS status = io_status->u.Status;
+    if (status == STATUS_BUFFER_OVERFLOW) status = STATUS_SUCCESS;
+    cr(RtlNtStatusToDosError(status), io_status->Information, (LPOVERLAPPED)io_status);
 }
 
 
@@ -358,7 +359,7 @@ BOOL WINAPI ReadFileEx(HANDLE hFile, LPVOID buffer, DWORD bytesToRead,
     status = NtReadFile(hFile, NULL, FILE_ReadWriteApc, lpCompletionRoutine,
                         io_status, buffer, bytesToRead, &offset, NULL);
 
-    if (status && status != STATUS_PENDING)
+    if (status && status != STATUS_PENDING && status != STATUS_BUFFER_OVERFLOW)
     {
         SetLastError( RtlNtStatusToDosError(status) );
         return FALSE;
@@ -1067,8 +1068,7 @@ BOOL WINAPI SetEndOfFile( HANDLE hFile )
 BOOL WINAPI SetFileCompletionNotificationModes( HANDLE handle, UCHAR flags )
 {
     FIXME("%p %x - stub\n", handle, flags);
-    SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-    return FALSE;
+    return TRUE;
 }
 
 
@@ -2012,10 +2012,30 @@ HANDLE WINAPI FindFirstFileExW( LPCWSTR filename, FINDEX_INFO_LEVELS level,
     }
     else
     {
+        static const WCHAR invalidW[] = { '<', '>', '\"', 0 };
+        static const WCHAR wildcardW[] = { '*', 0 };
+        DWORD mask_len;
+
         if (!RtlCreateUnicodeString( &info->mask, mask ))
         {
             SetLastError( ERROR_NOT_ENOUGH_MEMORY );
             goto error;
+        }
+
+        /* strip invalid characters from mask */
+        mask_len = info->mask.Length / sizeof(WCHAR);
+        while (mask_len && strchrW(invalidW, mask[mask_len - 1]))
+            mask_len--;
+
+        if (!mask_len)
+        {
+            strcpyW( info->mask.Buffer, wildcardW );
+            info->mask.Length = strlenW(wildcardW) * sizeof(WCHAR);
+        }
+        else
+        {
+            info->mask.Buffer[mask_len] = 0;
+            info->mask.Length = mask_len * sizeof(WCHAR);
         }
 
         /* truncate dir name before mask */

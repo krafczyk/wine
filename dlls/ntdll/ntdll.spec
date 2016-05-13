@@ -3,6 +3,7 @@
 #if you change a Nt.. function DON'T FORGET to change the
 #Zw one too.
 
+@ stdcall ApiSetQueryApiSetPresence(ptr ptr)
 @ stub CsrAllocateCaptureBuffer
 @ stub CsrAllocateCapturePointer
 @ stub CsrAllocateMessagePointer
@@ -41,6 +42,8 @@
 # @ stub DbgUiStopDebugging
 @ stub DbgUiWaitStateChange
 @ stdcall DbgUserBreakPoint()
+@ stdcall EtwEventRegister(ptr ptr ptr ptr)
+@ stdcall EtwEventSetInformation(int64 long ptr long)
 @ stdcall EtwRegisterTraceGuidsA(ptr ptr ptr long ptr str str ptr)
 @ stdcall EtwRegisterTraceGuidsW(ptr ptr ptr long ptr wstr wstr ptr)
 # @ stub KiFastSystemCall
@@ -269,7 +272,7 @@
 @ stdcall NtQueryPerformanceCounter(ptr ptr)
 # @ stub NtQueryPortInformationProcess
 # @ stub NtQueryQuotaInformationFile
-@ stdcall NtQuerySection (long long long long long)
+@ stdcall NtQuerySection(long long ptr long ptr)
 @ stdcall NtQuerySecurityObject (long long long long long)
 @ stdcall NtQuerySemaphore (long long ptr long ptr)
 @ stdcall NtQuerySymbolicLinkObject(long ptr ptr)
@@ -340,7 +343,7 @@
 @ stdcall NtSetInformationToken(long long ptr long)
 @ stdcall NtSetIntervalProfile(long long)
 @ stdcall NtSetIoCompletion(ptr long ptr long long)
-@ stub NtSetLdtEntries
+@ stdcall NtSetLdtEntries(long long long long long long)
 @ stub NtSetLowEventPair
 @ stub NtSetLowWaitHighEventPair
 @ stub NtSetLowWaitHighThread
@@ -717,7 +720,7 @@
 @ stdcall RtlIpv4AddressToStringW(ptr ptr)
 # @ stub RtlIpv4StringToAddressA
 # @ stub RtlIpv4StringToAddressExA
-@ stdcall RtlIpv4StringToAddressExW(ptr ptr wstr ptr)
+@ stdcall RtlIpv4StringToAddressExW(wstr long ptr ptr)
 # @ stub RtlIpv4StringToAddressW
 # @ stub RtlIpv6AddressToStringA
 # @ stub RtlIpv6AddressToStringExA
@@ -725,7 +728,7 @@
 # @ stub RtlIpv6AddressToStringW
 # @ stub RtlIpv6StringToAddressA
 # @ stub RtlIpv6StringToAddressExA
-# @ stub RtlIpv6StringToAddressExW
+@ stdcall RtlIpv6StringToAddressExW(wstr ptr ptr ptr)
 # @ stub RtlIpv6StringToAddressW
 @ stdcall RtlIsActivationContextActive(ptr)
 @ stdcall RtlIsCriticalSectionLocked(ptr)
@@ -802,6 +805,7 @@
 @ stdcall RtlQueryInformationActivationContext(long long ptr long ptr long ptr)
 @ stub RtlQueryInformationActiveActivationContext
 @ stub RtlQueryInterfaceMemoryStream
+@ stdcall RtlQueryPackageIdentity(long ptr ptr ptr ptr ptr)
 @ stub RtlQueryProcessBackTraceInformation
 @ stdcall RtlQueryProcessDebugInformation(long long ptr)
 @ stub RtlQueryProcessHeapInformation
@@ -1010,7 +1014,9 @@
 @ stdcall TpWaitForWait(ptr long)
 @ stdcall TpWaitForWork(ptr long)
 @ stdcall -ret64 VerSetConditionMask(int64 long long)
+@ stdcall WinSqmEndSession(ptr)
 @ stdcall WinSqmIsOptedIn()
+@ stdcall WinSqmStartSession(ptr long long)
 @ stdcall ZwAcceptConnectPort(ptr long ptr long long ptr) NtAcceptConnectPort
 @ stdcall ZwAccessCheck(ptr long long ptr ptr ptr ptr ptr) NtAccessCheck
 @ stdcall ZwAccessCheckAndAuditAlarm(ptr long ptr ptr ptr long ptr long ptr ptr ptr) NtAccessCheckAndAuditAlarm
@@ -1190,7 +1196,7 @@
 @ stdcall ZwQueryPerformanceCounter(ptr ptr) NtQueryPerformanceCounter
 # @ stub ZwQueryPortInformationProcess
 # @ stub ZwQueryQuotaInformationFile
-@ stdcall ZwQuerySection (long long long long long) NtQuerySection
+@ stdcall ZwQuerySection(long long ptr long ptr) NtQuerySection
 @ stdcall ZwQuerySecurityObject (long long long long long) NtQuerySecurityObject
 @ stdcall ZwQuerySemaphore(long long ptr long ptr) NtQuerySemaphore
 @ stdcall ZwQuerySymbolicLinkObject(long ptr ptr) NtQuerySymbolicLinkObject
@@ -1261,7 +1267,7 @@
 @ stdcall ZwSetInformationToken(long long ptr long) NtSetInformationToken
 @ stdcall ZwSetIntervalProfile(long long) NtSetIntervalProfile
 @ stdcall ZwSetIoCompletion(ptr long ptr long long) NtSetIoCompletion
-@ stub ZwSetLdtEntries
+@ stdcall ZwSetLdtEntries(long long long long long long) NtSetLdtEntries
 @ stub ZwSetLowEventPair
 @ stub ZwSetLowWaitHighEventPair
 @ stub ZwSetLowWaitHighThread
@@ -1463,6 +1469,7 @@
 
 # Server interface
 @ cdecl -norelay wine_server_call(ptr)
+@ cdecl wine_server_close_fds_by_type(long)
 @ cdecl wine_server_fd_to_handle(long long long ptr)
 @ cdecl wine_server_handle_to_fd(long long ptr ptr)
 @ cdecl wine_server_release_fd(long long)
@@ -1471,6 +1478,7 @@
 
 # Version
 @ cdecl wine_get_version() NTDLL_wine_get_version
+@ cdecl wine_get_patches() NTDLL_wine_get_patches
 @ cdecl wine_get_build_id() NTDLL_wine_get_build_id
 @ cdecl wine_get_host_version(ptr ptr) NTDLL_wine_get_host_version
 
@@ -1480,7 +1488,14 @@
 # signal handling
 @ cdecl __wine_set_signal_handler(long ptr)
 
+# Virtual memory management
+@ cdecl wine_uninterrupted_read_memory(ptr ptr long)
+@ cdecl wine_uninterrupted_write_memory(ptr ptr long)
+
 # Filesystem
 @ cdecl wine_nt_to_unix_file_name(ptr ptr long long)
 @ cdecl wine_unix_to_nt_file_name(ptr ptr)
 @ cdecl __wine_init_windows_dir(wstr wstr)
+
+# User shared data
+@ cdecl __wine_user_shared_data()
