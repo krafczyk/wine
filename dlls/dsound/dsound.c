@@ -185,6 +185,8 @@ static HRESULT DirectSoundDevice_Create(DirectSoundDevice ** ppDevice)
 
     RtlInitializeResource(&(device->buffer_list_lock));
 
+    init_eax_device(device);
+
    *ppDevice = device;
 
     return DS_OK;
@@ -237,6 +239,7 @@ static ULONG DirectSoundDevice_Release(DirectSoundDevice * device)
         if(device->volume)
             IAudioStreamVolume_Release(device->volume);
 
+        HeapFree(GetProcessHeap(), 0, device->dsp_buffer);
         HeapFree(GetProcessHeap(), 0, device->tmp_buffer);
         HeapFree(GetProcessHeap(), 0, device->buffer);
         RtlDeleteResource(&device->buffer_list_lock);
@@ -369,6 +372,9 @@ static HRESULT DirectSoundDevice_Initialize(DirectSoundDevice ** ppDevice, LPCGU
     device->drvcaps.dwFlags |= DSCAPS_SECONDARYMONO | DSCAPS_SECONDARYSTEREO;
     device->drvcaps.dwFlags |= DSCAPS_CONTINUOUSRATE;
 
+    /* the driver is certified */
+    device->drvcaps.dwFlags |= DSCAPS_CERTIFIED;
+
     device->drvcaps.dwPrimaryBuffers = 1;
     device->drvcaps.dwMinSecondarySampleRate = DSBFREQUENCY_MIN;
     device->drvcaps.dwMaxSecondarySampleRate = DSBFREQUENCY_MAX;
@@ -467,6 +473,8 @@ static HRESULT DirectSoundDevice_CreateSoundBuffer(
                 WARN("primarybuffer_create() failed\n");
         }
     } else {
+        IDirectSoundBufferImpl * dsb;
+
         if (dsbd->lpwfxFormat == NULL) {
             WARN("invalid parameter: dsbd->lpwfxFormat can't be NULL for "
                  "secondary buffer\n");
@@ -543,8 +551,9 @@ static HRESULT DirectSoundDevice_CreateSoundBuffer(
             return DSERR_INVALIDPARAM;
         }
 
-        hres = secondarybuffer_create(device, dsbd, ppdsb);
-        if (SUCCEEDED(hres)) {
+        hres = IDirectSoundBufferImpl_Create(device, &dsb, dsbd);
+        if (dsb) {
+            *ppdsb = (IDirectSoundBuffer*)&dsb->IDirectSoundBuffer8_iface;
             if (dsbd->dwFlags & DSBCAPS_LOCHARDWARE)
                 device->drvcaps.dwFreeHwMixingAllBuffers--;
         } else
