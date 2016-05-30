@@ -198,24 +198,6 @@ INT WINAPI SetupPromptReboot( HSPFILEQ file_queue, HWND owner, BOOL scan_only )
 }
 
 /***********************************************************************
- *      SetupQueryDrivesInDiskSpaceListA (SETUPAPI.@)
- */
-BOOL WINAPI SetupQueryDrivesInDiskSpaceListA(HDSKSPC disk_space, PSTR return_buffer, DWORD return_buffer_size, PDWORD required_size)
-{
-    FIXME("%p, %p, %d, %p: stub\n", disk_space, return_buffer, return_buffer_size, required_size);
-    return FALSE;
-}
-
-/***********************************************************************
- *      SetupQueryDrivesInDiskSpaceListW (SETUPAPI.@)
- */
-BOOL WINAPI SetupQueryDrivesInDiskSpaceListW(HDSKSPC disk_space, PWSTR return_buffer, DWORD return_buffer_size, PDWORD required_size)
-{
-    FIXME("%p, %p, %d, %p: stub\n", disk_space, return_buffer, return_buffer_size, required_size);
-    return FALSE;
-}
-
-/***********************************************************************
  *      SetupAddToSourceListA (SETUPAPI.@)
  */
 BOOL WINAPI SetupAddToSourceListA(DWORD flags, PCSTR source)
@@ -476,6 +458,15 @@ CONFIGRET WINAPI CM_Set_Class_Registry_PropertyW(LPGUID class, ULONG prop, PVOID
                                                  ULONG flags, HMACHINE machine)
 {
     FIXME("%p %u %p %u 0x%08x %p: stub\n", class, prop, buf, len, flags, machine);
+    return CR_FAILURE;
+}
+
+/***********************************************************************
+ *      CM_Get_DevNode_Status (SETUPAPI.@)
+ */
+CONFIGRET WINAPI CM_Get_DevNode_Status(ULONG *status, ULONG *problem, DEVINST inst, ULONG flags)
+{
+    FIXME("%p %p 0x%08x 0x%08x: stub\n", status, problem, inst, flags);
     return CR_FAILURE;
 }
 

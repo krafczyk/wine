@@ -71,7 +71,7 @@
 @ stdcall CM_Get_DevNode_Registry_PropertyW(long long ptr ptr long long)
 @ stdcall CM_Get_DevNode_Registry_Property_ExA(long long ptr ptr ptr long ptr)
 @ stdcall CM_Get_DevNode_Registry_Property_ExW(long long ptr ptr ptr long ptr)
-@ stub CM_Get_DevNode_Status
+@ stdcall CM_Get_DevNode_Status(ptr ptr long long)
 @ stub CM_Get_DevNode_Status_Ex
 @ stdcall CM_Get_Device_IDA(ptr ptr long long)
 @ stdcall CM_Get_Device_IDW(ptr ptr long long)
@@ -243,9 +243,9 @@
 @ stub SearchForInfFile
 @ stub SetArrayToMultiSzValue
 @ stdcall SetupAddInstallSectionToDiskSpaceListA(long long long str ptr long)
-@ stub SetupAddInstallSectionToDiskSpaceListW
-@ stub SetupAddSectionToDiskSpaceListA
-@ stub SetupAddSectionToDiskSpaceListW
+@ stdcall SetupAddInstallSectionToDiskSpaceListW(long long long wstr ptr long)
+@ stdcall SetupAddSectionToDiskSpaceListA(long long long str long ptr long)
+@ stdcall SetupAddSectionToDiskSpaceListW(long long long wstr long ptr long)
 @ stdcall SetupAddToDiskSpaceListA(long str int64 long ptr long)
 @ stdcall SetupAddToDiskSpaceListW(long wstr int64 long ptr long)
 @ stdcall SetupAddToSourceListA(long str)
