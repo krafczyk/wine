@@ -34,6 +34,7 @@
 #include "ntdll_misc.h"
 #include "wmistr.h"
 #include "evntrace.h"
+#include "evntprov.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(ntdll);
 
@@ -57,6 +58,14 @@ LPCSTR debugstr_us( const UNICODE_STRING *us )
 const char * CDECL NTDLL_wine_get_version(void)
 {
     return wine_get_version();
+}
+
+/*********************************************************************
+ *                  wine_get_patches   (NTDLL.@)
+ */
+const void * CDECL NTDLL_wine_get_patches(void)
+{
+    return wine_get_patches();
 }
 
 /*********************************************************************
@@ -358,6 +367,27 @@ HANDLE WINAPI WinSqmStartSession(GUID *sessionguid, DWORD sessionid, DWORD unkno
     return INVALID_HANDLE_VALUE;
 }
 
+/*********************************************************************
+ *                  EtwEventRegister   (NTDLL.@)
+ */
+ULONG WINAPI EtwEventRegister( LPCGUID provider, PENABLECALLBACK callback, PVOID context, PREGHANDLE handle )
+{
+    FIXME("%s, %p, %p, %p\n", debugstr_guid(provider), callback, context, handle);
+
+    *handle = 0xdeadbeef;
+    return ERROR_SUCCESS;
+}
+
+/*********************************************************************
+ *                  EtwEventSetInformation   (NTDLL.@)
+ */
+ULONG WINAPI EtwEventSetInformation( REGHANDLE handle, EVENT_INFO_CLASS class, PVOID info,
+                                     ULONG length )
+{
+    FIXME("%u, %p, %u\n", class, info, length);
+    return ERROR_SUCCESS;
+}
+
 /******************************************************************************
  *                  EtwRegisterTraceGuidsW (NTDLL.@)
  *
@@ -412,4 +442,15 @@ ULONG WINAPI EtwRegisterTraceGuidsA( WMIDPREQUEST RequestAddress,
           debugstr_guid(ControlGuid), GuidCount, TraceGuidReg, debugstr_a(MofImagePath),
           debugstr_a(MofResourceName), RegistrationHandle);
     return ERROR_SUCCESS;
+}
+
+/*********************************************************************
+ *                  ApiSetQueryApiSetPresence   (NTDLL.@)
+ */
+BOOL WINAPI ApiSetQueryApiSetPresence(const UNICODE_STRING *namespace, BOOLEAN *present)
+{
+    FIXME("(%s, %p) stub!\n", debugstr_us(namespace), present);
+
+    *present = TRUE;
+    return TRUE;
 }
