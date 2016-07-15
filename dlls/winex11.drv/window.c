@@ -269,7 +269,7 @@ static unsigned long get_mwm_decorations( struct x11drv_win_data *data,
     if (data->shaped) return 0;
 
     if (ex_style & WS_EX_TOOLWINDOW) return 0;
-    if (ex_style & WS_EX_LAYERED) return 0;
+    if ((ex_style & (WS_EX_LAYERED | WS_EX_COMPOSITED)) == WS_EX_LAYERED) return 0;
 
     if ((style & WS_CAPTION) == WS_CAPTION)
     {
@@ -858,10 +858,8 @@ static void set_initial_wm_hints( Display *display, Window window )
     /* class hints */
     if ((class_hints = XAllocClassHint()))
     {
-        static char wine[] = "Wine";
-
         class_hints->res_name = process_name;
-        class_hints->res_class = wine;
+        class_hints->res_class = process_name;
         XSetClassHint( display, window, class_hints );
         XFree( class_hints );
     }
@@ -2117,6 +2115,54 @@ BOOL CDECL X11DRV_ScrollDC( HDC hdc, INT dx, INT dy, HRGN update )
 
 
 /***********************************************************************
+ *		SetActiveWindow  (X11DRV.@)
+ */
+void CDECL X11DRV_SetActiveWindow( HWND hwnd )
+{
+    struct x11drv_thread_data *thread_data = x11drv_init_thread_data();
+    struct x11drv_win_data *data;
+
+    TRACE("%p\n", hwnd);
+
+    if (thread_data->active_window == hwnd)
+    {
+        TRACE("ignoring activation for already active window %p\n", hwnd);
+        return;
+    }
+
+    if (!(data = get_win_data( hwnd ))) return;
+
+    if (data->mapped && data->managed)
+    {
+        XEvent xev;
+        struct x11drv_win_data *active = get_win_data( thread_data->active_window );
+        DWORD timestamp = GetMessageTime() - EVENT_x11_time_to_win32_time( 0 );
+
+        TRACE("setting _NET_ACTIVE_WINDOW to %p/%lx, current active %p/%lx\n",
+            data->hwnd, data->whole_window, active ? active->hwnd : NULL, active ? active->whole_window : 0 );
+
+        xev.xclient.type = ClientMessage;
+        xev.xclient.window = data->whole_window;
+        xev.xclient.message_type = x11drv_atom(_NET_ACTIVE_WINDOW);
+        xev.xclient.serial = 0;
+        xev.xclient.display = data->display;
+        xev.xclient.send_event = True;
+        xev.xclient.format = 32;
+
+        xev.xclient.data.l[0] = 1; /* source: application */
+        xev.xclient.data.l[1] = timestamp;
+        xev.xclient.data.l[2] = active ? active->whole_window : 0;
+        xev.xclient.data.l[3] = 0;
+        xev.xclient.data.l[4] = 0;
+        XSendEvent( data->display, root_window, False, SubstructureRedirectMask | SubstructureNotifyMask, &xev );
+
+        if (active) release_win_data( active );
+    }
+
+    release_win_data( data );
+}
+
+/***********************************************************************
  *		SetCapture  (X11DRV.@)
  */
 void CDECL X11DRV_SetCapture( HWND hwnd, UINT flags )
@@ -2379,7 +2425,8 @@ void CDECL X11DRV_WindowPosChanged( HWND hwnd, HWND insert_after, UINT swp_flags
             BOOL needs_map = TRUE;
 
             /* layered windows are mapped only once their attributes are set */
-            if (GetWindowLongW( hwnd, GWL_EXSTYLE ) & WS_EX_LAYERED) needs_map = data->layered;
+            if ((GetWindowLongW( hwnd, GWL_EXSTYLE ) & (WS_EX_LAYERED | WS_EX_COMPOSITED)) == WS_EX_LAYERED)
+                needs_map = data->layered;
             release_win_data( data );
             if (needs_icon) fetch_icon_data( hwnd, 0, 0 );
             if (needs_map) map_window( hwnd, new_style );
@@ -2756,17 +2803,6 @@ LRESULT CDECL X11DRV_SysCommand( HWND hwnd, WPARAM wparam, LPARAM lparam )
         default:               dir = _NET_WM_MOVERESIZE_SIZE_KEYBOARD; break;
         }
         break;
-
-    case SC_KEYMENU:
-        /* prevent a simple ALT press+release from activating the system menu,
-         * as that can get confusing on managed windows */
-        if ((WCHAR)lparam) goto failed;  /* got an explicit char */
-        if (GetMenu( hwnd )) goto failed;  /* window has a real menu */
-        if (!(GetWindowLongW( hwnd, GWL_STYLE ) & WS_SYSMENU)) goto failed;  /* no system menu */
-        TRACE( "ignoring SC_KEYMENU wp %lx lp %lx\n", wparam, lparam );
-        release_win_data( data );
-        return 0;
-
     default:
         goto failed;
     }
