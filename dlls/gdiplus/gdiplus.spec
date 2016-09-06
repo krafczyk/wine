@@ -303,7 +303,7 @@
 303 stdcall GdipGetMetafileHeaderFromFile(wstr ptr)
 304 stdcall GdipGetMetafileHeaderFromMetafile(ptr ptr)
 305 stdcall GdipGetMetafileHeaderFromStream(ptr ptr)
-306 stub GdipGetMetafileHeaderFromWmf
+306 stdcall GdipGetMetafileHeaderFromWmf(ptr ptr ptr)
 307 stdcall GdipGetNearestColor(ptr ptr)
 308 stdcall GdipGetPageScale(ptr ptr)
 309 stdcall GdipGetPageUnit(ptr ptr)
@@ -615,7 +615,7 @@
 615 stub GdipGetEffectParameterSize
 616 stub GdipGetEffectParameters
 617 stdcall GdipSetEffectParameters(ptr ptr long)
-618 stub GdipInitializePalette
+618 stdcall GdipInitializePalette(ptr long long long ptr)
 619 stdcall GdipBitmapCreateApplyEffect(ptr long ptr ptr ptr ptr long ptr ptr)
 620 stdcall GdipBitmapApplyEffect(ptr ptr ptr long ptr ptr)
 621 stub GdipBitmapGetHistogram

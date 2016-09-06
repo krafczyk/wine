@@ -2,7 +2,7 @@
  * Unit test suite for images
  *
  * Copyright (C) 2007 Google (Evan Stade)
- * Copyright (C) 2012 Dmitry Timoshkov
+ * Copyright (C) 2012,2016 Dmitry Timoshkov
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -29,6 +29,8 @@
 #include "objbase.h"
 #include "gdiplus.h"
 #include "wine/test.h"
+
+static GpStatus (WINGDIPAPI *pGdipInitializePalette)(ColorPalette*,PaletteType,INT,BOOL,GpBitmap*);
 
 #define expect(expected, got) ok((got) == (expected), "Expected %d, got %d\n", (UINT)(expected), (UINT)(got))
 #define expectf(expected, got) ok(fabs((expected) - (got)) < 0.0001, "Expected %f, got %f\n", (expected), (got))
@@ -1465,17 +1467,17 @@ static void test_loadwmf(void)
     expect(Ok, stat);
     if (stat == Ok)
     {
-        todo_wine expect(MetafileTypeWmfPlaceable, header.Type);
+        expect(MetafileTypeWmfPlaceable, header.Type);
         todo_wine expect(sizeof(wmfimage)-sizeof(WmfPlaceableFileHeader), header.Size);
         todo_wine expect(0x300, header.Version);
         expect(0, header.EmfPlusFlags);
-        todo_wine expectf(1440.0, header.DpiX);
-        todo_wine expectf(1440.0, header.DpiY);
+        expectf(1440.0, header.DpiX);
+        expectf(1440.0, header.DpiY);
         expect(0, header.X);
         expect(0, header.Y);
-        todo_wine expect(320, header.Width);
-        todo_wine expect(320, header.Height);
-        todo_wine expect(1, U(header).WmfHeader.mtType);
+        expect(320, header.Width);
+        expect(320, header.Height);
+        expect(1, U(header).WmfHeader.mtType);
         expect(0, header.EmfPlusHeaderSize);
         expect(0, header.LogicalDpiX);
         expect(0, header.LogicalDpiY);
@@ -1523,17 +1525,17 @@ static void test_createfromwmf(void)
     expect(Ok, stat);
     if (stat == Ok)
     {
-        todo_wine expect(MetafileTypeWmfPlaceable, header.Type);
+        expect(MetafileTypeWmfPlaceable, header.Type);
         todo_wine expect(sizeof(wmfimage)-sizeof(WmfPlaceableFileHeader), header.Size);
         todo_wine expect(0x300, header.Version);
         expect(0, header.EmfPlusFlags);
-        todo_wine expectf(1440.0, header.DpiX);
-        todo_wine expectf(1440.0, header.DpiY);
+        expectf(1440.0, header.DpiX);
+        expectf(1440.0, header.DpiY);
         expect(0, header.X);
         expect(0, header.Y);
-        todo_wine expect(320, header.Width);
-        todo_wine expect(320, header.Height);
-        todo_wine expect(1, U(header).WmfHeader.mtType);
+        expect(320, header.Width);
+        expect(320, header.Height);
+        expect(1, U(header).WmfHeader.mtType);
         expect(0, header.EmfPlusHeaderSize);
         expect(0, header.LogicalDpiX);
         expect(0, header.LogicalDpiY);
@@ -4785,6 +4787,213 @@ static void test_getadjustedpalette(void)
     GdipDisposeImageAttributes(imageattributes);
 }
 
+/* RGB 24 bpp 1x1 pixel PNG image */
+static const char png_1x1_data[] = {
+  0x89,'P','N','G',0x0d,0x0a,0x1a,0x0a,
+  0x00,0x00,0x00,0x0d,'I','H','D','R',0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x01,0x08,0x02,0x00,0x00,0x00,0x90,0x77,0x53,0xde,
+  0x00,0x00,0x00,0x0c,'I','D','A','T',0x08,0xd7,0x63,0xf8,0xff,0xff,0x3f,0x00,0x05,0xfe,0x02,0xfe,0xdc,0xcc,0x59,0xe7,
+  0x00,0x00,0x00,0x00,'I','E','N','D',0xae,0x42,0x60,0x82
+};
+
+static void test_png_color_formats(void)
+{
+    static const struct
+    {
+        char bit_depth, color_type;
+        PixelFormat format;
+        UINT flags;
+    } td[] =
+    {
+        /* 2 - PNG_COLOR_TYPE_RGB */
+        { 8, 2, PixelFormat24bppRGB, ImageFlagsColorSpaceRGB },
+        /* 0 - PNG_COLOR_TYPE_GRAY */
+        { 1, 0, PixelFormat1bppIndexed, ImageFlagsColorSpaceRGB },
+        { 2, 0, PixelFormat32bppARGB, ImageFlagsColorSpaceGRAY },
+        { 4, 0, PixelFormat32bppARGB, ImageFlagsColorSpaceGRAY },
+        { 8, 0, PixelFormat32bppARGB, ImageFlagsColorSpaceGRAY },
+        { 16, 0, PixelFormat32bppARGB, ImageFlagsColorSpaceGRAY },
+    };
+    BYTE buf[sizeof(png_1x1_data)];
+    GpStatus status;
+    GpImage *image;
+    ImageType type;
+    PixelFormat format;
+    UINT flags;
+    int i;
+
+    for (i = 0; i < sizeof(td)/sizeof(td[0]); i++)
+    {
+        memcpy(buf, png_1x1_data, sizeof(png_1x1_data));
+        buf[24] = td[i].bit_depth;
+        buf[25] = td[i].color_type;
+
+        image = load_image(buf, sizeof(buf));
+        ok(image != NULL, "%d: failed to load image data\n", i);
+        if (!image) continue;
+
+        status = GdipGetImageType(image, &type);
+        ok(status == Ok, "%u: GdipGetImageType error %d\n", i, status);
+        ok(type == ImageTypeBitmap, "%d: wrong image type %d\n", i, type);
+
+        status = GdipGetImagePixelFormat(image, &format);
+        expect(Ok, status);
+        ok(format == td[i].format ||
+           broken(td[i].bit_depth == 1 && td[i].color_type == 0 && format == PixelFormat32bppARGB), /* XP */
+           "%d: expected %#x, got %#x\n", i, td[i].format, format);
+
+        status = GdipGetImageFlags(image, &flags);
+        expect(Ok, status);
+        ok((flags & td[i].flags) == td[i].flags ||
+           broken(td[i].bit_depth == 1 && td[i].color_type == 0 && (flags & ImageFlagsColorSpaceGRAY)), /* XP */
+           "%d: expected %#x, got %#x\n", i, td[i].flags, flags);
+
+        GdipDisposeImage(image);
+    }
+}
+
+static BYTE *init_bitmap(UINT *width, UINT *height, UINT *stride)
+{
+    BYTE *src;
+    UINT i, j, scale;
+
+    *width = 256;
+    *height = 256;
+    *stride = (*width * 3 + 3) & ~3;
+    trace("width %d, height %d, stride %d\n", *width, *height, *stride);
+
+    src = HeapAlloc(GetProcessHeap(), 0, *stride * *height);
+
+    scale = 256 / *width;
+    if (!scale) scale = 1;
+
+    for (i = 0; i < *height; i++)
+    {
+        for (j = 0; j < *width; j++)
+        {
+            src[i * *stride + j*3 + 0] = scale * i;
+            src[i * *stride + j*3 + 1] = scale * (255 - (i+j)/2);
+            src[i * *stride + j*3 + 2] = scale * j;
+        }
+    }
+
+    return src;
+}
+
+static void test_GdipInitializePalette(void)
+{
+    GpStatus status;
+    BYTE *data;
+    GpBitmap *bitmap;
+    ColorPalette *palette;
+    UINT width, height, stride;
+
+    pGdipInitializePalette = (void *)GetProcAddress(GetModuleHandleA("gdiplus.dll"), "GdipInitializePalette");
+    if (!pGdipInitializePalette)
+    {
+        win_skip("GdipInitializePalette is not supported on this platform\n");
+        return;
+    }
+
+    data = init_bitmap(&width, &height, &stride);
+
+    status = GdipCreateBitmapFromScan0(width, height, stride, PixelFormat24bppRGB, data, &bitmap);
+    expect(Ok, status);
+
+    palette = GdipAlloc(sizeof(*palette) + sizeof(ARGB) * 255);
+
+    palette->Flags = 0;
+    palette->Count = 15;
+    status = pGdipInitializePalette(palette, PaletteTypeOptimal, 16, FALSE, bitmap);
+    expect(GenericError, status);
+
+    palette->Flags = 0;
+    palette->Count = 256;
+    status = pGdipInitializePalette(palette, PaletteTypeOptimal, 16, FALSE, NULL);
+    expect(InvalidParameter, status);
+
+    memset(palette->Entries, 0x11, sizeof(ARGB) * 256);
+    palette->Flags = 0;
+    palette->Count = 256;
+    status = pGdipInitializePalette(palette, PaletteTypeCustom, 16, FALSE, NULL);
+    expect(Ok, status);
+    expect(0, palette->Flags);
+    expect(256, palette->Count);
+    expect(0x11111111, palette->Entries[0]);
+    expect(0x11111111, palette->Entries[128]);
+    expect(0x11111111, palette->Entries[255]);
+
+    memset(palette->Entries, 0x11, sizeof(ARGB) * 256);
+    palette->Flags = 0;
+    palette->Count = 256;
+    status = pGdipInitializePalette(palette, PaletteTypeFixedBW, 0, FALSE, bitmap);
+    expect(Ok, status);
+todo_wine
+    expect(0x200, palette->Flags);
+    expect(2, palette->Count);
+    expect(0xff000000, palette->Entries[0]);
+    expect(0xffffffff, palette->Entries[1]);
+
+    memset(palette->Entries, 0x11, sizeof(ARGB) * 256);
+    palette->Flags = 0;
+    palette->Count = 256;
+    status = pGdipInitializePalette(palette, PaletteTypeFixedHalftone8, 1, FALSE, NULL);
+    expect(Ok, status);
+todo_wine
+    expect(0x300, palette->Flags);
+    expect(16, palette->Count);
+    expect(0xff000000, palette->Entries[0]);
+    expect(0xffc0c0c0, palette->Entries[8]);
+    expect(0xff008080, palette->Entries[15]);
+
+    memset(palette->Entries, 0x11, sizeof(ARGB) * 256);
+    palette->Flags = 0;
+    palette->Count = 256;
+    status = pGdipInitializePalette(palette, PaletteTypeFixedHalftone8, 1, FALSE, bitmap);
+    expect(Ok, status);
+todo_wine
+    expect(0x300, palette->Flags);
+    expect(16, palette->Count);
+    expect(0xff000000, palette->Entries[0]);
+    expect(0xffc0c0c0, palette->Entries[8]);
+    expect(0xff008080, palette->Entries[15]);
+
+    memset(palette->Entries, 0x11, sizeof(ARGB) * 256);
+    palette->Flags = 0;
+    palette->Count = 256;
+    status = pGdipInitializePalette(palette, PaletteTypeFixedHalftone252, 1, FALSE, bitmap);
+    expect(Ok, status);
+todo_wine
+    expect(0x800, palette->Flags);
+    expect(252, palette->Count);
+    expect(0xff000000, palette->Entries[0]);
+    expect(0xff990066, palette->Entries[128]);
+    expect(0xffffffff, palette->Entries[251]);
+
+    palette->Flags = 0;
+    palette->Count = 256;
+    status = pGdipInitializePalette(palette, PaletteTypeOptimal, 1, FALSE, bitmap);
+    expect(InvalidParameter, status);
+
+    palette->Flags = 0;
+    palette->Count = 256;
+    status = pGdipInitializePalette(palette, PaletteTypeOptimal, 2, FALSE, bitmap);
+    expect(Ok, status);
+    expect(0, palette->Flags);
+    expect(2, palette->Count);
+
+    palette->Flags = 0;
+    palette->Count = 256;
+    status = pGdipInitializePalette(palette, PaletteTypeOptimal, 16, FALSE, bitmap);
+    expect(Ok, status);
+    expect(0, palette->Flags);
+    expect(16, palette->Count);
+
+    /* passing invalid enumeration palette type crashes under most Windows versions */
+
+    GdipFree(palette);
+    GdipDisposeImage((GpImage *)bitmap);
+}
+
 START_TEST(image)
 {
     struct GdiplusStartupInput gdiplusStartupInput;
@@ -4797,6 +5006,8 @@ START_TEST(image)
 
     GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
 
+    test_GdipInitializePalette();
+    test_png_color_formats();
     test_supported_encoders();
     test_CloneBitmapArea();
     test_ARGB_conversion();

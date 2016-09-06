@@ -1292,6 +1292,14 @@ static const struct wined3d_format_texture_info format_texture_info[] =
             WINED3DFMT_FLAG_TEXTURE | WINED3DFMT_FLAG_POSTPIXELSHADER_BLENDING | WINED3DFMT_FLAG_FILTERING
             | WINED3DFMT_FLAG_RENDERTARGET,
             ARB_TEXTURE_RG,             NULL},
+    {WINED3DFMT_R32G32_UINT,            GL_RG32UI,                        GL_RG32UI,                              0,
+            GL_RG,                      GL_UNSIGNED_INT,                  0,
+            WINED3DFMT_FLAG_TEXTURE | WINED3DFMT_FLAG_RENDERTARGET,
+            ARB_TEXTURE_RG,            NULL},
+    {WINED3DFMT_R32G32_SINT,            GL_RG32I,                         GL_RG32I,                               0,
+            GL_RG,                      GL_INT,                           0,
+            WINED3DFMT_FLAG_TEXTURE | WINED3DFMT_FLAG_RENDERTARGET,
+            ARB_TEXTURE_RG,            NULL},
     {WINED3DFMT_B10G10R10A2_UNORM,      GL_RGB10_A2,                      GL_RGB10_A2,                            0,
             GL_BGRA,                    GL_UNSIGNED_INT_2_10_10_10_REV,   0,
             WINED3DFMT_FLAG_TEXTURE | WINED3DFMT_FLAG_POSTPIXELSHADER_BLENDING | WINED3DFMT_FLAG_FILTERING
@@ -1517,6 +1525,10 @@ static const struct wined3d_format_texture_info format_texture_info[] =
             GL_RGBA_INTEGER,            GL_INT,                           0,
             WINED3DFMT_FLAG_TEXTURE | WINED3DFMT_FLAG_RENDERTARGET,
             EXT_TEXTURE_INTEGER,        NULL},
+    {WINED3DFMT_R24_UNORM_X8_TYPELESS,  GL_DEPTH_COMPONENT24_ARB,         GL_DEPTH_COMPONENT24_ARB,               0,
+            GL_DEPTH_COMPONENT,         GL_UNSIGNED_INT_24_8,             0,
+            WINED3DFMT_FLAG_TEXTURE | WINED3DFMT_FLAG_DEPTH,
+            ARB_DEPTH_TEXTURE,          NULL},
     /* Vendor-specific formats */
     {WINED3DFMT_ATI1N,                  GL_COMPRESSED_RED_RGTC1,          GL_COMPRESSED_RED_RGTC1,                0,
             GL_RED,                     GL_UNSIGNED_BYTE,                 0,
@@ -3926,6 +3938,7 @@ const char *debug_d3dresourcetype(enum wined3d_resource_type resource_type)
     {
 #define WINED3D_TO_STR(x) case x: return #x
         WINED3D_TO_STR(WINED3D_RTYPE_BUFFER);
+        WINED3D_TO_STR(WINED3D_RTYPE_TEXTURE_1D);
         WINED3D_TO_STR(WINED3D_RTYPE_TEXTURE_2D);
         WINED3D_TO_STR(WINED3D_RTYPE_TEXTURE_3D);
 #undef WINED3D_TO_STR
@@ -4530,7 +4543,11 @@ void get_projection_matrix(const struct wined3d_context *context, const struct w
         float y_offset = context->render_offscreen
                 ? (center_offset - (2.0f * y) - h) / h
                 : (center_offset - (2.0f * y) - h) / -h;
+#if !defined(STAGING_CSMT)
         enum wined3d_depth_buffer_type zenable = state->fb->depth_stencil ?
+#else  /* STAGING_CSMT */
+        enum wined3d_depth_buffer_type zenable = state->fb.depth_stencil ?
+#endif /* STAGING_CSMT */
                 state->render_states[WINED3D_RS_ZENABLE] : WINED3D_ZB_FALSE;
         float z_scale = zenable ? 2.0f : 0.0f;
         float z_offset = zenable ? -1.0f : 0.0f;
@@ -5327,7 +5344,11 @@ void gen_ffp_frag_op(const struct wined3d_context *context, const struct wined3d
                 break;
         }
     }
+#if !defined(STAGING_CSMT)
     settings->sRGB_write = !gl_info->supported[ARB_FRAMEBUFFER_SRGB] && needs_srgb_write(context, state, state->fb);
+#else  /* STAGING_CSMT */
+    settings->sRGB_write = !gl_info->supported[ARB_FRAMEBUFFER_SRGB] && needs_srgb_write(context, state, &state->fb);
+#endif /* STAGING_CSMT */
     if (d3d_info->vs_clipping || !use_vs(state) || !state->render_states[WINED3D_RS_CLIPPING]
             || !state->render_states[WINED3D_RS_CLIPPLANEENABLE])
     {
@@ -5424,7 +5445,27 @@ void texture_activate_dimensions(const struct wined3d_texture *texture, const st
     {
         switch (texture->target)
         {
+            case GL_TEXTURE_1D:
+                gl_info->gl_ops.gl.p_glDisable(GL_TEXTURE_2D);
+                checkGLcall("glDisable(GL_TEXTURE_2D)");
+                gl_info->gl_ops.gl.p_glDisable(GL_TEXTURE_3D);
+                checkGLcall("glDisable(GL_TEXTURE_3D)");
+                if (gl_info->supported[ARB_TEXTURE_CUBE_MAP])
+                {
+                    gl_info->gl_ops.gl.p_glDisable(GL_TEXTURE_CUBE_MAP_ARB);
+                    checkGLcall("glDisable(GL_TEXTURE_CUBE_MAP_ARB)");
+                }
+                if (gl_info->supported[ARB_TEXTURE_RECTANGLE])
+                {
+                    gl_info->gl_ops.gl.p_glDisable(GL_TEXTURE_RECTANGLE_ARB);
+                    checkGLcall("glDisable(GL_TEXTURE_RECTANGLE_ARB)");
+                }
+                gl_info->gl_ops.gl.p_glEnable(GL_TEXTURE_1D);
+                checkGLcall("glEnable(GL_TEXTURE_1D)");
+                break;
             case GL_TEXTURE_2D:
+                gl_info->gl_ops.gl.p_glDisable(GL_TEXTURE_1D);
+                checkGLcall("glDisable(GL_TEXTURE_1D)");
                 gl_info->gl_ops.gl.p_glDisable(GL_TEXTURE_3D);
                 checkGLcall("glDisable(GL_TEXTURE_3D)");
                 if (gl_info->supported[ARB_TEXTURE_CUBE_MAP])
@@ -5441,6 +5482,8 @@ void texture_activate_dimensions(const struct wined3d_texture *texture, const st
                 checkGLcall("glEnable(GL_TEXTURE_2D)");
                 break;
             case GL_TEXTURE_RECTANGLE_ARB:
+                gl_info->gl_ops.gl.p_glDisable(GL_TEXTURE_1D);
+                checkGLcall("glDisable(GL_TEXTURE_1D)");
                 gl_info->gl_ops.gl.p_glDisable(GL_TEXTURE_2D);
                 checkGLcall("glDisable(GL_TEXTURE_2D)");
                 gl_info->gl_ops.gl.p_glDisable(GL_TEXTURE_3D);
@@ -5464,12 +5507,16 @@ void texture_activate_dimensions(const struct wined3d_texture *texture, const st
                     gl_info->gl_ops.gl.p_glDisable(GL_TEXTURE_RECTANGLE_ARB);
                     checkGLcall("glDisable(GL_TEXTURE_RECTANGLE_ARB)");
                 }
+                gl_info->gl_ops.gl.p_glDisable(GL_TEXTURE_1D);
+                checkGLcall("glDisable(GL_TEXTURE_1D)");
                 gl_info->gl_ops.gl.p_glDisable(GL_TEXTURE_2D);
                 checkGLcall("glDisable(GL_TEXTURE_2D)");
                 gl_info->gl_ops.gl.p_glEnable(GL_TEXTURE_3D);
                 checkGLcall("glEnable(GL_TEXTURE_3D)");
                 break;
             case GL_TEXTURE_CUBE_MAP_ARB:
+                gl_info->gl_ops.gl.p_glDisable(GL_TEXTURE_1D);
+                checkGLcall("glDisable(GL_TEXTURE_1D)");
                 gl_info->gl_ops.gl.p_glDisable(GL_TEXTURE_2D);
                 checkGLcall("glDisable(GL_TEXTURE_2D)");
                 gl_info->gl_ops.gl.p_glDisable(GL_TEXTURE_3D);
@@ -5486,6 +5533,8 @@ void texture_activate_dimensions(const struct wined3d_texture *texture, const st
     }
     else
     {
+        gl_info->gl_ops.gl.p_glDisable(GL_TEXTURE_1D);
+        checkGLcall("glDisable(GL_TEXTURE_1D)");
         gl_info->gl_ops.gl.p_glEnable(GL_TEXTURE_2D);
         checkGLcall("glEnable(GL_TEXTURE_2D)");
         gl_info->gl_ops.gl.p_glDisable(GL_TEXTURE_3D);

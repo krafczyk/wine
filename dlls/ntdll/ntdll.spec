@@ -3,6 +3,7 @@
 #if you change a Nt.. function DON'T FORGET to change the
 #Zw one too.
 
+@ stdcall ApiSetQueryApiSetPresence(ptr ptr)
 @ stub CsrAllocateCaptureBuffer
 @ stub CsrAllocateCapturePointer
 @ stub CsrAllocateMessagePointer
@@ -41,6 +42,8 @@
 # @ stub DbgUiStopDebugging
 @ stub DbgUiWaitStateChange
 @ stdcall DbgUserBreakPoint()
+@ stdcall EtwEventRegister(ptr ptr ptr ptr)
+@ stdcall EtwEventSetInformation(int64 long ptr long)
 @ stdcall EtwRegisterTraceGuidsA(ptr ptr ptr long ptr str str ptr)
 @ stdcall EtwRegisterTraceGuidsW(ptr ptr ptr long ptr wstr wstr ptr)
 # @ stub KiFastSystemCall
@@ -718,7 +721,7 @@
 @ stdcall RtlIpv4AddressToStringW(ptr ptr)
 # @ stub RtlIpv4StringToAddressA
 # @ stub RtlIpv4StringToAddressExA
-@ stdcall RtlIpv4StringToAddressExW(ptr ptr wstr ptr)
+@ stdcall RtlIpv4StringToAddressExW(wstr long ptr ptr)
 # @ stub RtlIpv4StringToAddressW
 # @ stub RtlIpv6AddressToStringA
 # @ stub RtlIpv6AddressToStringExA
@@ -726,7 +729,7 @@
 # @ stub RtlIpv6AddressToStringW
 # @ stub RtlIpv6StringToAddressA
 # @ stub RtlIpv6StringToAddressExA
-# @ stub RtlIpv6StringToAddressExW
+@ stdcall RtlIpv6StringToAddressExW(wstr ptr ptr ptr)
 # @ stub RtlIpv6StringToAddressW
 @ stdcall RtlIsActivationContextActive(ptr)
 @ stdcall RtlIsCriticalSectionLocked(ptr)
@@ -803,6 +806,7 @@
 @ stdcall RtlQueryInformationActivationContext(long long ptr long ptr long ptr)
 @ stub RtlQueryInformationActiveActivationContext
 @ stub RtlQueryInterfaceMemoryStream
+@ stdcall RtlQueryPackageIdentity(long ptr ptr ptr ptr ptr)
 @ stub RtlQueryProcessBackTraceInformation
 @ stdcall RtlQueryProcessDebugInformation(long long ptr)
 @ stub RtlQueryProcessHeapInformation
@@ -1467,6 +1471,7 @@
 
 # Server interface
 @ cdecl -norelay wine_server_call(ptr)
+@ cdecl wine_server_close_fds_by_type(long)
 @ cdecl wine_server_fd_to_handle(long long long ptr)
 @ cdecl wine_server_handle_to_fd(long long ptr ptr)
 @ cdecl wine_server_release_fd(long long)
@@ -1475,6 +1480,7 @@
 
 # Version
 @ cdecl wine_get_version() NTDLL_wine_get_version
+@ cdecl wine_get_patches() NTDLL_wine_get_patches
 @ cdecl wine_get_build_id() NTDLL_wine_get_build_id
 @ cdecl wine_get_host_version(ptr ptr) NTDLL_wine_get_host_version
 
@@ -1484,7 +1490,14 @@
 # signal handling
 @ cdecl __wine_set_signal_handler(long ptr)
 
+# Virtual memory management
+@ cdecl wine_uninterrupted_read_memory(ptr ptr long)
+@ cdecl wine_uninterrupted_write_memory(ptr ptr long)
+
 # Filesystem
 @ cdecl wine_nt_to_unix_file_name(ptr ptr long long)
 @ cdecl wine_unix_to_nt_file_name(ptr ptr)
 @ cdecl __wine_init_windows_dir(wstr wstr)
+
+# User shared data
+@ cdecl __wine_user_shared_data()
