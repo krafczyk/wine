@@ -29,7 +29,31 @@
 #ifdef HAVE_SYS_MMAN_H
 # include <sys/mman.h>
 #endif
+#ifdef HAVE_SYS_SYSCALL_H
+# include <sys/syscall.h>
+#endif
 #include <unistd.h>
+
+#if defined(__linux__) && (defined(__i386__) || defined(__x86_64__))
+
+/* __NR_memfd_create might not yet be available when buildservers use an old kernel */
+#ifndef __NR_memfd_create
+#ifdef __x86_64__
+#define __NR_memfd_create 319
+#else
+#define __NR_memfd_create 356
+#endif
+#endif
+
+/* the following declarations are only available in linux/fcntl.h, but not fcntl.h */
+#define F_LINUX_SPECIFIC_BASE   1024
+#define F_ADD_SEALS             (F_LINUX_SPECIFIC_BASE + 9)
+#define MFD_ALLOW_SEALING       0x0002U
+#define F_SEAL_SEAL             0x0001
+#define F_SEAL_SHRINK           0x0002
+#define F_SEAL_GROW             0x0004
+
+#endif
 
 #include "ntstatus.h"
 #define WIN32_NO_STATUS
@@ -94,6 +118,7 @@ static const struct object_ops mapping_ops =
     directory_link_name,         /* link_name */
     default_unlink_name,         /* unlink_name */
     no_open_file,                /* open_file */
+    no_alloc_handle,             /* alloc_handle */
     fd_close_handle,             /* close_handle */
     mapping_destroy              /* destroy */
 };
@@ -115,6 +140,10 @@ static const struct fd_ops mapping_fd_ops =
 static struct list shared_list = LIST_INIT(shared_list);
 
 static size_t page_mask;
+
+/* global shared memory */
+shmglobal_t *shmglobal;
+int          shmglobal_fd;
 
 #define ROUND_SIZE(size)  (((size) + page_mask) & ~page_mask)
 
@@ -158,6 +187,52 @@ static int check_current_dir_for_exec(void)
     close( fd );
     unlink( tmpfn );
     return (ret != MAP_FAILED);
+}
+
+/* allocates a block of shared memory */
+int allocate_shared_memory( int *fd, void **memory, size_t size )
+{
+#if defined(__linux__) && (defined(__i386__) || defined(__x86_64__))
+    void *shm_mem;
+    int shm_fd;
+
+    shm_fd = syscall( __NR_memfd_create, "wineserver_shm", MFD_ALLOW_SEALING );
+    if (shm_fd == -1) goto err;
+    if (grow_file( shm_fd, size ))
+    {
+        if (fcntl( shm_fd, F_ADD_SEALS, F_SEAL_SEAL | F_SEAL_SHRINK | F_SEAL_GROW ) >= 0)
+        {
+            shm_mem = mmap( 0, size, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0 );
+            if (shm_mem != MAP_FAILED)
+            {
+                memset( shm_mem, 0, size );
+                *fd     = shm_fd;
+                *memory = shm_mem;
+                return 1;
+            }
+        }
+    }
+    close( shm_fd );
+err:
+#endif
+    *memory = NULL;
+    *fd = -1;
+    return 0;
+}
+
+/* releases a block of shared memory */
+void release_shared_memory( int fd, void *memory, size_t size )
+{
+#if defined(__linux__) && (defined(__i386__) || defined(__x86_64__))
+    if (memory) munmap( memory, size );
+    if (fd != -1) close( fd );
+#endif
+}
+
+/* intialize shared memory management */
+void init_shared_memory( void )
+{
+    allocate_shared_memory( &shmglobal_fd, (void **)&shmglobal, sizeof(*shmglobal) );
 }
 
 /* create a temp file for anonymous mappings */
@@ -533,8 +608,9 @@ static struct object *create_mapping( struct object *root, const struct unicode_
 
         if (flags & SEC_RESERVE)
         {
-            set_error( STATUS_INVALID_PARAMETER );
-            goto error;
+            if (!(mapping->committed = mem_alloc( offsetof(struct ranges, ranges[8]) ))) goto error;
+            mapping->committed->count = 0;
+            mapping->committed->max   = 8;
         }
         if (!(file = get_file_obj( current->process, handle, access ))) goto error;
         fd = get_obj_fd( (struct object *)file );
