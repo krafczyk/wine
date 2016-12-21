@@ -3,7 +3,7 @@
  *
  * Copyright 1999 Ove Kaaven
  * Copyright 2003 Dimitrie O. Paun
- * Copyright 2004, 2005 Dmitry Timoshkov
+ * Copyright 2004,2005,2016 Dmitry Timoshkov
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -97,6 +97,22 @@ typedef struct
         LPARAM lp;
     } u;
 } DRAW_ITEM_STRUCT;
+
+/* encoded MEASUREITEMSTRUCT into a WPARAM */
+typedef struct
+{
+    union
+    {
+        struct
+        {
+            UINT CtlType : 4;
+            UINT CtlID   : 4;
+            UINT itemID  : 4;
+            UINT wParam  : 20;
+        } item;
+        WPARAM wp;
+    } u;
+} MEASURE_ITEM_STRUCT;
 
 static BOOL test_DestroyWindow_flag;
 static HWINEVENTHOOK hEvent_hook;
@@ -1815,6 +1831,25 @@ static BOOL ignore_message( UINT message )
             message == WM_DWMNCRENDERINGCHANGED);
 }
 
+static unsigned hash_Ly_W(const WCHAR *str)
+{
+    unsigned hash = 0;
+
+    for (; *str; str++)
+        hash = hash * 1664525u + (unsigned char)(*str) + 1013904223u;
+
+    return hash;
+}
+
+static unsigned hash_Ly(const char *str)
+{
+    unsigned hash = 0;
+
+    for (; *str; str++)
+        hash = hash * 1664525u + (unsigned char)(*str) + 1013904223u;
+
+    return hash;
+}
 
 #define add_message(msg) add_message_(__LINE__,msg);
 static void add_message_(int line, const struct recvd_message *msg)
@@ -1919,6 +1954,26 @@ static void add_message_(int line, const struct recvd_message *msg)
                 seq->lParam = di.u.lp;
                 break;
             }
+
+            case WM_MEASUREITEM:
+            {
+                MEASURE_ITEM_STRUCT mi;
+                MEASUREITEMSTRUCT *mis = (MEASUREITEMSTRUCT *)msg->lParam;
+
+                sprintf( seq->output, "%s: %p WM_MEASUREITEM: CtlType %#x, CtlID %#x, itemID %#x, itemData %#lx",
+                         msg->descr, msg->hwnd, mis->CtlType, mis->CtlID,
+                         mis->itemID, mis->itemData);
+
+                mi.u.wp = 0;
+                mi.u.item.CtlType = mis->CtlType;
+                mi.u.item.CtlID = mis->CtlID;
+                mi.u.item.itemID = mis->itemID;
+                mi.u.item.wParam = msg->wParam;
+                seq->wParam = mi.u.wp;
+                seq->lParam = mis->itemData ? hash_Ly_W((const WCHAR *)mis->itemData) : 0;
+                break;
+            }
+
             default:
                 if (msg->message >= 0xc000) return;  /* ignore registered messages */
                 sprintf( seq->output, "%s: %p %04x wp %08lx lp %08lx",
@@ -6009,6 +6064,130 @@ static void test_button_messages(void)
     DestroyWindow(parent);
 }
 
+#define ID_RADIO1 0x00e1
+#define ID_RADIO2 0x00e2
+
+static const struct message auto_radio_button_WM_CLICK[] =
+{
+    { BM_CLICK, sent|wparam|lparam, 0, 0 },
+    { WM_LBUTTONDOWN, sent|wparam|lparam|defwinproc, 0, 0 },
+    { EVENT_SYSTEM_CAPTURESTART, winevent_hook|wparam|lparam, 0, 0 },
+    { BM_SETSTATE, sent|wparam|lparam|defwinproc, BST_CHECKED, 0 },
+    { WM_CTLCOLORSTATIC, sent|parent },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { WM_LBUTTONUP, sent|wparam|lparam|defwinproc, 0, 0 },
+    { BM_SETSTATE, sent|wparam|lparam|defwinproc, BST_UNCHECKED, 0 },
+    { WM_CTLCOLORSTATIC, sent|parent },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { WM_GETDLGCODE, sent|wparam|lparam|defwinproc, 0, 0 },
+    { BM_SETCHECK, sent|wparam|lparam|defwinproc, BST_CHECKED, 0 },
+    { WM_GETDLGCODE, sent|wparam|lparam|defwinproc, 0, 0 },
+    { BM_SETCHECK, sent|wparam|lparam|defwinproc, 0, 0 },
+    { WM_CTLCOLORSTATIC, sent|parent },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { WM_GETDLGCODE, sent|wparam|lparam|defwinproc, 0, 0 },
+    { BM_SETCHECK, sent|wparam|lparam|defwinproc, 0, 0 },
+    { WM_CTLCOLORSTATIC, sent|parent },
+    { EVENT_OBJECT_STATECHANGE, winevent_hook|wparam|lparam, OBJID_CLIENT, 0 },
+    { WM_GETDLGCODE, sent|wparam|lparam|defwinproc, 0, 0 },
+    { EVENT_SYSTEM_CAPTUREEND, winevent_hook|wparam|lparam, 0, 0 },
+    { WM_CAPTURECHANGED, sent|wparam|lparam|defwinproc, 0, 0 },
+    { WM_COMMAND, sent|wparam|parent, MAKEWPARAM(ID_RADIO2, BN_CLICKED) },
+    { WM_NCHITTEST, sent|optional, 0, 0 }, /* FIXME: Wine doesn't send it */
+    { WM_SETCURSOR, sent|optional, 0, 0 }, /* FIXME: Wine doesn't send it */
+    { WM_MOUSEMOVE, sent|optional, 0, 0 }, /* FIXME: Wine doesn't send it */
+    { 0 }
+};
+
+static void test_autoradio_messages(void)
+{
+    HWND parent, radio1, radio2, radio3, child;
+    RECT rc;
+    MSG msg;
+    DWORD ret;
+
+    subclass_button();
+
+    parent = CreateWindowExA(0, "TestParentClass", "Test parent", WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+                             100, 100, 200, 200, 0, 0, 0, NULL);
+    ok(parent != 0, "failed to create parent window\n");
+    radio1 = CreateWindowExA(0, "my_button_class", "radio1", WS_VISIBLE | WS_CHILD | WS_GROUP | BS_AUTORADIOBUTTON | BS_NOTIFY,
+                             0, 0, 70, 18, parent, (HMENU)ID_RADIO1, 0, NULL);
+    ok(radio1 != 0, "failed to create child window\n");
+    radio3 = CreateWindowExA(0, "my_button_class", "radio3", WS_VISIBLE | WS_CHILD | BS_RADIOBUTTON | BS_NOTIFY,
+                             0, 25, 70, 18, parent, (HMENU)-1, 0, NULL);
+    ok(radio3 != 0, "failed to create child window\n");
+    child = CreateWindowExA(0, "my_button_class", "text", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON | BS_NOTIFY,
+                           0, 50, 70, 18, parent, (HMENU)-1, 0, NULL);
+    ok(child != 0, "failed to create child window\n");
+    radio2 = CreateWindowExA(0, "my_button_class", "radio2", WS_VISIBLE | WS_CHILD | BS_AUTORADIOBUTTON | BS_NOTIFY,
+                             0, 75, 70, 18, parent, (HMENU)ID_RADIO2, 0, NULL);
+    ok(radio2 != 0, "failed to create child window\n");
+
+    /* this avoids focus messages in the generated sequence */
+    SetFocus(radio2);
+
+    flush_events();
+    flush_sequence();
+
+    ret = SendMessageA(radio1, BM_GETCHECK, 0, 0);
+    ok(ret == BST_UNCHECKED, "got %08x\n", ret);
+    ret = SendMessageA(radio2, BM_GETCHECK, 0, 0);
+    ok(ret == BST_UNCHECKED, "got %08x\n", ret);
+    ret = SendMessageA(radio3, BM_GETCHECK, 0, 0);
+    ok(ret == BST_UNCHECKED, "got %08x\n", ret);
+
+    SendMessageA(radio1, BM_SETCHECK, BST_CHECKED, 0);
+
+    ret = SendMessageA(radio1, BM_GETCHECK, 0, 0);
+    ok(ret == BST_CHECKED, "got %08x\n", ret);
+    ret = SendMessageA(radio2, BM_GETCHECK, 0, 0);
+    ok(ret == BST_UNCHECKED, "got %08x\n", ret);
+    ret = SendMessageA(radio3, BM_GETCHECK, 0, 0);
+    ok(ret == BST_UNCHECKED, "got %08x\n", ret);
+
+    SendMessageA(radio2, BM_SETCHECK, BST_CHECKED, 0);
+
+    ret = SendMessageA(radio1, BM_GETCHECK, 0, 0);
+    ok(ret == BST_CHECKED, "got %08x\n", ret);
+    ret = SendMessageA(radio2, BM_GETCHECK, 0, 0);
+    ok(ret == BST_CHECKED, "got %08x\n", ret);
+    ret = SendMessageA(radio3, BM_GETCHECK, 0, 0);
+    ok(ret == BST_UNCHECKED, "got %08x\n", ret);
+
+    SendMessageA(radio3, BM_SETCHECK, BST_CHECKED, 0);
+
+    ret = SendMessageA(radio1, BM_GETCHECK, 0, 0);
+    ok(ret == BST_CHECKED, "got %08x\n", ret);
+    ret = SendMessageA(radio2, BM_GETCHECK, 0, 0);
+    ok(ret == BST_CHECKED, "got %08x\n", ret);
+    ret = SendMessageA(radio3, BM_GETCHECK, 0, 0);
+    ok(ret == BST_CHECKED, "got %08x\n", ret);
+
+    GetWindowRect(radio2, &rc);
+    SetCursorPos(rc.left+1, rc.top+1);
+
+    flush_events();
+    flush_sequence();
+
+    log_all_parent_messages++;
+
+    SendMessageA(radio2, BM_CLICK, 0, 0);
+    while (PeekMessageA(&msg, 0, 0, 0, PM_REMOVE)) DispatchMessageA(&msg);
+    ok_sequence(auto_radio_button_WM_CLICK, "BM_CLICK on auto-radio button", FALSE);
+
+    log_all_parent_messages--;
+
+    ret = SendMessageA(radio1, BM_GETCHECK, 0, 0);
+    ok(ret == BST_UNCHECKED, "got %08x\n", ret);
+    ret = SendMessageA(radio2, BM_GETCHECK, 0, 0);
+    ok(ret == BST_CHECKED, "got %08x\n", ret);
+    ret = SendMessageA(radio3, BM_GETCHECK, 0, 0);
+    ok(ret == BST_UNCHECKED, "got %08x\n", ret);
+
+    DestroyWindow(parent);
+}
+
 /****************** static message test *************************/
 static const struct message WmSetFontStaticSeq2[] =
 {
@@ -8001,8 +8180,7 @@ static void test_accelerators(void)
     keybd_event(VK_MENU, 0, 0, 0);
     keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0);
     pump_msg_loop(hwnd, 0);
-    /* this test doesn't pass in Wine for managed windows */
-    ok_sequence(WmAltPressRelease, "Alt press/release", TRUE);
+    ok_sequence(WmAltPressRelease, "Alt press/release", FALSE);
 
     trace("testing VK_F1 press/release\n");
     keybd_event(VK_F1, 0, 0, 0);
@@ -8022,7 +8200,7 @@ static void test_accelerators(void)
     keybd_event(VK_F10, 0, 0, 0);
     keybd_event(VK_F10, 0, KEYEVENTF_KEYUP, 0);
     pump_msg_loop(hwnd, 0);
-    ok_sequence(WmVkF10Seq, "VK_F10 press/release", TRUE);
+    ok_sequence(WmVkF10Seq, "VK_F10 press/release", FALSE);
 
     trace("testing SHIFT+F10 press/release\n");
     keybd_event(VK_SHIFT, 0, 0, 0);
@@ -8281,8 +8459,8 @@ static LRESULT WINAPI ParentMsgCheckProcA(HWND hwnd, UINT message, WPARAM wParam
         message == WM_PARENTNOTIFY || message == WM_CANCELMODE ||
 	message == WM_SETFOCUS || message == WM_KILLFOCUS ||
 	message == WM_ENABLE ||	message == WM_ENTERIDLE ||
-	message == WM_DRAWITEM || message == WM_COMMAND ||
-	message == WM_IME_SETCONTEXT)
+	message == WM_DRAWITEM || message == WM_MEASUREITEM ||
+	message == WM_COMMAND || message == WM_IME_SETCONTEXT)
     {
         switch (message)
         {
@@ -8929,6 +9107,7 @@ static void test_timers(void)
     start = GetTickCount();
     while (GetTickCount()-start < 1001 && GetMessageA(&msg, info.hWnd, 0, 0))
         DispatchMessageA(&msg);
+todo_wine
     ok(abs(count-TIMER_COUNT_EXPECTED) < TIMER_COUNT_TOLERANCE /* xp */
        || broken(abs(count-64) < TIMER_COUNT_TOLERANCE) /* most common */
        || broken(abs(count-43) < TIMER_COUNT_TOLERANCE) /* w2k3, win8 */,
@@ -8999,6 +9178,7 @@ static void test_timers_no_wnd(void)
     start = GetTickCount();
     while (GetTickCount()-start < 1001 && GetMessageA(&msg, NULL, 0, 0))
         DispatchMessageA(&msg);
+todo_wine
     ok(abs(count-TIMER_COUNT_EXPECTED) < TIMER_COUNT_TOLERANCE /* xp */
        || broken(abs(count-64) < TIMER_COUNT_TOLERANCE) /* most common */,
        "did not get expected count for minimum timeout (%d != ~%d).\n",
@@ -11037,13 +11217,10 @@ static void test_PeekMessage3(void)
     ok(msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
     PostMessageA(hwnd, WM_USER, 0, 0);
     ret = PeekMessageA(&msg, NULL, 0, 0, PM_NOREMOVE);
-    todo_wine
     ok(ret && msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
     ret = GetMessageA(&msg, NULL, 0, 0);
-    todo_wine
     ok(ret && msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
     ret = GetMessageA(&msg, NULL, 0, 0);
-    todo_wine
     ok(ret && msg.message == WM_USER, "msg.message = %u instead of WM_USER\n", msg.message);
     ret = PeekMessageA(&msg, NULL, 0, 0, 0);
     ok(!ret, "expected PeekMessage to return FALSE, got %u\n", ret);
@@ -11053,10 +11230,8 @@ static void test_PeekMessage3(void)
     ok(msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
     PostMessageA(hwnd, WM_USER, 0, 0);
     ret = PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE);
-    todo_wine
     ok(ret && msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
     ret = PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE);
-    todo_wine
     ok(ret && msg.message == WM_USER, "msg.message = %u instead of WM_USER\n", msg.message);
     ret = PeekMessageA(&msg, NULL, 0, 0, 0);
     ok(!ret, "expected PeekMessage to return FALSE, got %u\n", ret);
@@ -11068,10 +11243,8 @@ static void test_PeekMessage3(void)
     ok(msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
     PostMessageA(hwnd, WM_USER, 0, 0);
     ret = GetMessageA(&msg, NULL, 0, 0);
-    todo_wine
     ok(ret && msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
     ret = GetMessageA(&msg, NULL, 0, 0);
-    todo_wine
     ok(ret && msg.message == WM_USER, "msg.message = %u instead of WM_USER\n", msg.message);
     ret = PeekMessageA(&msg, NULL, 0, 0, 0);
     ok(!ret, "expected PeekMessage to return FALSE, got %u\n", ret);
@@ -11099,11 +11272,28 @@ static void test_PeekMessage3(void)
     ret = GetMessageA(&msg, NULL, 0, 0);
     ok(ret && msg.message == WM_USER, "msg.message = %u instead of WM_USER\n", msg.message);
     ret = GetMessageA(&msg, NULL, 0, 0);
-    todo_wine
     ok(ret && msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
     ret = GetMessageA(&msg, NULL, 0, 0);
-    todo_wine
     ok(ret && msg.message == WM_USER + 1, "msg.message = %u instead of WM_USER + 1\n", msg.message);
+    ret = PeekMessageA(&msg, NULL, 0, 0, 0);
+    ok(!ret, "expected PeekMessage to return FALSE, got %u\n", ret);
+
+    /* Newer messages are still returned when specifying a message range. */
+
+    SetTimer(hwnd, 1, 0, NULL);
+    while (!PeekMessageA(&msg, NULL, WM_TIMER, WM_TIMER, PM_NOREMOVE));
+    ok(msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
+    PostMessageA(hwnd, WM_USER + 1, 0, 0);
+    PostMessageA(hwnd, WM_USER, 0, 0);
+    ret = PeekMessageA(&msg, NULL, WM_USER, WM_USER, PM_NOREMOVE);
+    todo_wine
+    ok(ret && msg.message == WM_USER, "msg.message = %u instead of WM_USER\n", msg.message);
+    ret = PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE);
+    ok(ret && msg.message == WM_TIMER, "msg.message = %u instead of WM_TIMER\n", msg.message);
+    ret = PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE);
+    ok(ret && msg.message == WM_USER + 1, "msg.message = %u instead of WM_USER + 1\n", msg.message);
+    ret = PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE);
+    ok(ret && msg.message == WM_USER, "msg.message = %u instead of WM_USER\n", msg.message);
     ret = PeekMessageA(&msg, NULL, 0, 0, 0);
     ok(!ret, "expected PeekMessage to return FALSE, got %u\n", ret);
 
@@ -13386,6 +13576,16 @@ static const struct message wm_lb_deletestring_reset[] =
     { WM_DRAWITEM, sent|wparam|parent|optional, ID_LISTBOX },
     { 0 }
 };
+static const struct message wm_lb_addstring[] =
+{
+    { LB_ADDSTRING, sent|wparam|lparam, 0, 0xf30604ed },
+    { WM_MEASUREITEM, sent|wparam|lparam|parent, 0xf0f2, 0xf30604ed },
+    { LB_ADDSTRING, sent|wparam|lparam, 0, 0xf30604ee },
+    { WM_MEASUREITEM, sent|wparam|lparam|parent, 0xf1f2, 0xf30604ee },
+    { LB_ADDSTRING, sent|wparam|lparam, 0, 0xf30604ef },
+    { WM_MEASUREITEM, sent|wparam|lparam|parent, 0xf2f2, 0xf30604ef },
+    { 0 }
+};
 
 #define check_lb_state(a1, a2, a3, a4, a5) check_lb_state_dbg(a1, a2, a3, a4, a5, __LINE__)
 
@@ -13411,7 +13611,10 @@ static LRESULT WINAPI listbox_hook_proc(HWND hwnd, UINT message, WPARAM wp, LPAR
         msg.flags = sent|wparam|lparam;
         if (defwndproc_counter) msg.flags |= defwinproc;
         msg.wParam = wp;
-        msg.lParam = lp;
+        if (message == LB_ADDSTRING)
+            msg.lParam = lp ? hash_Ly((const char *)lp) : 0;
+        else
+            msg.lParam = lp;
         msg.descr = "listbox";
         add_message(&msg);
     }
@@ -13455,6 +13658,8 @@ static void test_listbox_messages(void)
 
     check_lb_state(listbox, 0, LB_ERR, 0, 0);
 
+    flush_sequence();
+
     ret = SendMessageA(listbox, LB_ADDSTRING, 0, (LPARAM)"item 0");
     ok(ret == 0, "expected 0, got %ld\n", ret);
     ret = SendMessageA(listbox, LB_ADDSTRING, 0, (LPARAM)"item 1");
@@ -13462,6 +13667,7 @@ static void test_listbox_messages(void)
     ret = SendMessageA(listbox, LB_ADDSTRING, 0, (LPARAM)"item 2");
     ok(ret == 2, "expected 2, got %ld\n", ret);
 
+    ok_sequence(wm_lb_addstring, "LB_ADDSTRING", FALSE);
     check_lb_state(listbox, 3, LB_ERR, 0, 0);
 
     flush_sequence();
@@ -16075,6 +16281,7 @@ START_TEST(msg)
     invisible_parent_tests();
     test_mdi_messages();
     test_button_messages();
+    test_autoradio_messages();
     test_static_messages();
     test_listbox_messages();
     test_combobox_messages();
